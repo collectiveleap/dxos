@@ -355,6 +355,9 @@
       "path": "packages/plugins/plugin-masonry/tsconfig.json"
     },
     {
+      "path": "packages/plugins/plugin-mcp/tsconfig.json"
+    },
+    {
       "path": "packages/plugins/plugin-meeting/tsconfig.json"
     },
     {

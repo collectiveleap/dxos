@@ -1,0 +1,72 @@
+{
+  "name": "@dxos/plugin-mcp",
+  "version": "0.8.3",
+  "private": true,
+  "description": "Plugin for user-configurable MCP server connections",
+  "homepage": "https://dxos.org",
+  "bugs": "https://github.com/dxos/dxos/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dxos/dxos"
+  },
+  "license": "MIT",
+  "author": "DXOS.org",
+  "sideEffects": true,
+  "type": "module",
+  "imports": {
+    "#capabilities": {
+      "source": "./src/capabilities/index.ts",
+      "types": "./src/capabilities/index.ts",
+      "browser": "./src/capabilities/index.ts"
+    },
+    "#components": "./src/components/index.ts",
+    "#containers": "./src/containers/index.ts",
+    "#meta": "./src/meta.ts",
+    "#types": "./src/types/index.ts"
+  },
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/types/src/index.d.ts",
+      "browser": "./dist/lib/browser/index.mjs"
+    },
+    "./types": {
+      "source": "./src/types/index.ts",
+      "types": "./dist/types/src/types/index.d.ts",
+      "browser": "./dist/lib/browser/types/index.mjs"
+    }
+  },
+  "types": "dist/types/src/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "types": [
+        "dist/types/src/types/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@dxos/app-framework": "workspace:*",
+    "@dxos/app-toolkit": "workspace:*",
+    "@dxos/blueprints": "workspace:*",
+    "@dxos/effect": "workspace:*",
+    "@dxos/react-ui": "workspace:*",
+    "@dxos/react-ui-form": "workspace:*",
+    "@dxos/util": "workspace:*",
+    "@effect-atom/atom-react": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  }
+}

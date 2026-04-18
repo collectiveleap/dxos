@@ -615,6 +615,11 @@
         },
         {
           "type": "json",
+          "path": "packages/plugins/plugin-mcp/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/plugins/plugin-meeting/package.json",
           "jsonpath": "$.version"
         },

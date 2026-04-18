@@ -1,0 +1,39 @@
+{
+  "extends": [
+    "../../../tsconfig.base.json"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    "module": "ESNext",
+    "outDir": "dist/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../common/effect"
+    },
+    {
+      "path": "../../common/util"
+    },
+    {
+      "path": "../../core/blueprints"
+    },
+    {
+      "path": "../../sdk/app-framework"
+    },
+    {
+      "path": "../../sdk/app-toolkit"
+    },
+    {
+      "path": "../../ui/react-ui"
+    },
+    {
+      "path": "../../ui/react-ui-form"
+    }
+  ]
+}
