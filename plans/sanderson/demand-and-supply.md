@@ -8,7 +8,7 @@ This document analyzes Steve's daily work using Tony Ulwick's Outcome-Driven Inn
 
 ### Job 1: Secure new professional engagements that match my practice
 
-Build out private practice ("Alright. What's next?") by finding and pursuing opportunities for interim, fractional, or advisory CPO / CTO / CPTO engagements.
+Build out private practice ("Alright. What's next?") by finding and pursuing opportunities for CEO advisory, interim, fractional, CPO / CTO / CPTO engagements, projects like expert network consulting, due diligence, etc.
 
 This job is long-lived and solution-independent. It persists regardless of whether the solution involves job boards, colleague referrals, inbound leads, or something else entirely.
 
@@ -37,12 +37,106 @@ This job is long-lived and solution-independent. It persists regardless of wheth
 | 2.6 | Increase the quality of opportunities surfaced (fit to practice, likelihood of converting) |
 | 2.7 | Increase the likelihood that opportunities come pre-qualified through a trusted relationship |
 | 2.8 | Increase the likelihood that the hiring party has prior awareness of my credibility when I engage |
+| 2.9 | Minimize the likelihood of losing track that someone didn't reply to my outreach |
 
 ### Job 2: Maintain my professional network so it stays active and generates opportunities
 
 Keep relationships alive across both the *personal network* (people known directly through professional relationships) and the *brand network* (people connected through the work itself — community, content, reputation). The desired outcome is that the network generates awareness, referrals, and opportunities over time.
 
 This distinction (personal vs. brand network) comes from a conversation with Greg Bear about how he maintains his network across gregslist and Practical Founder.
+
+### Job 3: Allocate time and attention across competing commitments so the right things get done
+
+Decide what to work on — across professional practice, DXOS, health, finances, and all other areas of life — given finite time and multiple active commitments. This job exists whenever someone has multiple areas of responsibility. It is independent of any tool or system: a person with everything in one notebook still needs to do this job.
+
+This job was previously invisible in the analysis. The activities it encompasses — setting the daily agenda, organizing actions into projects, deciding what to work on next — were originally classified as consumption chain jobs of Tana and Claude Code. They are not. They are steps in this core functional job. The consumption chain concern is the *tool-specific friction* of performing these steps across fragmented systems (Tana, Claude Code for DXOS, Claude Code for "Alright. What's next?", markdown files on disk).
+
+#### Job Map
+
+1. Define what commitments exist and what "done" looks like for each **[define]**
+2. Gather the current status of all active commitments **[locate]**
+3. Assess the urgency, importance, and cost-of-delay for each commitment **[prepare]**
+4. Decide what to work on next **[confirm]**
+5. Work on the selected commitment **[execute]**
+6. Track whether commitments are progressing or stalling **[monitor]**
+7. Rebalance when circumstances change — new commitments arrive, deadlines shift, priorities change **[modify]**
+8. Recognize when a commitment is complete or should be dropped **[conclude]**
+
+**Notes on the job map:**
+- Steps 2–4 repeat throughout the day (the GTD "what should I do next?" loop). Step 1 happens less frequently. Steps 6–8 happen at natural review points.
+- Step 5 is where the *other* core functional jobs live (secure engagements, maintain network, etc.). This job is about what surrounds and connects them.
+- The formerly-classified consumption chain jobs map here: "Set the daily agenda" → Steps 2–3 at start of day. "Organize actions into projects" → Step 1. "Decide what to work on next" → Step 4. "Triage incoming communications" feeds Step 7 (a new commitment arrives via email) but remains a consumption chain job because it is channel-specific overhead.
+
+#### Desired Outcomes
+
+##### Step 1: Define what commitments exist and what "done" looks like for each [define]
+
+| # | Desired Outcome |
+|---|---|
+| 3.1.1 | Minimize the likelihood of carrying a commitment without realizing it |
+| 3.1.2 | Minimize the time it takes to capture a new commitment when it emerges |
+| 3.1.3 | Minimize the likelihood that a commitment's success criteria are ambiguous |
+| 3.1.4 | Minimize the effort required to distinguish between a commitment and a one-off action |
+
+##### Step 2: Gather the current status of all active commitments [locate]
+
+| # | Desired Outcome |
+|---|---|
+| 3.2.1 | Minimize the time it takes to get a complete picture of all active commitments |
+| 3.2.2 | Minimize the likelihood of forgetting a commitment that lives in a secondary system |
+| 3.2.3 | Minimize the effort required to determine the current state of a specific commitment |
+| 3.2.4 | Minimize the likelihood that the status information is stale |
+
+##### Step 3: Assess urgency, importance, and cost-of-delay [prepare]
+
+| # | Desired Outcome |
+|---|---|
+| 3.3.1 | Minimize the time it takes to assess which commitments have the highest cost of delay |
+| 3.3.2 | Minimize the likelihood of underestimating the urgency of a commitment |
+| 3.3.3 | Minimize the effort required to compare commitments across different life areas |
+| 3.3.4 | Minimize the likelihood that a low-urgency commitment becomes a crisis due to neglect |
+
+##### Step 4: Decide what to work on next [confirm]
+
+| # | Desired Outcome |
+|---|---|
+| 3.4.1 | Minimize the time it takes to select the next action to work on |
+| 3.4.2 | Minimize the likelihood of choosing low-value work when high-value work is available |
+| 3.4.3 | Minimize the likelihood of decision paralysis when multiple commitments compete |
+| 3.4.4 | Minimize the effort required to identify the specific next action for a chosen commitment |
+
+##### Step 5: Work on the selected commitment [execute]
+
+| # | Desired Outcome |
+|---|---|
+| 3.5.1 | Minimize the time it takes to get the context needed to resume work on a commitment |
+| 3.5.2 | Minimize the likelihood of losing work products created during execution |
+| 3.5.3 | Minimize the likelihood that working on one commitment causes another to fall behind |
+
+##### Step 6: Track whether commitments are progressing or stalling [monitor]
+
+| # | Desired Outcome |
+|---|---|
+| 3.6.1 | Minimize the time it takes to identify which commitments are stalling |
+| 3.6.2 | Minimize the likelihood of a commitment stalling without being noticed |
+| 3.6.3 | Minimize the effort required to distinguish "waiting on someone else" from "I need to act" |
+| 3.6.4 | Minimize the likelihood that a commitment waiting on someone else is forgotten |
+
+##### Step 7: Rebalance when circumstances change [modify]
+
+| # | Desired Outcome |
+|---|---|
+| 3.7.1 | Minimize the time it takes to re-prioritize when a new commitment arrives |
+| 3.7.2 | Minimize the likelihood that a change in one area silently affects priorities in another |
+| 3.7.3 | Minimize the effort required to defer or reschedule a commitment |
+
+##### Step 8: Recognize when a commitment is complete or should be dropped [conclude]
+
+| # | Desired Outcome |
+|---|---|
+| 3.8.1 | Minimize the likelihood of continuing to carry a commitment that is effectively done |
+| 3.8.2 | Minimize the time it takes to decide whether to drop a commitment that is no longer worth pursuing |
+| 3.8.3 | Minimize the effort required to close out a commitment and archive its artifacts |
 
 ---
 
@@ -67,18 +161,18 @@ These are the specific tools, services, practices, and workflows currently used 
 
 **Outcome satisfaction assessment (current solutions):**
 
-Importance and satisfaction scored on Ulwick's 1–5 scale (1 = not at all, 5 = extremely).
+Importance and satisfaction scored on Ulwick's 1–5 scale (1 = not at all, 5 = extremely). Opportunity scores computed on 0–20 scale using linear normalization for N=1 (see [outcome-driven-innovation.space.md](outcome-driven-innovation.space.md#single-respondent-problem-n1)).
 
-| # | Desired Outcome | Imp. | Sat. | Gap | Notes |
+| # | Desired Outcome | Imp. | Sat. | Opp. | Notes |
 |---|---|---|---|---|---|
-| 2.1 | Minimize the time it takes to identify a relevant opportunity | 5 | 2 | 3 | Manual scan of 4+ boards daily is time-consuming |
-| 2.2 | Minimize the likelihood of missing a relevant opportunity | 5 | 2 | 3 | Inconsistent daily execution means opportunities are missed |
-| 2.3 | Minimize the effort required to scan multiple sources | 5 | 2 | 3 | Each source requires separate manual visit and review |
-| 2.4 | Minimize the likelihood that an opportunity expires before I notice it | 5 | 1 | 4 | No alerting; depends on daily scan cadence |
-| 2.5 | Minimize the time to determine whether an opportunity matches my criteria | 5 | 4 | 1 | Judgment is fast once seen |
-| 2.6 | Increase the quality of opportunities surfaced | 5 | 3 | 2 | Job boards are broad; most listings don't match |
-| 2.7 | Increase the likelihood that opportunities come pre-qualified through a trusted relationship | 5 | 1 | 4 | Warm outreach is done inconsistently |
-| 2.8 | Increase the likelihood that the hiring party has prior awareness of my credibility | 5 | 3 | 2 | Only referral path provides this; referral path is underserved |
+| 2.1 | Minimize the time it takes to identify a relevant opportunity | 5 | 2 | 17.5 | Manual scan of 4+ boards daily is time-consuming |
+| 2.2 | Minimize the likelihood of missing a relevant opportunity | 5 | 2 | 17.5 | Inconsistent daily execution means opportunities are missed |
+| 2.3 | Minimize the effort required to scan multiple sources | 5 | 2 | 17.5 | Each source requires separate manual visit and review |
+| 2.4 | Minimize the likelihood that an opportunity expires before I notice it | 5 | 1 | 20.0 | No alerting; depends on daily scan cadence |
+| 2.5 | Minimize the time to determine whether an opportunity matches my criteria | 5 | 4 | 12.5 | Judgment is fast once seen |
+| 2.6 | Increase the quality of opportunities surfaced | 5 | 3 | 15.0 | Job boards are broad; most listings don't match |
+| 2.7 | Increase the likelihood that opportunities come pre-qualified through a trusted relationship | 5 | 1 | 20.0 | Warm outreach is done inconsistently |
+| 2.8 | Increase the likelihood that the hiring party has prior awareness of my credibility | 5 | 3 | 15.0 | Only referral path provides this; referral path is underserved |
 
 **Note:** The job board solutions primarily serve outcomes 2.1–2.5 (speed, coverage, effort). Warm outreach primarily serves outcomes 2.6–2.8 (quality, pre-qualification, credibility awareness). This is a structural difference — job boards cast a wide net; referrals produce fewer but higher-quality opportunities. Both are needed; the referral path is currently underserved due to inconsistent execution. Most outcomes are underserved, indicating significant opportunity for new solutions.
 
@@ -86,21 +180,37 @@ Importance and satisfaction scored on Ulwick's 1–5 scale (1 = not at all, 5 = 
 
 `[TODO]` Solutions for steps 1, 3–8 to be enumerated.
 
+### Job 3: Allocate time and attention
+
+#### Current solutions
+
+| Solution | Description | Serves Steps |
+|---|---|---|
+| Tana projects and actions | Projects with attributes (cost of delay, stakes), actions assigned to projects, scheduled/waiting states. Used for practice, DXOS, health, finances, sailboat, and other life areas. | 1 (define), 2 (locate), 3 (prepare), 4 (confirm), 6 (monitor), 7 (modify), 8 (conclude) |
+| Claude Code (DXOS env) — markdown plans and tasks | Plans in `docs/plans/`, task lists in Claude Code sessions, worktree-based project isolation. Projects and actions created during coding sessions. | 1 (define), 5 (execute) |
+| Claude Code ("Alright. What's next?" env) — markdown plans and tasks | Plans and actions for private practice work (demand analysis, content creation, outreach). Projects and actions created during sessions. | 1 (define), 5 (execute) |
+| Manual daily review in Tana | Morning review of scheduled/overdue/waiting actions to set daily agenda. | 2 (locate), 3 (prepare) |
+| Mental integration across systems | Remembering what projects exist in each Claude Code environment and mentally merging with Tana's view. No systematic process. | 2 (locate), 4 (confirm) |
+
+**Key problem:** Steps 2 (locate) and 4 (confirm) require information from all three systems, but no system has a complete view. Tana has the broadest coverage but doesn't see Claude Code projects. Claude Code environments are siloed from each other and from Tana. The "solution" for cross-system visibility is human memory, which is unreliable.
+
+**Pipelines that span systems:**
+- **Outreach pipeline**: Colleague referral outreach is tracked in Tana but depends on projects and actions in the "Alright. What's next?" Claude Code environment (e.g., crafting outreach messages, researching contacts).
+- **Content/publishing pipeline**: Post pipeline is tracked in Tana but the posts themselves are created in the "Alright. What's next?" Claude Code environment.
+
+These cross-system pipelines mean that even within a single commitment, the actions live in multiple places.
+
+`[TODO]` Score Job 3 desired outcomes for importance and satisfaction against these current solutions.
+
 ### Consumption Chain Jobs
 
-These are solution-specific activities performed daily in service of the core functional jobs. They exist because of the specific solutions in use — they are the overhead of managing those solutions. Organized by function, not by time-of-day.
+These are solution-specific activities performed daily in service of the core functional jobs. They exist because of the specific solutions in use — they are the overhead of managing those solutions.
 
-#### Set the daily agenda
-
-Review actions to surface what must happen today:
-- Review any action waiting on someone else — if the waiting period has expired, surface it as something to act on today.
-- Review any action scheduled for today, or past due, and surface it for today.
-
-This is typically the first activity of the day. Serves all core jobs.
+**Note:** Three activities previously listed here — "Set the daily agenda," "Organize actions into projects," and "Decide what to work on next" — have been promoted to steps within Job 3 (Allocate time and attention). They are not consumption chain jobs; they are core functional job steps. What remains as consumption chain is the *tool-specific friction* of performing those steps: switching between Tana and Claude Code environments, mentally merging project lists from multiple systems, etc.
 
 #### Triage incoming communications
 
-Process inputs from multiple channels so nothing important falls through the cracks. Each item gets classified, a decision is made on action, and it gets routed to the right project/context. Serves Job 1 (a recruiter emails) and Job 2 (a contact reaches out).
+Process inputs from multiple channels so nothing important falls through the cracks. Each item gets classified, a decision is made on action, and it gets routed to the right project/context. Serves Job 1 (a recruiter emails), Job 2 (a contact reaches out), and feeds Job 3 Step 7 (a new commitment arrives). Currently managed manually across all channels.
 
 Channels:
 
@@ -120,42 +230,139 @@ Rules vary by source and sender. For example:
 - A newsletter (e.g., Whole Dog Journal) → quick scan, decide whether to save as reference.
 - A LinkedIn notification from someone being "watched" → create a follow-up action to reach out with something personal, with the goal of maintaining/increasing their awareness.
 
-The desired outcome is a system that learns these rules over time and applies them with increasing accuracy.
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| T1.1 | Minimize the time it takes to process all incoming messages across channels | 5 | 2 | 17.5 |
+| T1.2 | Minimize the likelihood that an important message is missed or overlooked | 5 | 4 | 12.5 |
+| T1.3 | Minimize the effort required to switch between communication channels | 4 | 3 | 10.0 |
+| T1.4 | Minimize the likelihood of applying the wrong action to a message | 5 | 4 | 12.5 |
+| T1.5 | Minimize the time it takes to research an unknown sender and their organization | 5 | 2 | 17.5 |
+| T1.6 | Minimize the effort required to create a follow-up action from a message | 4 | 4 | 7.5 |
+| T1.7 | Increase the consistency with which triage rules are applied across messages | 5 | 3 | 15.0 |
 
 #### Manual scan of job boards
 
-Check job boards daily for opportunities worth pursuing. Primarily serves Job 1.
+Check job boards daily for opportunities worth pursuing. Primarily serves Job 1. Currently done manually.
 
 Sources: FractionalJobs.io, ExecThread, GLG.
 
 When an opportunity passes the relevance bar, create a project to track the application process.
 
-#### Organize actions into projects
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| S1.1 | Minimize the time it takes to scan all job boards for new listings | 5 | 2 | 17.5 |
+| S1.2 | Minimize the likelihood of missing a new relevant listing | 5 | 2 | 17.5 |
+| S1.3 | Minimize the effort required to visit and review each board separately | 5 | 1 | 20.0 |
+| S1.4 | Minimize the time it takes to determine if a listing is worth pursuing | 5 | 4 | 12.5 |
+| S1.5 | Minimize the likelihood that a listing expires before I see it | 5 | 3 | 15.0 |
 
-Triage actions that haven't been assigned to a project. Assign them to the right project context and set attributes (e.g., cost of delay, stakes of not finishing). The goal is that all actions are correctly set up so they appear in the right context for prioritization. Serves all core jobs.
+### Opportunity Landscape
 
-Currently managed in Tana.
+`[TODO]` Job 3 outcomes (3.1.1–3.8.3) need importance/satisfaction scoring before they can be included in the opportunity landscape. The landscape below includes only scored outcomes from Job 1 Step 2, consumption chain (triage, scan), and will be rebuilt once Job 3 is scored.
 
-#### Decide what to work on next
+Scored outcomes from Job 1 Step 2 and remaining consumption chain jobs (triage, scan). Based on a single respondent (Steve) using raw 1–5 scores, normalized to 0–10 via linear rescaling for N=1 (see [outcome-driven-innovation.space.md](outcome-driven-innovation.space.md#single-respondent-problem-n1)). Opportunity scores on the 0–20 scale using Ulwick's published thresholds.
 
-Review actions across active projects (excluding those that are "waiting" or "scheduled" — those are handled by the daily agenda). Use attributes like cost of delay and stakes to decide what to work on next. This is not a hard commitment — it's more "consider this as next." This question repeats throughout the day whenever it's time to pick up something new. It's the GTD question: "what should I do next?" Serves all core jobs.
+**Summary by opportunity score:**
 
-Currently managed in Tana.
+Opportunity score = norm_imp + max(norm_imp - norm_sat, 0), where normalized = (raw - 1) × 2.5. Range 0–20.
+
+| Opp. Score | Threshold | Count | Outcomes |
+|---|---|---|---|
+| 20.0 | Extreme (>15) | 3 | 2.4, 2.7, S1.3 |
+| 17.5 | Extreme (>15) | 7 | 2.1, 2.2, 2.3, T1.1, T1.5, S1.1, S1.2 |
+| 15.0 | Low-hanging fruit (12–15) | 4 | 2.6, 2.8, T1.7, S1.5 |
+| 12.5 | Low-hanging fruit (12–15) | 4 | 2.5, T1.2, T1.4, S1.4 |
+| 10.0 | Worthy of consideration (10–12) | 1 | T1.3 |
+| 7.5 | Unattractive (<10) | 1 | T1.6 |
+
+#### Opportunity Clusters
+
+Outcomes clustered by theme — each cluster represents a coherent set of underserved outcomes that a single solution concept could address. Per ODI methodology for single-respondent use, outcomes are grouped by the solution direction they point toward, not by customer segment.
+
+**Cluster A: Automated scanning and alerting**
+*Theme: "I shouldn't have to manually visit multiple sources daily."*
+
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| S1.3 | Minimize the effort required to visit and review each board separately | 5 | 1 | 20.0 |
+| 2.4 | Minimize the likelihood that an opportunity expires before I notice it | 5 | 1 | 20.0 |
+| 2.1 | Minimize the time it takes to identify a relevant opportunity | 5 | 2 | 17.5 |
+| 2.2 | Minimize the likelihood of missing a relevant opportunity | 5 | 2 | 17.5 |
+| 2.3 | Minimize the effort required to scan multiple sources | 5 | 2 | 17.5 |
+| S1.1 | Minimize the time it takes to scan all job boards for new listings | 5 | 2 | 17.5 |
+| S1.2 | Minimize the likelihood of missing a new relevant listing | 5 | 2 | 17.5 |
+| S1.5 | Minimize the likelihood that a listing expires before I see it | 5 | 3 | 15.0 |
+
+Total outcomes: 8. Avg Opp.: 17.8. All importance = 5.
+
+**Cluster B: Consistent referral and outreach pipeline**
+*Theme: "My warm network should generate higher-quality opportunities consistently."*
+
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| 2.7 | Increase the likelihood that opportunities come pre-qualified through a trusted relationship | 5 | 1 | 20.0 |
+| 2.6 | Increase the quality of opportunities surfaced | 5 | 3 | 15.0 |
+| 2.8 | Increase the likelihood that the hiring party has prior awareness of my credibility | 5 | 3 | 15.0 |
+
+Total outcomes: 3. Avg Opp.: 16.7. All importance = 5.
+
+**Cluster C: Attention allocation across fragmented systems**
+*Theme: "I need to know what all my commitments are and which one to work on next — across all systems."*
+
+This cluster is anchored by Job 3 (Allocate time and attention). The 28 desired outcomes in Job 3 (3.1.1–3.8.3) have not yet been scored for importance and satisfaction. Once scored, this cluster will likely be the largest in the landscape. The core pain — projects and actions scattered across Tana, Claude Code for DXOS, and Claude Code for "Alright. What's next?" — maps directly to outcomes 3.2.1 (complete picture of all commitments), 3.2.2 (forgetting commitments in secondary systems), 3.4.1 (selecting next action), and 3.4.2 (choosing low-value work).
+
+`[TODO]` Score Job 3 outcomes and rebuild this cluster with scored data.
+
+**Cluster D: Intelligent triage and routing**
+*Theme: "Incoming messages should be automatically classified, researched, and routed."*
+
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| T1.1 | Minimize the time it takes to process all incoming messages across channels | 5 | 2 | 17.5 |
+| T1.5 | Minimize the time it takes to research an unknown sender and their organization | 5 | 2 | 17.5 |
+| T1.7 | Increase the consistency with which triage rules are applied | 5 | 3 | 15.0 |
+
+Total outcomes: 3. Avg Opp.: 16.7. All importance = 5.
+
+**Appropriately served (not clustered):**
+These outcomes have opportunity scores of 7.5–12.5 and do not represent significant innovation opportunities. They reflect areas where Steve's judgment is fast once information is in front of him.
+
+| # | Desired Outcome | Imp. | Sat. | Opp. |
+|---|---|---|---|---|
+| 2.5 | Minimize the time to determine whether an opportunity matches my criteria | 5 | 4 | 12.5 |
+| T1.2 | Minimize the likelihood that an important message is missed or overlooked | 5 | 4 | 12.5 |
+| T1.4 | Minimize the likelihood of applying the wrong action to a message | 5 | 4 | 12.5 |
+| S1.4 | Minimize the time it takes to determine if a listing is worth pursuing | 5 | 4 | 12.5 |
+| T1.3 | Minimize the effort required to switch between communication channels | 4 | 3 | 10.0 |
+| T1.6 | Minimize the effort required to create a follow-up action from a message | 4 | 4 | 7.5 |
+
+**Cluster summary:**
+
+| Cluster | Theme | Scored Outcomes | Avg Opp. | Priority |
+|---|---|---|---|---|
+| A | Automated scanning and alerting | 8 | 17.8 | Highest — extreme (>15) |
+| B | Consistent referral and outreach pipeline | 3 | 16.7 | High — extreme (>15) |
+| D | Intelligent triage and routing | 3 | 16.7 | High — extreme (>15) |
+| C | Attention allocation across fragmented systems | 28 (unscored) | TBD | Expected high — core pain point |
+| — | Appropriately served | 6 | 11.3 | Low — worthy of consideration (10–12) |
+
+**Key insight:** Cluster C (attention allocation) is expected to dominate the landscape once scored. It represents the broadest area of underserved need — 28 outcomes across 8 job steps — and the struggle that prompted Job 3's identification. The tool fragmentation across Tana and two Claude Code environments compounds every outcome in this cluster.
 
 ### Possible Solutions (addressing underserved outcomes)
 
-The outcome satisfaction assessment above shows most outcomes for Job 1 Step 2 are underserved (high importance, low satisfaction). The following solutions are hypothesized to better satisfy those outcomes.
+The opportunity clusters above identify four innovation directions. The following solutions are mapped to the clusters they address.
 
 #### MCP as a solution
 
 MCP servers could provide the assistant with access to external services, enabling it to perform consumption chain jobs on Steve's behalf.
 
-| Use Case | Underserved Outcomes Addressed | Core Job |
-|---|---|---|
-| Automated scan of LinkedIn notifications to surface relevant activity | 2.1, 2.2, 2.3, 2.4 (time, coverage, effort, timeliness) | Job 1, Job 2 |
-| Automated review of LinkedIn network suggestions to flag people of interest | 2.1, 2.2, 2.3 (time, coverage, effort) | Job 1, Job 2 |
-| Fill out background info on a contact and their organization | 2.5, 2.6 (matching speed, quality) | Job 1, Job 2 |
-| Migrate projects and related content from Tana into DXOS Composer | Enables Composer as central hub (see below) | All core jobs |
+| Use Case | Underserved Outcomes Addressed |
+|---|---|
+| Automated scan of LinkedIn notifications to surface relevant activity | **Job 1**: 2.1 (opp 17.5), 2.2 (opp 17.5), 2.3 (opp 17.5), 2.4 (opp 20). **Scan**: S1.1 (opp 17.5), S1.2 (opp 17.5) |
+| Automated review of LinkedIn network suggestions to flag people of interest | **Job 1**: 2.1 (opp 17.5), 2.2 (opp 17.5), 2.3 (opp 17.5) |
+| Automated scan of job boards (FractionalJobs.io, ExecThread, GLG) | **Scan**: S1.1 (opp 17.5), S1.2 (opp 17.5), S1.3 (opp 20), S1.5 (opp 15) |
+| Fill out background info on a contact and their organization | **Triage**: T1.5 (opp 17.5). **Job 1**: 2.5 (opp 12.5), 2.6 (opp 15) |
+| Migrate projects and related content from Tana into DXOS Composer (via [Tana Local API MCP](https://outliner.tana.inc/docs/local-api-mcp)) | **Job 3**: enables unified view of commitments (3.2.1, 3.2.2) |
 
 #### DXOS Composer as a solution
 
@@ -170,14 +377,40 @@ Composer could serve as the central hub for managing daily work, replacing or au
 - LinkedIn notifications
 - MyChart
 
-This would shift "triage incoming communications" from a manual daily sweep across many apps to an event-driven system where items arrive in Composer and get processed there. Directly addresses underserved outcomes around timeliness (2.4) and effort (2.3) — items would surface without manual scanning.
+This would shift "triage incoming communications" from a manual daily sweep across many apps to an event-driven system where items arrive in Composer and get processed there.
+
+| Underserved Outcomes Addressed |
+|---|
+| **Triage**: T1.1 (opp 17.5) — processing time eliminated by event-driven arrival |
+| **Triage**: T1.3 (opp 10) — no more switching between apps |
+| **Triage**: T1.5 (opp 17.5) — assistant can auto-research unknown senders |
+| **Scan**: S1.1 (opp 17.5), S1.3 (opp 20) — boards scanned automatically |
+| **Job 1**: 2.3 (opp 17.5), 2.4 (opp 20) — effort and timeliness |
+| **Job 3**: 3.7.1 — new commitments surface automatically for re-prioritization |
 
 **Automated / augmented rule learning:** Composer (through some combination of plugins, prompts, blueprints, and/or markdown documents) could learn and apply the rules for what to do with each incoming item — increasing the speed and consistency of triage over time. For example:
 - Recognizing a sender and auto-linking to the right project
 - Suggesting an action based on past patterns for similar items
 - Applying known rules (e.g., "Whole Dog Journal → reference only") without prompting
 
-Addresses underserved outcomes around matching speed (2.5) and quality (2.6). Also reduces the likelihood of inconsistent execution (2.2, 2.7) by automating what is currently done manually and sporadically.
+| Underserved Outcomes Addressed |
+|---|
+| **Triage**: T1.7 (opp 15) — rules applied consistently by the system |
+| **Job 3**: 3.1.2 — new commitments captured automatically when they emerge |
+| **Job 3**: 3.1.1 — reduces likelihood of carrying unrecognized commitments |
+| **Job 1**: 2.6 (opp 15) — better filtering improves quality of what surfaces |
+
+**Centralized project and action management:** If Tana projects are migrated into Composer (via [Tana Local API MCP](https://outliner.tana.inc/docs/local-api-mcp)), and Claude Code environments write their projects/actions into the same system, attention allocation (Job 3) happens in one place.
+
+| Underserved Outcomes Addressed |
+|---|
+| **Job 3**: 3.2.1 — complete picture of all active commitments in one system |
+| **Job 3**: 3.2.2 — no commitments hidden in secondary systems |
+| **Job 3**: 3.3.3 — compare commitments across life areas without switching tools |
+| **Job 3**: 3.4.1, 3.4.2 — select next action from a complete, prioritized view |
+| **Job 3**: 3.5.1 — context for resuming work is co-located with the commitment |
+| **Job 3**: 3.6.1, 3.6.2 — stalling commitments visible in one dashboard |
+| **Job 1**: 2.7 (opp 20) — system can prompt for outreach consistency |
 
 ---
 
