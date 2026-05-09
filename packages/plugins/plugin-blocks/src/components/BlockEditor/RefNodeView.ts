@@ -9,18 +9,14 @@ import { Obj } from '@dxos/echo';
 
 export type ResolveRef = (dxn: string) => any;
 
-// Increment 4: vanilla NodeView for the inline ref node. Resolves the target
-// by DXN at mount and on each ProseMirror update() call, then writes the
-// target's current label into the rendered span.
-//
-// Live-rename on external mutation isn't subscribed yet (deferred to I4b).
-// The label refreshes whenever ProseMirror calls update() — typically on
-// any doc edit in the same paragraph — so a rename followed by any local
-// edit will refresh the label immediately.
+// Increment 4b: vanilla NodeView for the inline ref node. Resolves the target
+// at mount, subscribes to it via Obj.subscribe so a rename of the target
+// propagates to the rendered label without any local edit.
 export class RefNodeView {
   readonly dom: HTMLElement;
   #dxn: string;
   #resolveRef: ResolveRef;
+  #unsubscribe?: () => void;
 
   constructor(node: Node, _view: EditorView, _getPos: () => number | undefined, resolveRef: ResolveRef) {
     this.#dxn = (node.attrs.dxn as string) ?? '';
@@ -28,7 +24,7 @@ export class RefNodeView {
     this.dom = document.createElement('span');
     this.dom.className = 'block-ref';
     this.dom.setAttribute('data-dxn', this.#dxn);
-    this.#render();
+    this.#bind();
   }
 
   update(node: Node): boolean {
@@ -39,14 +35,27 @@ export class RefNodeView {
     if (nextDxn !== this.#dxn) {
       this.#dxn = nextDxn;
       this.dom.setAttribute('data-dxn', this.#dxn);
+      this.#bind();
+    } else {
+      this.#render();
     }
-    // Always re-render so a rename of the target propagates.
-    this.#render();
     return true;
   }
 
   destroy(): void {
-    // No subscriptions to clean up yet.
+    this.#unsubscribe?.();
+  }
+
+  // (Re)resolve the target and subscribe so external mutations to its fields
+  // (notably rename via Obj.update) propagate into the rendered label.
+  #bind(): void {
+    this.#unsubscribe?.();
+    this.#unsubscribe = undefined;
+    this.#render();
+    const target = this.#dxn ? this.#resolveRef(this.#dxn) : undefined;
+    if (target) {
+      this.#unsubscribe = Obj.subscribe(target, () => this.#render());
+    }
   }
 
   #render(): void {

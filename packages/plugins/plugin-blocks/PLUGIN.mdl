@@ -254,8 +254,21 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
 ```
 
 ```mdl
-feat F-4b: Live rename propagation   # Future increment
-  req F-4b.1: Renaming a target object updates the rendered label in all bullets that ref it, without requiring a local edit.
+feat F-4b: Live rename propagation   # Increment 4b (current)
+  desc: |
+    The RefNodeView subscribes to the resolved target via Obj.subscribe at
+    mount and re-binds whenever its `dxn` attribute changes. Any field
+    mutation on the target — including a rename — fires the subscription
+    callback and refreshes the rendered label, with no local edit required.
+  req F-4b.1:
+    when: a target object's label changes (Obj.update m.name = ...) anywhere
+    then: every visible inline ref pointing at that target re-renders with the new label
+  req F-4b.2:
+    when: an inline ref's dxn attribute changes (e.g., re-targeting in a future increment)
+    then: the previous target's subscription is released and the new target's is bound
+  req F-4b.3:
+    when: the editor unmounts (block re-parented, outline closed)
+    then: all ref subscriptions are released via NodeView.destroy
 ```
 
 ```mdl
@@ -346,6 +359,15 @@ test T-7: Increment 4 — @-mention inserts a ref
     - Block.content contains a RefSpan segment with target pointing at the chosen object
     - the rendered text shows the target's current label
     - on reload the ref persists with the same DXN
+```
+
+```mdl
+test T-8: Increment 4b — rename propagates without local edit
+  given: an outline that contains an inline ref to a target object T with label "alpha"
+  when: T is renamed to "beta" by another panel or peer (no local edit in the outline)
+  then:
+    - within one tick, the rendered label in the outline updates from "alpha" to "beta"
+    - no manual reload or focus-change is required
 ```
 
 ---
