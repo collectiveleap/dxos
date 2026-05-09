@@ -22,7 +22,15 @@ export const schema = new Schema({
       atom: true,
       selectable: true,
       attrs: { dxn: { default: '' } },
-      toDOM: (node) => ['span', { 'data-dxn': node.attrs.dxn, class: 'block-ref' }, '…'],
+      // F-V3 styling: link-blue, no underline by default, underline on hover.
+      toDOM: (node) => [
+        'span',
+        {
+          'data-dxn': node.attrs.dxn,
+          class: 'block-ref text-blue-600 dark:text-blue-400 hover:underline cursor-pointer',
+        },
+        '…',
+      ],
       parseDOM: [
         {
           tag: 'span[data-dxn]',

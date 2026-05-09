@@ -7,6 +7,7 @@ import React from 'react';
 import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
+import { useBacklinkCount } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 
 import { Block } from '#types';
@@ -36,6 +37,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // F-V2: collapsed when state.expanded === false; default (undefined) is open.
   const expanded = (snapshot.state as any)?.expanded !== false;
   const hasChildren = childRefs.length > 0;
+  // F-V4: number of inline refs from elsewhere pointing AT this Block.
+  const backlinkCount = useBacklinkCount(block.id);
 
   const toggleExpanded = () => {
     Obj.update(block, (block) => {
@@ -109,14 +112,24 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           childCount={childRefs.length}
           onToggle={hasChildren ? toggleExpanded : undefined}
         />
-        <div className='flex-1 min-w-0'>
-          <BlockEditor
-            block={block}
-            autoFocus={focusId === block.id}
-            onEnter={handleEnter}
-            onIndent={handleIndent}
-            onDedent={handleDedent}
-          />
+        <div className='flex-1 min-w-0 flex items-baseline gap-2'>
+          <div className='flex-1 min-w-0'>
+            <BlockEditor
+              block={block}
+              autoFocus={focusId === block.id}
+              onEnter={handleEnter}
+              onIndent={handleIndent}
+              onDedent={handleDedent}
+            />
+          </div>
+          {backlinkCount > 0 && (
+            <span
+              className='text-[10px] leading-none px-1 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0 mt-1'
+              title={`${backlinkCount} reference${backlinkCount === 1 ? '' : 's'}`}
+            >
+              {backlinkCount}
+            </span>
+          )}
         </div>
       </div>
       {hasChildren && expanded && (

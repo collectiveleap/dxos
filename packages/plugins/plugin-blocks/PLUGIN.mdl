@@ -294,7 +294,7 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
 ```
 
 ```mdl
-feat F-V3: Inline ref styling                 # Future increment (small)
+feat F-V3: Inline ref styling                 # Increment V3 (current)
   desc: |
     Inline ref nodes render with link-style typography — distinct color
     (link blue), no underline by default — so users can scan a paragraph
@@ -304,7 +304,7 @@ feat F-V3: Inline ref styling                 # Future increment (small)
 ```
 
 ```mdl
-feat F-V4: Inline backlink count badge        # Future increment
+feat F-V4: Inline backlink count badge        # Increment V4 (current)
   desc: |
     Each Block that is referenced by other Blocks displays a small inline
     count badge after its content showing how many bullets (or other ECHO

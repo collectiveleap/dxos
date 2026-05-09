@@ -24,7 +24,9 @@ export class RefNodeView {
     this.#dxn = (node.attrs.dxn as string) ?? '';
     this.#resolveRef = resolveRef;
     this.dom = document.createElement('span');
-    this.dom.className = 'block-ref';
+    // F-V3 styling: link-blue, no underline by default, underline on hover.
+    this.dom.className =
+      'block-ref text-blue-600 dark:text-blue-400 hover:underline cursor-pointer';
     this.dom.setAttribute('data-dxn', this.#dxn);
     this.#bind();
   }
