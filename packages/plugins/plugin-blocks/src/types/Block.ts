@@ -54,8 +54,15 @@ export const Block = Schema.Struct({
     Schema.Record({ key: Schema.String, value: Schema.Array(Ref.Ref(Obj.Unknown)) }),
   ),
 
-  // Todo state; checked is the boolean.
-  state: Schema.optional(Schema.Struct({ checked: Schema.optional(Schema.Boolean) })),
+  // Per-block transient state. `checked` is for todo kinds; `expanded` is
+  // the user's collapse/expand state on this block's children. Default
+  // (undefined) means expanded.
+  state: Schema.optional(
+    Schema.Struct({
+      checked: Schema.optional(Schema.Boolean),
+      expanded: Schema.optional(Schema.Boolean),
+    }),
+  ),
 
   // View descriptor (Tana Paste %%view:...%%).
   view: Schema.optional(
