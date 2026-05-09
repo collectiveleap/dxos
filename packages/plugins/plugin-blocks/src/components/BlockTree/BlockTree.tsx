@@ -64,7 +64,7 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
   };
 
   return (
-    <div className='p-4 space-y-1' onContextMenu={handleContextMenu}>
+    <div className='space-y-1' onContextMenu={handleContextMenu}>
       {childRefs.map((ref) => {
         const child = ref.target as Block.Block;
         return (

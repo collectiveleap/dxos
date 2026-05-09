@@ -273,7 +273,7 @@ feat F-V1: Bullet markers and indent guide   # Future increment
 ```
 
 ```mdl
-feat F-V2: Collapse / expand parents         # Future increment
+feat F-V2: Collapse / expand parents         # Increment V2 (current)
   desc: |
     A parent Block can be collapsed; its children are hidden until expanded.
     Visually, a closed parent's bullet renders as a hollow circle (or similar
@@ -343,9 +343,27 @@ feat F-4b: Live rename propagation   # Increment 4b (current)
 ```
 
 ```mdl
-feat F-5: Backlinks panel       # Increment 5
-  req F-5.1: Any ECHO object surface displays a "Linked references" panel.
-  req F-5.2: Panel lists incoming refs powered by db.query.referencedBy().
+feat F-5: Backlinks panel       # Increment 5 (current)
+  desc: |
+    A "Linked references" panel renders below the BlockTree in every Block
+    Outline. It lists Blocks elsewhere in the database whose inline ref
+    segments point at any Block in this outline's tree (or the outline
+    itself). Self-references (a bullet inside the outline mentioning
+    another bullet inside the same outline) are excluded — those are
+    visible in the tree itself.
+    Implementation note: ECHO's referencedBy() introspects typed Ref
+    fields, but our refs live inside StructuredContent union segments
+    which referencedBy doesn't traverse, so the panel performs a manual
+    scan across all Blocks. A typed `Block.references` sidecar can replace
+    the scan in a perf increment.
+  req F-5.1: a Linked-references panel renders below the BlockTree on any BlockOutline article surface.
+  req F-5.2:
+    when: at least one Block elsewhere has a content RefSpan whose target is in this outline's tree
+    then: that source Block is listed with its label and the target's label.
+  req F-5.3:
+    when: no incoming refs exist
+    then: the panel renders nothing (no empty header).
+  req F-5.4: panel updates within one tick of the outline being mutated locally.
 ```
 
 ```mdl
@@ -430,6 +448,30 @@ test T-7: Increment 4 — @-mention inserts a ref
     - Block.content contains a RefSpan segment with target pointing at the chosen object
     - the rendered text shows the target's current label
     - on reload the ref persists with the same DXN
+```
+
+```mdl
+test T-9: Increment V2 — collapse / expand parent
+  given: an outline where bullet A has one child bullet B
+  when: user clicks A's bullet marker
+  then:
+    - A's bullet renders in the collapsed (hollow) style with a "1" badge
+    - B is no longer visible in the tree
+    - A.state.expanded === false in ECHO
+  when: user clicks A's bullet marker again
+  then:
+    - A's bullet renders in the open (filled) style
+    - B is visible again
+    - A.state.expanded === true (or the field is reset)
+```
+
+```mdl
+test T-10: Increment 5 — backlinks panel lists external refs
+  given: outline X has bullet B; outline Y has a bullet whose content @-mentions B
+  when: user opens outline X
+  then: the "Linked references" panel below X's tree lists the source bullet from Y, with label and target label
+  when: outline X has no incoming refs
+  then: no panel renders
 ```
 
 ```mdl
