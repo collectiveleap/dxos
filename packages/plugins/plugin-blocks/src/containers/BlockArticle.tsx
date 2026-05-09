@@ -8,13 +8,14 @@ import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { useObject } from '@dxos/react-client/echo';
 import { Panel } from '@dxos/react-ui';
 
-import { BlockEditor } from '#components';
+import { BlockTree } from '#components';
 import type { BlockOutline } from '#types';
 
 export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline>;
 
-// Increment 2: resolves the outline's root Block and mounts the BlockEditor.
-// Hierarchy, refs, backlinks land in subsequent increments.
+// Increment 3: renders a tree of bullets. The (invisible) root Block from
+// outline.root holds the visible children; BlockTree walks them and renders
+// one BlockEditor per child.
 export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
   const [outline] = useObject(subject);
   const root = outline.root?.target;
@@ -23,7 +24,7 @@ export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
     <Panel.Root role={role}>
       <Panel.Content>
         {root ? (
-          <BlockEditor block={root} />
+          <BlockTree rootBlock={root} />
         ) : (
           <div className='p-4 text-sm opacity-60'>(loading…)</div>
         )}

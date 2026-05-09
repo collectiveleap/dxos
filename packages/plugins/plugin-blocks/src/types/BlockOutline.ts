@@ -31,9 +31,13 @@ export const BlockOutline = Schema.Struct({
 
 export interface BlockOutline extends Schema.Schema.Type<typeof BlockOutline> {}
 
-// Creates an empty root Block first, then a BlockOutline pointing at it.
-export const make = ({ name }: { name?: string } = {}): BlockOutline =>
-  Obj.make(BlockOutline, {
+// Creates an outline with an invisible root Block that contains one empty
+// child Block (the first visible bullet). The root itself is never rendered.
+export const make = ({ name }: { name?: string } = {}): BlockOutline => {
+  const firstBullet = Block.make();
+  const root = Block.make({ children: [Ref.make(firstBullet)] });
+  return Obj.make(BlockOutline, {
     name,
-    root: Ref.make(Block.make()),
+    root: Ref.make(root),
   });
+};
