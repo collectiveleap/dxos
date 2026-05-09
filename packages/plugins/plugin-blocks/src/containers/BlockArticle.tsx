@@ -8,22 +8,25 @@ import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { useObject } from '@dxos/react-client/echo';
 import { Panel } from '@dxos/react-ui';
 
+import { BlockEditor } from '#components';
 import type { BlockOutline } from '#types';
 
 export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline>;
 
-// Increment 1 placeholder. The editor and tree rendering land in subsequent
-// increments. Subscribes via useObject so reactive updates land when later
-// features start mutating the outline.
+// Increment 2: resolves the outline's root Block and mounts the BlockEditor.
+// Hierarchy, refs, backlinks land in subsequent increments.
 export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
   const [outline] = useObject(subject);
+  const root = outline.root?.target;
 
   return (
     <Panel.Root role={role}>
       <Panel.Content>
-        <div className='p-4 text-sm opacity-60'>
-          (empty block outline{outline.name ? ` — ${outline.name}` : ''})
-        </div>
+        {root ? (
+          <BlockEditor block={root} />
+        ) : (
+          <div className='p-4 text-sm opacity-60'>(loading…)</div>
+        )}
       </Panel.Content>
     </Panel.Root>
   );

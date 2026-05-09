@@ -73,14 +73,35 @@ type BlockOutline
 
 ```mdl
 component BlockArticle
-  desc: Article surface for a BlockOutline. Increment 1 renders a placeholder.
+  desc: |
+    Article surface for a BlockOutline. Resolves the outline's root Block
+    and mounts the BlockEditor. Falls back to a (loading...) message
+    while the root ref is unresolved.
   props:
     role: string
     subject: BlockOutline
     attendableId: string
   layout: |
     ┌─────────────────────────┐
-    │ (empty outline)         │
+    │ <BlockEditor>           │
+    └─────────────────────────┘
+```
+
+```mdl
+component BlockEditor
+  desc: |
+    ProseMirror editor mounted over a single Block. Reads Block.content
+    on mount, writes Block.content on every doc-changing transaction.
+    Increment 2: plain text in one paragraph; no marks, no inline refs,
+    no hierarchy. External mutations into the editor are not synced
+    (one-way: editor -> ECHO).
+  props:
+    block: Block
+  state:
+    view: EditorView                  # ProseMirror view, owned via ref
+  layout: |
+    ┌─────────────────────────┐
+    │ contenteditable text…   │
     └─────────────────────────┘
 ```
 
@@ -95,9 +116,18 @@ feat F-1: Plugin scaffold
 ```
 
 ```mdl
-feat F-2: Editable bullet      # Increment 2
-  req F-2.1: ProseMirror editor renders the root Block's content.
+feat F-2: Editable bullet      # Increment 2 (current)
+  desc: |
+    Single editable text bullet backed by a Block ECHO object. Out of
+    scope: marks (bold/italic/highlight), inline refs (Increment 4),
+    hierarchy (Increment 3), and syncing external mutations into the
+    editor (deferred).
+  req F-2.1: ProseMirror editor renders the root Block's content on mount.
   req F-2.2: Typing updates Block.content reactively; reload restores it.
+  req F-2.3: Doc schema is one paragraph holding text*; no marks or ref nodes.
+  req F-2.4:
+    when: Block.content is empty or undefined
+    then: editor mounts with an empty paragraph; cursor placeable; typing creates a single TextSpan.
 ```
 
 ```mdl
@@ -142,6 +172,16 @@ test T-1: Increment 1 — scaffold renders
     - BlockOutline + empty root Block appear in ECHO
     - BlockArticle surface renders the placeholder
     - no console errors
+```
+
+```mdl
+test T-2: Increment 2 — editable bullet round-trips
+  given: composer-app is running, a Block Outline has been created
+  when: user types "hello world" into the editor and reloads the page
+  then:
+    - Block.content === [{ kind: 'text', text: 'hello world' }]
+    - on reload, the editor mounts with "hello world" visible
+    - no console errors attributable to plugin-blocks
 ```
 
 ---
