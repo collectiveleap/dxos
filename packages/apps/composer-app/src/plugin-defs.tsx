@@ -13,6 +13,7 @@ import { AssistantPlugin } from '@dxos/plugin-assistant';
 import { AttentionPlugin } from '@dxos/plugin-attention';
 import { AutomationPlugin } from '@dxos/plugin-automation';
 import { BoardPlugin } from '@dxos/plugin-board';
+import { BlocksPlugin } from '@dxos/plugin-blocks';
 import { ChessPlugin } from '@dxos/plugin-chess';
 import { ClientPlugin } from '@dxos/plugin-client';
 import { CodePlugin } from '@dxos/plugin-code';
@@ -158,6 +159,7 @@ export const getDefaults = ({ isDev, isLocal, isLabs }: PluginConfig): string[] 
     // Labs
     (isDev || isLabs) && [
       AssistantPlugin.meta.id,
+      BlocksPlugin.meta.id,
       DiscordPlugin.meta.id,
       FeedPlugin.meta.id,
       IrohBeaconPlugin.meta.id,
@@ -192,6 +194,7 @@ export const getPlugins = ({
     AssistantPlugin(),
     AttentionPlugin(),
     AutomationPlugin(),
+    BlocksPlugin(),
     BoardPlugin(),
     ChessPlugin(),
     ClientPlugin({

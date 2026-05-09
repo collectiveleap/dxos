@@ -1,0 +1,169 @@
+---
+id: org.dxos.plugin.blocks
+name: BlocksPlugin
+version: 0.1.0
+---
+
+A block-based outliner where every bullet is a first-class ECHO object. Designed to losslessly absorb Tana Paste imports.
+
+## Extensions
+
+| Term        | URI                            |
+|-------------|--------------------------------|
+| `type`      | `org.dxos.mdl.type@1.0`       |
+| `feat`      | `org.dxos.mdl.feat@1.0`       |
+| `test`      | `org.dxos.mdl.test@1.0`       |
+| `component` | `org.dxos.mdl.component@1.0`  |
+
+## Types
+
+```mdl
+type TextSpan
+  fields:
+    kind: 'text'
+    text: string
+    marks?: ('bold' | 'italic' | 'highlight' | 'code')[]
+```
+
+```mdl
+type RefSpan
+  fields:
+    kind: 'ref'
+    target: Ref<Obj>          # any ECHO object; label resolved at render time
+```
+
+```mdl
+type StructuredContent
+  desc: ordered run of TextSpan | RefSpan; supports inline marks and live-name refs.
+  literals: (TextSpan | RefSpan)[]
+```
+
+```mdl
+type TagDef
+  desc: stub for supertag definitions; expanded in a later increment.
+  fields:
+    name: string
+```
+
+```mdl
+type Block
+  desc: |
+    The substrate node. Most fields optional and unused in Increment 1;
+    defined now to be a faithful Tana-Paste import target without later migration.
+  fields:
+    content?: StructuredContent
+    children?: Ref<Block>[]
+    kind?: 'bullet' | 'heading' | 'todo' | 'image' | 'url' | 'search' | 'view' | 'code'
+    tags?: Ref<TagDef>[]
+    fields?: Record<string, Ref<Block>[]>
+    state?: { checked?: boolean }
+    view?: { kind: 'table' | 'cards' | 'tabs' | 'calendar' }
+    attachment?: { kind: 'image' | 'file', url: string }
+```
+
+```mdl
+type BlockOutline
+  desc: navigator-openable container for a Block tree.
+  fields:
+    name?: string
+    root: Ref<Block>
+```
+
+## Components
+
+```mdl
+component BlockArticle
+  desc: Article surface for a BlockOutline. Increment 1 renders a placeholder.
+  props:
+    role: string
+    subject: BlockOutline
+    attendableId: string
+  layout: |
+    ┌─────────────────────────┐
+    │ (empty outline)         │
+    └─────────────────────────┘
+```
+
+## Features
+
+```mdl
+feat F-1: Plugin scaffold
+  req F-1.1: BlockOutline appears in the navigator's Create menu (gated under isLabs).
+  req F-1.2: Creating a BlockOutline persists a BlockOutline + a single empty root Block in ECHO.
+  req F-1.3: Opening a BlockOutline renders the BlockArticle placeholder without console errors.
+  req F-1.4: Build, lint, and tests pass for plugin-blocks and composer-app.
+```
+
+```mdl
+feat F-2: Editable bullet      # Increment 2
+  req F-2.1: ProseMirror editor renders the root Block's content.
+  req F-2.2: Typing updates Block.content reactively; reload restores it.
+```
+
+```mdl
+feat F-3: Hierarchy            # Increment 3
+  req F-3.1: Enter creates a sibling Block under the same parent.
+  req F-3.2: Tab/Shift+Tab moves the active Block to a deeper/shallower parent.
+  req F-3.3: Each Block has a stable DXN that can be copied via context menu.
+```
+
+```mdl
+feat F-4: Inline live-name refs    # Increment 4
+  req F-4.1: Typing @ opens an object picker reusing plugin-markdown's useLinkQuery.
+  req F-4.2: Selecting an object inserts a ref segment into Block.content.
+  req F-4.3: The ref segment renders the target's current label; rename propagates.
+```
+
+```mdl
+feat F-5: Backlinks panel       # Increment 5
+  req F-5.1: Any ECHO object surface displays a "Linked references" panel.
+  req F-5.2: Panel lists incoming refs powered by db.query.referencedBy().
+```
+
+```mdl
+feat F-6: Tags and fields       # Increment 6
+  req F-6.1: A Block can be tagged via picker; TagDef is created on demand.
+  req F-6.2: Tagged Block renders typed fields inline below the bullet.
+```
+
+```mdl
+feat F-7: Tana Paste import     # Increment 7
+  req F-7.1: Pasting a payload starting with %%tana%% into a BlockOutline imports the structure as Blocks.
+  req F-7.2: Supertags, fields, references, and dates are preserved using a stable-ID translation table.
+```
+
+## Acceptance
+
+```mdl
+test T-1: Increment 1 — scaffold renders
+  given: composer-app is running with isLabs enabled
+  when: user creates a Block Outline from the navigator
+  then:
+    - BlockOutline + empty root Block appear in ECHO
+    - BlockArticle surface renders the placeholder
+    - no console errors
+```
+
+---
+
+## Appendix: Extension Definitions
+
+```mdl
+ext type
+  uri: dxos.spec/ext/type@1.0
+```
+
+```mdl
+ext feat
+  uri: dxos.spec/ext/feat@1.0
+```
+
+```mdl
+ext test
+  uri: dxos.spec/ext/test@1.0
+```
+
+```mdl
+ext component
+  uri: org.dxos.mdl.component@1.0
+```
