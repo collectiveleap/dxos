@@ -8,6 +8,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { type Database, Filter, Obj, Query, Type } from '@dxos/echo';
 import { EntityKind, SystemTypeAnnotation, getTypeAnnotation } from '@dxos/echo/internal';
 
+import { getDisplayLabel } from '../labels';
+
 export type MentionPickerProps = {
   db: Database.Database | undefined;
   query: string;
@@ -43,11 +45,14 @@ export const MentionPicker = ({ db, query, position, onSelect, onClose }: Mentio
         return;
       }
       const lowercaseQuery = query.toLowerCase();
-      const matched = results.filter((object) => {
-        const label = readLabel(object).toLowerCase();
-        return label.includes(lowercaseQuery);
-      });
-      setItems(matched.slice(0, 12));
+      // Drop objects whose label is empty — typically Blocks with no text yet
+      // and unnamed system rows. The substring match runs on the resolved
+      // label so individual bullets are findable by their text content.
+      const matched = results
+        .map((object) => ({ object, label: getDisplayLabel(object) }))
+        .filter(({ label }) => label.length > 0)
+        .filter(({ label }) => label.toLowerCase().includes(lowercaseQuery));
+      setItems(matched.slice(0, 25).map(({ object }) => object));
     })();
     return () => {
       cancelled = true;
@@ -93,7 +98,7 @@ export const MentionPicker = ({ db, query, position, onSelect, onClose }: Mentio
                   onSelect(item);
                 }}
               >
-                {readLabel(item) || `${Obj.getTypename(item) ?? 'object'}/${item.id.slice(0, 6)}`}
+                {getDisplayLabel(item) || `${Obj.getTypename(item) ?? 'object'}/${item.id.slice(0, 6)}`}
               </button>
             </li>
           ))}
@@ -103,11 +108,3 @@ export const MentionPicker = ({ db, query, position, onSelect, onClose }: Mentio
   );
 };
 
-const readLabel = (object: any): string => {
-  const label = Obj.getLabel(object);
-  if (typeof label === 'string') {
-    return label;
-  }
-  // Fallbacks for objects without a string label — names of fields commonly used.
-  return object?.name ?? object?.title ?? '';
-};

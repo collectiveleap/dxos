@@ -234,7 +234,11 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
     rename without a local edit refresh propagates in I4b.
   req F-4.1:
     when: user types @ at the start of a paragraph or after whitespace
-    then: a picker popover opens at the cursor showing matching ECHO objects
+    then: |
+      a picker popover opens at the cursor showing matching ECHO objects.
+      Individual Blocks (bullets) are first-class candidates and appear in
+      the picker labelled by their text content; empty-labelled objects
+      (Blocks with no text, unnamed system rows) are hidden.
   req F-4.2:
     when: user types more letters after @
     then: the picker filters live by case-insensitive substring on the object's label

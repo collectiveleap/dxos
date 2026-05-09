@@ -7,6 +7,8 @@ import { type EditorView } from 'prosemirror-view';
 
 import { Obj } from '@dxos/echo';
 
+import { getDisplayLabel } from '../labels';
+
 export type ResolveRef = (dxn: string) => any;
 
 // Increment 4b: vanilla NodeView for the inline ref node. Resolves the target
@@ -60,15 +62,7 @@ export class RefNodeView {
 
   #render(): void {
     const target = this.#dxn ? this.#resolveRef(this.#dxn) : undefined;
-    const label = target ? readLabel(target) : '';
+    const label = target ? getDisplayLabel(target) : '';
     this.dom.textContent = label || '…';
   }
 }
-
-const readLabel = (target: any): string => {
-  const label = Obj.getLabel(target);
-  if (typeof label === 'string' && label.length > 0) {
-    return label;
-  }
-  return target?.name ?? target?.title ?? '';
-};
