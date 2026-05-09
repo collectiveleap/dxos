@@ -258,6 +258,73 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
 ```
 
 ```mdl
+feat F-V1: Bullet markers and indent guide   # Future increment
+  desc: |
+    Visual fidelity to the Tana outliner. Each rendered Block has a small
+    bullet glyph to its left (filled circle by default). When a Block has
+    children visible, a thin vertical guide line runs from below its bullet
+    through the nested column so the parent/child relationship is visible
+    at a glance.
+  req F-V1.1: every BlockEditor renders a bullet marker (filled circle) at consistent gutter offset.
+  req F-V1.2:
+    when: a Block has at least one rendered child
+    then: a vertical guide line is drawn from the parent's bullet down through the indented child column.
+  req F-V1.3: the gutter width is consistent regardless of bullet state, so text alignment matches across siblings.
+```
+
+```mdl
+feat F-V2: Collapse / expand parents         # Future increment
+  desc: |
+    A parent Block can be collapsed; its children are hidden until expanded.
+    Visually, a closed parent's bullet renders as a hollow circle (or similar
+    distinct marker) and shows a small count badge of the hidden direct children.
+    Click the bullet marker to toggle. The state lives on Block.state.expanded
+    so it persists across reloads and across peers.
+  req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
+  req F-V2.2:
+    when: Block.state.expanded === false (or absent and explicitly collapsed)
+    then:
+      - the children column is not rendered
+      - the bullet renders in the "closed" visual style (hollow / outlined)
+      - a small count badge displays the number of direct children
+  req F-V2.3:
+    when: Block has no children
+    then: bullet renders in the leaf style (no toggle behaviour, no badge)
+  req F-V2.4: collapsed state is persisted on Block.state.expanded and survives reloads.
+```
+
+```mdl
+feat F-V3: Inline ref styling                 # Future increment (small)
+  desc: |
+    Inline ref nodes render with link-style typography — distinct color
+    (link blue), no underline by default — so users can scan a paragraph
+    and see at a glance which spans are graph references vs. plain text.
+  req F-V3.1: the rendered span for a ref node carries a class that applies link-blue color and no underline.
+  req F-V3.2: hovering the ref shows a subtle affordance (cursor change or underline-on-hover) without changing layout.
+```
+
+```mdl
+feat F-V4: Inline backlink count badge        # Future increment
+  desc: |
+    Each Block that is referenced by other Blocks displays a small inline
+    count badge after its content showing how many bullets (or other ECHO
+    objects) point at it. Powered by db.query.referencedBy(); the badge
+    updates live as refs are added or removed. Clicking the badge opens
+    the linked-references panel from F-5 (when that lands).
+  req F-V4.1:
+    when: at least one inline ref points at a Block
+    then: a small "[N]" badge renders inline after the bullet's text content.
+  req F-V4.2: the badge count reflects live state (re-runs on referencedBy changes).
+  req F-V4.3:
+    when: no inline refs point at a Block
+    then: no badge is rendered.
+  note: |
+    Visual reference: in Tana, the badge appears as a small bordered "1"
+    next to the parent block. The same affordance reveals the backlinks
+    list on click.
+```
+
+```mdl
 feat F-4b: Live rename propagation   # Increment 4b (current)
   desc: |
     The RefNodeView subscribes to the resolved target via Obj.subscribe at
