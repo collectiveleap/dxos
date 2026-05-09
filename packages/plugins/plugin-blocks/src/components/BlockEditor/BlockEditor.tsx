@@ -7,37 +7,34 @@ import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
 import { type Command, EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Obj } from '@dxos/echo';
+import { DXN, Obj } from '@dxos/echo';
+
+import { MentionPicker } from '../MentionPicker';
 
 import type { Block } from '#types';
 
+import { type MentionState, mentionKey, mentionPlugin } from './mention-plugin';
+import { RefNodeView } from './RefNodeView';
 import { schema } from './schema';
 import { fromDoc, toDoc } from './serialize';
 
 export type BlockEditorProps = {
   block: Block.Block;
   autoFocus?: boolean;
-  // Called when the user presses Enter. Returns before/after-cursor text in the
-  // current paragraph; the parent is responsible for creating a new sibling
-  // Block with `afterText`. The current editor's after-cursor text is removed
-  // synchronously here so the user sees the split immediately.
   onEnter?: (beforeText: string, afterText: string) => void;
-  // Called when the user presses Tab. The parent re-parents this Block under
-  // its previous sibling. The keymap always consumes Tab to prevent focus
-  // escape, even when no parent handler is wired.
   onIndent?: () => void;
-  // Called when the user presses Shift+Tab. The parent moves this Block out
-  // to its grandparent's children, after the current parent.
   onDedent?: () => void;
 };
 
-// Increment 3b: same single-paragraph editor as I3 plus Tab/Shift+Tab callbacks
-// surfaced to the parent. The parent owns the tree-mutation logic.
+// Increment 4: editor gains an inline ref node. Typing `@` opens a picker;
+// selecting a target inserts a ref into the doc and persists a real ECHO Ref
+// into Block.content. The RefNodeView resolves the target's label live on
+// every ProseMirror update().
 export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  // Keep callbacks in refs so the editor isn't torn down each render.
+  const viewRef = useRef<EditorView | null>(null);
   const onEnterRef = useRef(onEnter);
   const onIndentRef = useRef(onIndent);
   const onDedentRef = useRef(onDedent);
@@ -45,25 +42,66 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
 
+  // Mention picker UI state, derived from the editor's mention plugin state.
+  const [mention, setMention] = useState<{
+    state: MentionState;
+    coords: { left: number; top: number };
+  } | null>(null);
+
+  // Resolver used by both the NodeView (for label rendering) and serialize.fromDoc
+  // (to mint a Ref<Obj.Unknown> from a DXN string). Uses the block's database
+  // so the ref is bound and `.target` resolves.
+  const db = Obj.getDatabase(block);
+  const resolveRef = useCallback(
+    (dxnString: string) => {
+      if (!db) {
+        return undefined;
+      }
+      try {
+        return db.makeRef(DXN.parse(dxnString)).target;
+      } catch {
+        return undefined;
+      }
+    },
+    [db],
+  );
+
+  const makeRef = useCallback(
+    (dxnString: string) => {
+      if (!db) {
+        return undefined;
+      }
+      try {
+        return db.makeRef(DXN.parse(dxnString));
+      } catch {
+        return undefined;
+      }
+    },
+    [db],
+  );
+
   useEffect(() => {
     if (!hostRef.current) {
       return;
     }
 
     const enterCommand: Command = (state, dispatch) => {
+      // When the picker is open, swallow Enter so the editor doesn't split.
+      // The user clicks an item to select; closing happens elsewhere.
+      const mState = mentionKey.getState(state);
+      if (mState?.active) {
+        return true;
+      }
       if (!onEnterRef.current) {
         return false;
       }
       const { $from } = state.selection;
-      const text = $from.parent.textContent;
+      const text = $from.parent.textBetween(0, $from.parent.content.size, '', '');
       const cursor = $from.parentOffset;
       const beforeText = text.slice(0, cursor);
       const afterText = text.slice(cursor);
 
       if (dispatch) {
-        // Strip after-cursor text from the current paragraph so the editor
-        // shows the "before" half. The dispatchTransaction below picks this
-        // up and writes the trimmed content into Block.content via ECHO.
         const tr = state.tr.delete(state.selection.from, $from.end());
         dispatch(tr);
       }
@@ -72,8 +110,6 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
       return true;
     };
 
-    // Tab/Shift+Tab always return true so focus doesn't escape the editor,
-    // even when no handler is wired (e.g., bullet has no previous sibling).
     const tabCommand: Command = () => {
       onIndentRef.current?.();
       return true;
@@ -84,15 +120,26 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
       return true;
     };
 
-    const state = EditorState.create({
+    const escapeCommand: Command = (state) => {
+      const mState = mentionKey.getState(state);
+      if (mState?.active) {
+        viewRef.current?.dispatch(state.tr.setMeta(mentionKey, 'close'));
+        return true;
+      }
+      return false;
+    };
+
+    const editorState = EditorState.create({
       doc: toDoc(block.content as any),
       schema,
       plugins: [
+        mentionPlugin,
         history(),
         keymap({
           Enter: enterCommand,
           Tab: tabCommand,
           'Shift-Tab': shiftTabCommand,
+          Escape: escapeCommand,
           'Mod-z': undo,
           'Mod-y': redo,
           'Mod-Shift-z': redo,
@@ -102,18 +149,31 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
     });
 
     const view = new EditorView(hostRef.current, {
-      state,
+      state: editorState,
+      nodeViews: {
+        ref: (node, viewArg, getPos) => new RefNodeView(node, viewArg, getPos, resolveRef),
+      },
       dispatchTransaction: (transaction) => {
         const next = view.state.apply(transaction);
         view.updateState(next);
         if (transaction.docChanged) {
-          const content = fromDoc(next.doc);
+          const content = fromDoc(next.doc, makeRef);
           Obj.update(block, (block) => {
             block.content = content;
           });
         }
+
+        // Drive the picker UI from plugin state.
+        const mState = mentionKey.getState(next);
+        if (mState?.active) {
+          const coords = view.coordsAtPos(mState.from);
+          setMention({ state: mState, coords: { left: coords.left, top: coords.bottom } });
+        } else {
+          setMention(null);
+        }
       },
     });
+    viewRef.current = view;
 
     if (autoFocus) {
       view.focus();
@@ -121,8 +181,47 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
 
     return () => {
       view.destroy();
+      viewRef.current = null;
     };
-  }, [block]);
+  }, [block, makeRef, resolveRef]);
 
-  return <div ref={hostRef} data-block-id={block.id} className='outline-none' />;
+  const handleSelectTarget = useCallback(
+    (target: Obj.Any) => {
+      const view = viewRef.current;
+      if (!view || !mention) {
+        return;
+      }
+      const dxn = Obj.getDXN(target).toString();
+      const refNode = schema.nodes.ref.create({ dxn });
+      const spaceNode = schema.text(' ');
+      const tr = view.state.tr.replaceWith(mention.state.from, mention.state.to, [refNode, spaceNode]);
+      tr.setMeta(mentionKey, 'close');
+      view.dispatch(tr);
+      view.focus();
+    },
+    [mention],
+  );
+
+  const handleClosePicker = useCallback(() => {
+    const view = viewRef.current;
+    if (view) {
+      view.dispatch(view.state.tr.setMeta(mentionKey, 'close'));
+    }
+    setMention(null);
+  }, []);
+
+  return (
+    <div className='relative'>
+      <div ref={hostRef} data-block-id={block.id} className='outline-none' />
+      {mention && (
+        <MentionPicker
+          db={Obj.getDatabase(block)}
+          query={mention.state.query}
+          position={mention.coords}
+          onSelect={handleSelectTarget}
+          onClose={handleClosePicker}
+        />
+      )}
+    </div>
+  );
 };

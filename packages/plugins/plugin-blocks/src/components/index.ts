@@ -5,3 +5,4 @@
 export * from './BlockEditor';
 export * from './BlockNode';
 export * from './BlockTree';
+export * from './MentionPicker';

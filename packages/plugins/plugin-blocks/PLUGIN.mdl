@@ -224,10 +224,38 @@ component BlockNode
 ```
 
 ```mdl
-feat F-4: Inline live-name refs    # Increment 4
-  req F-4.1: Typing @ opens an object picker reusing plugin-markdown's useLinkQuery.
-  req F-4.2: Selecting an object inserts a ref segment into Block.content.
-  req F-4.3: The ref segment renders the target's current label; rename propagates.
+feat F-4: Inline live-name refs    # Increment 4 (current)
+  desc: |
+    Typing @ inside a bullet opens an object picker; selecting a target
+    inserts an atomic inline ref node into the editor's doc and persists
+    a real Ref<Obj.Unknown> into Block.content. The RefNodeView resolves
+    the target by DXN at mount and on each ProseMirror update(), so a
+    rename followed by any local edit refreshes the label. External
+    rename without a local edit refresh propagates in I4b.
+  req F-4.1:
+    when: user types @ at the start of a paragraph or after whitespace
+    then: a picker popover opens at the cursor showing matching ECHO objects
+  req F-4.2:
+    when: user types more letters after @
+    then: the picker filters live by case-insensitive substring on the object's label
+  req F-4.3:
+    when: user clicks an item in the picker
+    then:
+      - the @-and-query range is replaced by an atomic ref node
+      - a real Ref is persisted into Block.content as a RefSpan segment
+      - the picker closes
+      - a space is inserted after the ref node
+  req F-4.4:
+    when: an inline ref renders
+    then: the visible text is the target's current label (Obj.getLabel)
+  req F-4.5:
+    when: user presses Escape while picker is open
+    then: picker closes; the @ trigger remains as plain text
+```
+
+```mdl
+feat F-4b: Live rename propagation   # Future increment
+  req F-4b.1: Renaming a target object updates the rendered label in all bullets that ref it, without requiring a local edit.
 ```
 
 ```mdl
@@ -307,6 +335,17 @@ test T-6: Increment 3b — Shift+Tab dedents
     - A.children === [] (B removed from A)
     - rootBlock.children === [A, B] (B is now sibling of A)
     - B's editor has focus after re-mount
+```
+
+```mdl
+test T-7: Increment 4 — @-mention inserts a ref
+  given: an outline with at least one other ECHO object available in the space
+  when: user types "hello @" then types a query that matches an object's label, then clicks the object
+  then:
+    - the @-and-query range is replaced by an inline ref node
+    - Block.content contains a RefSpan segment with target pointing at the chosen object
+    - the rendered text shows the target's current label
+    - on reload the ref persists with the same DXN
 ```
 
 ---

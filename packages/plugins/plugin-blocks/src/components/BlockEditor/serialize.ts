@@ -6,38 +6,64 @@ import { type Node } from 'prosemirror-model';
 
 import { schema } from './schema';
 
-// StructuredContent shape (from Block.ts) — text spans and ref spans.
-// Increment 2 only handles text; ref segments are passed through unchanged at the
-// data layer until Increment 4 introduces inline-ref rendering.
+// StructuredContent shape — text spans with optional marks and ref spans
+// that point at any ECHO object via a typed Ref. Increment 4 only emits
+// text and ref segments; marks land in a later increment.
 
-// Increment 2 only emits/consumes plain text segments. The schema-level
-// TextSpan supports marks, but we don't produce them yet — so the local
-// type omits them to keep assignments to Block.content typecheck.
 type TextSegment = { kind: 'text'; text: string };
-type RefSegment = { kind: 'ref'; target: unknown };
+type RefSegment = { kind: 'ref'; target: any };
 type Segment = TextSegment | RefSegment;
 
 // Build a ProseMirror doc from a Block's content.
 export const toDoc = (content: readonly Segment[] | undefined): Node => {
-  const text = (content ?? [])
-    .filter((segment): segment is TextSegment => segment?.kind === 'text')
-    .map((segment) => segment.text ?? '')
-    .join('');
-
-  const inline = text.length > 0 ? [schema.text(text)] : undefined;
-  const paragraph = schema.nodes.paragraph.create(null, inline);
+  const segments = content ?? [];
+  const inline: Node[] = [];
+  for (const seg of segments) {
+    if (!seg) {
+      continue;
+    }
+    if (seg.kind === 'text') {
+      const text = (seg as TextSegment).text ?? '';
+      if (text.length > 0) {
+        inline.push(schema.text(text));
+      }
+    } else if (seg.kind === 'ref') {
+      const target = (seg as RefSegment).target;
+      const dxn = target?.dxn?.toString?.() ?? '';
+      if (dxn) {
+        inline.push(schema.nodes.ref.create({ dxn }));
+      }
+    }
+  }
+  const paragraph =
+    inline.length > 0 ? schema.nodes.paragraph.create(null, inline) : schema.nodes.paragraph.create();
   return schema.nodes.doc.create(null, paragraph);
 };
 
-// Extract a Block's content from a ProseMirror doc.
-// Returns a mutable array because Block.content (Effect Schema mutable array)
-// rejects readonly assignments.
-export const fromDoc = (doc: Node): TextSegment[] => {
-  let text = '';
+// Extract a Block's content from a ProseMirror doc. The caller supplies a
+// `makeRef` resolver because creating a Ref by DXN string requires access to
+// the database (via Ref.fromDXN(DXN.parse(...))).
+export const fromDoc = (doc: Node, makeRef: (dxn: string) => any): Segment[] => {
+  const segments: Segment[] = [];
   doc.descendants((node) => {
     if (node.isText) {
-      text += node.text ?? '';
+      segments.push({ kind: 'text', text: node.text ?? '' });
+    } else if (node.type.name === 'ref') {
+      const dxn = node.attrs.dxn as string;
+      if (dxn) {
+        segments.push({ kind: 'ref', target: makeRef(dxn) });
+      }
     }
   });
-  return text.length === 0 ? [] : [{ kind: 'text', text }];
+  // Coalesce consecutive text segments — keeps Block.content tidy.
+  const coalesced: Segment[] = [];
+  for (const seg of segments) {
+    const last = coalesced[coalesced.length - 1];
+    if (seg.kind === 'text' && last && last.kind === 'text') {
+      (last as TextSegment).text += (seg as TextSegment).text;
+    } else {
+      coalesced.push(seg);
+    }
+  }
+  return coalesced;
 };
