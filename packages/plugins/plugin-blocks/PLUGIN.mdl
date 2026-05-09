@@ -178,9 +178,49 @@ feat F-3: Flat sibling bullets    # Increment 3 (current)
 ```
 
 ```mdl
-feat F-3b: Nested bullets         # Future increment
-  req F-3b.1: Tab indents the current bullet under its previous sibling.
-  req F-3b.2: Shift+Tab dedents the current bullet to its parent's sibling.
+feat F-3b: Nested bullets         # Increment 3b (current)
+  desc: |
+    Bullets can be re-parented via Tab (indent under previous sibling) and
+    Shift+Tab (dedent to grandparent's children). Rendering is recursive:
+    each Block's children render indented below it. The moved Block's own
+    children come along (indenting moves the whole subtree).
+  req F-3b.1:
+    when: user presses Tab inside a bullet that has a previous sibling
+    then:
+      - bullet's ref is removed from its parent's children
+      - bullet's ref is appended to the previous sibling's children
+      - bullet keeps its own children (subtree moves with it)
+      - editor for the moved bullet regains focus after re-mount
+  req F-3b.2:
+    when: user presses Tab on the first child (no previous sibling)
+    then: nothing happens; Tab is consumed (focus does not escape).
+  req F-3b.3:
+    when: user presses Shift+Tab inside a nested bullet
+    then:
+      - bullet's ref is removed from its parent's children
+      - bullet's ref is inserted into its grandparent's children at parent's index + 1
+      - editor for the moved bullet regains focus after re-mount
+  req F-3b.4:
+    when: user presses Shift+Tab on a top-level bullet (no grandparent)
+    then: nothing happens; Shift+Tab is consumed.
+```
+
+```mdl
+component BlockNode
+  desc: |
+    Recursive renderer. One BlockEditor for this Block, then a nested column
+    of BlockNodes for its children. Tab/Shift+Tab/Enter handlers live here so
+    they can close over the parent + grandparent context.
+  props:
+    block: Block
+    parent: Block                       # who owns block via children[]
+    grandparent?: Block                 # who owns parent
+    focusId?: string
+    setFocusId: (id?: string) -> void
+  actions:
+    handleEnter(beforeText, afterText)
+    handleIndent()                      # Tab — re-parent under prev sibling
+    handleDedent()                      # Shift+Tab — re-parent to grandparent
 ```
 
 ```mdl
@@ -246,6 +286,27 @@ test T-4: Increment 3 — DXN copy
   given: a Block Outline with a bullet, navigator.clipboard available
   when: user right-clicks the bullet
   then: Obj.getDXN(block) is written to the clipboard
+```
+
+```mdl
+test T-5: Increment 3b — Tab indents
+  given: an outline with two top-level bullets [A, B]
+  when: cursor is in B and user presses Tab
+  then:
+    - rootBlock.children === [A] (B removed from top level)
+    - A.children === [B] (B is now A's child)
+    - B.children unchanged (B keeps its own subtree)
+    - B's editor has focus after re-mount
+```
+
+```mdl
+test T-6: Increment 3b — Shift+Tab dedents
+  given: an outline where A.children === [B]
+  when: cursor is in B and user presses Shift+Tab
+  then:
+    - A.children === [] (B removed from A)
+    - rootBlock.children === [A, B] (B is now sibling of A)
+    - B's editor has focus after re-mount
 ```
 
 ---

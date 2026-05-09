@@ -24,16 +24,26 @@ export type BlockEditorProps = {
   // Block with `afterText`. The current editor's after-cursor text is removed
   // synchronously here so the user sees the split immediately.
   onEnter?: (beforeText: string, afterText: string) => void;
+  // Called when the user presses Tab. The parent re-parents this Block under
+  // its previous sibling. The keymap always consumes Tab to prevent focus
+  // escape, even when no parent handler is wired.
+  onIndent?: () => void;
+  // Called when the user presses Shift+Tab. The parent moves this Block out
+  // to its grandparent's children, after the current parent.
+  onDedent?: () => void;
 };
 
-// Increment 3: same single-paragraph editor as I2, plus an Enter callback
-// surfaced to the parent so it can splice a new Block into the parent's
-// children. The host carries data-block-id for context-menu targeting.
-export const BlockEditor = ({ block, autoFocus, onEnter }: BlockEditorProps) => {
+// Increment 3b: same single-paragraph editor as I3 plus Tab/Shift+Tab callbacks
+// surfaced to the parent. The parent owns the tree-mutation logic.
+export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  // Keep onEnter in a ref so the editor isn't torn down each render.
+  // Keep callbacks in refs so the editor isn't torn down each render.
   const onEnterRef = useRef(onEnter);
+  const onIndentRef = useRef(onIndent);
+  const onDedentRef = useRef(onDedent);
   onEnterRef.current = onEnter;
+  onIndentRef.current = onIndent;
+  onDedentRef.current = onDedent;
 
   useEffect(() => {
     if (!hostRef.current) {
@@ -62,6 +72,18 @@ export const BlockEditor = ({ block, autoFocus, onEnter }: BlockEditorProps) => 
       return true;
     };
 
+    // Tab/Shift+Tab always return true so focus doesn't escape the editor,
+    // even when no handler is wired (e.g., bullet has no previous sibling).
+    const tabCommand: Command = () => {
+      onIndentRef.current?.();
+      return true;
+    };
+
+    const shiftTabCommand: Command = () => {
+      onDedentRef.current?.();
+      return true;
+    };
+
     const state = EditorState.create({
       doc: toDoc(block.content as any),
       schema,
@@ -69,6 +91,8 @@ export const BlockEditor = ({ block, autoFocus, onEnter }: BlockEditorProps) => 
         history(),
         keymap({
           Enter: enterCommand,
+          Tab: tabCommand,
+          'Shift-Tab': shiftTabCommand,
           'Mod-z': undo,
           'Mod-y': redo,
           'Mod-Shift-z': redo,
