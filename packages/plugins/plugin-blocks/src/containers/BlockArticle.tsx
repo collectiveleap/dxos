@@ -11,9 +11,9 @@ import { Panel } from '@dxos/react-ui';
 import {
   BacklinkCountContext,
   BacklinksPanel,
+  BlockContent,
   BlockTree,
   ZoomContext,
-  getDisplayLabel,
   useBacklinks,
 } from '#components';
 import { Block, type BlockOutline } from '#types';
@@ -66,7 +66,7 @@ export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
                   ← Outline
                 </button>
                 <h1 className='mt-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
-                  {getDisplayLabel(zoomedBlock) || '(empty)'}
+                  {hasContent(zoomedBlock) ? <BlockContent block={zoomedBlock} /> : '(empty)'}
                 </h1>
               </div>
             )}
@@ -101,6 +101,21 @@ const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
     }
   }
   return null;
+};
+
+// True iff the Block has at least one renderable content segment (text
+// with characters or a ref). Drives the headline's '(empty)' fallback.
+const hasContent = (block: Block.Block): boolean => {
+  const segments = (block.content ?? []) as readonly any[];
+  return segments.some((segment) => {
+    if (segment?.kind === 'text') {
+      return (segment.text ?? '').length > 0;
+    }
+    if (segment?.kind === 'ref') {
+      return !!segment.target;
+    }
+    return false;
+  });
 };
 
 export default BlockArticle;

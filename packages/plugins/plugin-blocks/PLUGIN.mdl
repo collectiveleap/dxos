@@ -433,6 +433,47 @@ feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
 ```
 
 ```mdl
+feat F-Headline: zoomed headline preserves all content   # Increment Headline (current)
+  desc: |
+    The zoomed-view header (large bold H1 above the child tree) renders
+    the full content of the zoomed Block — text segments AND inline
+    refs alike. Refs render as link-blue spans (matching F-V3 inline
+    ref styling) with the target's current label, kept live via the
+    same `Obj.subscribe` pattern the inline RefNodeView uses.
+
+    Current-behavior gap that prompted this spec:
+    - The headline used to call `getDisplayLabel(zoomedBlock)`, which
+      filters Block.content down to text segments only and joins
+      them. Refs were silently dropped, leaving visible gaps in the
+      headline. Example: a bullet whose content is
+      `"what is in [@A] and what [@B] now"` rendered as
+      `"what is in  and what  now"` when zoomed in (note the double
+      spaces where the refs were).
+
+    Implementation: a new `BlockContent` React component iterates
+    `block.content` and renders each segment — text spans render as
+    plain text; ref spans render via a `RefLabel` child that
+    subscribes to the target via `useObject` and renders a styled
+    span using `getDisplayLabel`. `BlockArticle` mounts
+    `<BlockContent block={zoomedBlock} />` inside the H1.
+  req F-Headline.1:
+    given: a Block X whose content includes one or more inline refs to other Blocks
+    when: I zoom into X
+    then:
+      - the headline (H1) renders X's text segments and ref segments in order
+      - each ref renders as a link-blue span showing the target's
+        current label (Obj.getLabel-resolved, falling back to the
+        target's text content)
+      - if a ref's target is later renamed, the headline updates
+        within one tick (live, no reload)
+      - the headline contains no missing-content gaps where refs used to be
+  req F-Headline.empty:
+    given: a Block X whose content is empty (no text, no refs)
+    when: I zoom into X
+    then: the headline renders the placeholder text "(empty)"
+```
+
+```mdl
 feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
   desc: |
     The unmodified ArrowUp / ArrowDown keys move the cursor to the
@@ -806,6 +847,21 @@ test T-Caret: focus paths produce a single visible caret
       `block-empty-paragraph` class added by `caret-fix-plugin` and
       has `min-width: 1rem` so the native browser caret has somewhere
       to paint; the rendered rectangle is exactly one line tall
+```
+
+```mdl
+test T-Headline: zoomed headline renders refs alongside text
+  given: a Block X whose content is the segments
+    [text "what is in ", ref→A, text " and what ", ref→B, text " now"]
+    where A's label is "alpha" and B's label is "beta"
+  when: I zoom into X
+  then:
+    - the H1 contains text content "what is in alpha and what beta now"
+    - the H1 contains 2 child elements with class `block-ref` (the ref spans)
+    - each `block-ref` span is link-blue and shows the target's label
+  when: A is renamed from "alpha" to "ALPHA"
+  then: within one tick, the H1 reflects "what is in ALPHA and what beta now"
+    without any reload or focus change
 ```
 
 ---

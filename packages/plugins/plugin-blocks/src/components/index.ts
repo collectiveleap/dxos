@@ -3,6 +3,7 @@
 //
 
 export * from './BacklinksPanel';
+export * from './BlockContent';
 export * from './BlockEditor';
 export * from './BlockNode';
 export * from './BlockTree';
