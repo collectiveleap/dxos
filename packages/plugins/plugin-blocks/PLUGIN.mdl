@@ -395,6 +395,25 @@ feat F-V3: Inline ref styling                 # Increment V3 (current)
 feat F-V4: Inline backlink count badge        # Increment V4 (current)
   desc: |
     Each Block that is referenced by other Blocks displays a small inline
+    count badge to the right of its row. Counts are produced by the
+    useBacklinks hook and propagated via React context to BlockNode.
+
+    Live-update guarantee: the count must refresh as soon as the ref node
+    renders in the source Block — not after the user navigates away or
+    presses Enter. Implementation note: a `db.query(...).subscribe` only
+    fires on result-SET changes, not on field-level mutations to existing
+    Blocks. The hook subscribes to each Block via `Obj.subscribe` and
+    re-binds those subs whenever the Block set changes. This ensures
+    that `Obj.update(sourceBlock, m => m.content = [...with ref])`
+    triggers a recompute synchronously, and the badge re-renders on the
+    next paint frame.
+  req F-V4.live:
+    when: source Block X is mutated to include an inline ref to target Block Y (via @-mention picker, paste, programmatic update, or any other path)
+    then:
+      - within one paint frame after X's content is committed, Y's count badge increments by one
+      - the user is NOT required to leave X, press Enter, navigate away, or reload
+  desc: |
+    Each Block that is referenced by other Blocks displays a small inline
     count badge after its content showing how many bullets (or other ECHO
     objects) point at it. Powered by db.query.referencedBy(); the badge
     updates live as refs are added or removed. Clicking the badge opens
@@ -551,6 +570,15 @@ test T-9: Increment V2 — collapse / expand parent
     - A's bullet renders in the open (filled) style
     - B is visible again
     - A.state.expanded === true (or the field is reset)
+```
+
+```mdl
+test T-V4-live: Adding a ref increments the target's count without leaving the source
+  given: an outline with a Block X (currently being edited) and another Block Y; Y currently has zero or N references
+  when: user inserts an inline ref to Y inside X — e.g. types @ in X, picks Y from the picker
+  then:
+    - within one paint frame after the ref node renders inside X, Y's count badge displays previous_count + 1
+    - the user does not need to press Enter, leave X, navigate away, or reload for the badge to appear
 ```
 
 ```mdl
