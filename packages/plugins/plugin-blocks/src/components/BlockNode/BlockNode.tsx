@@ -91,6 +91,19 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     setFocusId(block.id);
   };
 
+  // F-Nav: arrow-key navigation between visible Blocks. Walks the rendered
+  // DOM (which by construction matches the visible-tree order, since
+  // collapsed children aren't mounted) to find the prev/next [data-block-id]
+  // row and focuses its editor at the start. Scrolls the target into view
+  // if it's outside the viewport. No-op at the top/bottom edge.
+  const handleMoveUp = () => {
+    moveToAdjacentVisibleBlock(block.id, 'up');
+  };
+
+  const handleMoveDown = () => {
+    moveToAdjacentVisibleBlock(block.id, 'down');
+  };
+
   const handleDedent = () => {
     if (!grandparent || siblingIndex < 0) {
       return;
@@ -148,6 +161,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onDedent={handleDedent}
               onCollapseRequest={hasChildren && expanded ? toggleExpanded : undefined}
               onExpandRequest={hasChildren && !expanded ? toggleExpanded : undefined}
+              onMoveUp={handleMoveUp}
+              onMoveDown={handleMoveDown}
             />
           </div>
           {backlinkCount > 0 && (
@@ -179,6 +194,41 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
       )}
     </div>
   );
+};
+
+// Walk all rendered [data-block-id] rows in DOM order, find the one matching
+// `currentId`, and focus the previous/next sibling. The DOM order matches
+// the visible-tree order because collapsed children aren't rendered. Scrolls
+// the target into view if it's off-screen. Returns true if focus moved.
+const moveToAdjacentVisibleBlock = (currentId: string, direction: 'up' | 'down'): boolean => {
+  const all = Array.from(document.querySelectorAll('[data-block-id]')) as HTMLElement[];
+  const currentIndex = all.findIndex((el) => el.dataset.blockId === currentId);
+  if (currentIndex < 0) {
+    return false;
+  }
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= all.length) {
+    return false;
+  }
+  const targetEl = all[targetIndex];
+  const editable = targetEl.querySelector<HTMLElement>('[contenteditable="true"]');
+  if (!editable) {
+    return false;
+  }
+  editable.focus();
+  // Place caret at the start of the target's editor.
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  } catch {
+    /* selection setup is best-effort */
+  }
+  targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  return true;
 };
 
 // Detects a Block whose content is exactly one ref segment with no meaningful

@@ -30,6 +30,12 @@ export type BlockEditorProps = {
   // When the corresponding callback is undefined, the key falls through.
   onCollapseRequest?: () => void;
   onExpandRequest?: () => void;
+  // ArrowUp / ArrowDown move the cursor to the previous / next visible
+  // Block. The parent BlockNode walks the rendered tree to find the
+  // adjacent visible row and focuses its editor. Always consumed so the
+  // browser doesn't scroll on no-op edge cases.
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 };
 
 // Increment 4: editor gains an inline ref node. Typing `@` opens a picker;
@@ -44,6 +50,8 @@ export const BlockEditor = ({
   onDedent,
   onCollapseRequest,
   onExpandRequest,
+  onMoveUp,
+  onMoveDown,
 }: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -52,11 +60,15 @@ export const BlockEditor = ({
   const onDedentRef = useRef(onDedent);
   const onCollapseRequestRef = useRef(onCollapseRequest);
   const onExpandRequestRef = useRef(onExpandRequest);
+  const onMoveUpRef = useRef(onMoveUp);
+  const onMoveDownRef = useRef(onMoveDown);
   onEnterRef.current = onEnter;
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
   onCollapseRequestRef.current = onCollapseRequest;
   onExpandRequestRef.current = onExpandRequest;
+  onMoveUpRef.current = onMoveUp;
+  onMoveDownRef.current = onMoveDown;
 
   // Mention picker UI state, derived from the editor's mention plugin state.
   // The cursor coords carry top + bottom so the picker can decide whether to
@@ -159,6 +171,20 @@ export const BlockEditor = ({
       return true;
     };
 
+    // ArrowUp / ArrowDown move to the previous / next VISIBLE Block
+    // unconditionally — single-line bullets don't need within-paragraph
+    // line navigation. Always returns true so the browser doesn't scroll
+    // on no-op edge cases (top/bottom of outline).
+    const arrowUpCommand: Command = () => {
+      onMoveUpRef.current?.();
+      return true;
+    };
+
+    const arrowDownCommand: Command = () => {
+      onMoveDownRef.current?.();
+      return true;
+    };
+
     const escapeCommand: Command = (state) => {
       const mState = mentionKey.getState(state);
       if (mState?.active) {
@@ -180,6 +206,8 @@ export const BlockEditor = ({
           'Shift-Tab': shiftTabCommand,
           'Mod-ArrowUp': collapseCommand,
           'Mod-ArrowDown': expandCommand,
+          ArrowUp: arrowUpCommand,
+          ArrowDown: arrowDownCommand,
           Escape: escapeCommand,
           'Mod-z': undo,
           'Mod-y': redo,

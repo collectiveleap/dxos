@@ -361,6 +361,46 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
 ```
 
 ```mdl
+feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
+  desc: |
+    The unmodified ArrowUp / ArrowDown keys move the cursor to the
+    beginning of the previous / next *visible* bullet. "Visible" means
+    the Block would be rendered given the current expand/collapse state
+    of all ancestors — independent of scroll position. If the target is
+    outside the viewport, the page scrolls just enough to reveal it.
+    Single-line bullets don't need within-paragraph line navigation, so
+    arrow keys always cross to the adjacent bullet.
+
+    Implementation note: the navigation walks the rendered DOM
+    (`[data-block-id]` elements in document order) rather than reaching
+    into the ECHO tree. Because collapsed children aren't mounted, DOM
+    order naturally matches the visible-tree order. Both arrow commands
+    always return true to ProseMirror's keymap so the browser never
+    scrolls the page as a side-effect of an edge-case no-op.
+
+  req F-Nav.up:
+    given: cursor is in Block X, and Block Y is the bullet immediately
+      above X in the rendered tree (visible, regardless of scroll position)
+    when: user presses ArrowUp
+    then: caret moves to the start of Y; the page scrolls to bring Y
+      into view if it was off-screen.
+  req F-Nav.up.edge:
+    given: cursor is in Block X, and there is no visible Block above X
+    when: user presses ArrowUp
+    then: caret does not move; the page does not scroll.
+  req F-Nav.down:
+    given: cursor is in Block X, and Block Y is the bullet immediately
+      below X in the rendered tree (visible, regardless of scroll position)
+    when: user presses ArrowDown
+    then: caret moves to the start of Y; the page scrolls to bring Y
+      into view if it was off-screen.
+  req F-Nav.down.edge:
+    given: cursor is in Block X, and there is no visible Block below X
+    when: user presses ArrowDown
+    then: caret does not move; the page does not scroll.
+```
+
+```mdl
 feat F-V6: Reference-only Block               # Increment V6 (current)
   desc: |
     A Block whose content is exactly one inline ref segment (and no
