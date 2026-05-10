@@ -119,25 +119,58 @@ export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData =
       }
     };
 
-    // Initial scan plus subscribe to all Block mutations. This makes the
-    // per-bullet count badges and the BacklinksPanel update reactively when
-    // any Block is created, modified, or deleted anywhere in the database
-    // — without requiring a reload.
-    compute();
-    const queryResult = db.query(Filter.typename(Block.Block.typename));
-    const subscription = (queryResult as any).subscribe?.(() => compute());
+    // Per-Block subscriptions. db.query(...).subscribe only fires when the
+    // result SET changes — not when a result's fields mutate. So we
+    // subscribe to each Block individually via Obj.subscribe, which fires
+    // on any field-level change. The query subscription still fires when
+    // Blocks are created or deleted, at which point we re-bind the
+    // per-Block subs to the new set.
+    let blockSubs: Array<() => void> = [];
 
-    return () => {
-      cancelled = true;
-      if (typeof subscription === 'function') {
+    const refreshBlockSubs = () => {
+      for (const unsub of blockSubs) {
         try {
-          subscription();
+          unsub();
         } catch {
           /* noop */
         }
-      } else if (subscription && typeof subscription.unsubscribe === 'function') {
+      }
+      blockSubs = [];
+      const allBlocks = db.query(Filter.typename(Block.Block.typename)).runSync() ?? [];
+      for (const block of allBlocks) {
+        const unsub = Obj.subscribe(block as any, () => compute());
+        blockSubs.push(unsub);
+      }
+    };
+
+    refreshBlockSubs();
+    compute();
+
+    const queryResult = db.query(Filter.typename(Block.Block.typename));
+    const querySub = (queryResult as any).subscribe?.(() => {
+      // Block set may have changed — re-bind per-Block subs and recompute.
+      refreshBlockSubs();
+      compute();
+    });
+
+    return () => {
+      cancelled = true;
+      for (const unsub of blockSubs) {
         try {
-          subscription.unsubscribe();
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+      if (typeof querySub === 'function') {
+        try {
+          querySub();
+        } catch {
+          /* noop */
+        }
+      } else if (querySub && typeof querySub.unsubscribe === 'function') {
+        try {
+          querySub.unsubscribe();
         } catch {
           /* noop */
         }
