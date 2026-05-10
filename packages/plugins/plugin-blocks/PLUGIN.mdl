@@ -320,11 +320,12 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
     when: Block has children
     then: an Expand/Collapse control (chevron in a bordered circle) is mounted to the immediate left of the Block Bullet; the control's slot is reserved at all times so layout does not shift on hover.
   req F-V2.6a:
-    when: the user hovers any part of the Block's row OR the Expand/Collapse control has focus
-    then: the control becomes fully visible (opacity 1).
+    when: the user's pointer is over any part of THIS Block's row only (other Blocks' rows are unaffected)
+    then: this Block's Expand/Collapse control becomes fully visible (opacity 1).
   req F-V2.6b:
-    when: no part of the Block's row is hovered AND the control does not have focus
-    then: the control is hidden (opacity 0); the slot remains reserved.
+    when: the pointer leaves this Block's row AND the control does not have keyboard focus
+    then: this Block's control is hidden (opacity 0); the slot remains reserved; other Blocks' controls are unaffected.
+  note: hover state is tracked per-Block in React (no Tailwind group-hover) so a hover on one row does not light up controls in adjacent or nested rows.
   req F-V2.6c:
     when: the user clicks the Expand/Collapse control
     then: state.expanded toggles, identical to clicking the Block Bullet.
@@ -343,6 +344,36 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
   req F-V2.11:
     when: user hovers the chevron
     then: a tooltip displays "Collapse ⌘ ↑" or "Expand ⌘ ↓" matching the available action.
+```
+
+```mdl
+feat F-V6: Reference-only Block               # Increment V6 (current)
+  desc: |
+    A Block whose content is exactly one inline ref segment (and no
+    meaningful text) is a "reference-only" Block. It is rendered as a
+    stand-in for its target:
+    - The Block's editor content shows the target's current label live
+      (already produced by the inline ref's NodeView).
+    - The Block Bullet gains an additional dashed outer ring on top of
+      the existing dark dot + shaded halo, signalling that this row is a
+      pure reference rather than original content.
+    - The backlink count badge on this Block reflects the TARGET's
+      backlink count, not the reference-only Block's own — visually this
+      Block IS the target.
+    - The bullet is non-interactive (reference-only Blocks are leaves;
+      they have no children to toggle).
+  req F-V6.1:
+    when: a Block's content has exactly one segment of kind 'ref' AND no text segment with non-whitespace characters
+    then: the Block is treated as reference-only.
+  req F-V6.2:
+    when: a Block is reference-only
+    then:
+      - the Block Bullet renders the dark dot, the shaded halo, AND a dashed outer ring around the halo
+      - the bullet is non-interactive (no toggle on click)
+      - the backlink count rendered to the right of the row is db.query.referencedBy(target) — i.e. the count for the ref's target Block, not this Block.
+  req F-V6.3:
+    when: a Block is not reference-only
+    then: it follows the regular Block Bullet rules from F-V2.
 ```
 
 ```mdl

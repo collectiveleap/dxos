@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
@@ -23,12 +23,14 @@ export type BlockNodeProps = {
   setFocusId: (id: string | null) => void;
 };
 
-// Increment 3b + F-V2: recursive renderer with a clickable bullet marker.
-// One Bullet + BlockEditor for this Block, then a nested column of BlockNodes
-// for its children when expanded. Tab/Shift+Tab/Enter handlers live here so
-// they can close over the parent + grandparent context.
+// Recursive renderer for a Block and its children. Tab/Shift+Tab/Enter
+// handlers live here so they can close over the parent + grandparent context.
+// Visual rules are owned by the Bullet and ExpandChevron sub-components below.
 export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: BlockNodeProps) => {
   const [snapshot] = useObject(block);
+  // Per-row hover state — drives ExpandChevron visibility. Replaces a Tailwind
+  // `group-hover:` approach that was lighting up multiple chevrons at once.
+  const [rowHovered, setRowHovered] = useState(false);
 
   const childRefs = ((snapshot.children ?? []) as readonly any[]).filter((ref) => ref?.target);
   const parentChildren = (parent.children ?? []) as readonly any[];
@@ -37,8 +39,15 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // F-V2: collapsed when state.expanded === false; default (undefined) is open.
   const expanded = (snapshot.state as any)?.expanded !== false;
   const hasChildren = childRefs.length > 0;
-  // F-V4: number of inline refs from elsewhere pointing AT this Block.
-  const backlinkCount = useBacklinkCount(block.id);
+
+  // F-V6: a Block whose content is exactly one ref segment (no meaningful
+  // text) is a "reference-only" Block. Its bullet renders with a dashed
+  // outer ring, and its backlink count reflects the TARGET's count rather
+  // than its own — visually it stands in for the target.
+  const referenceOnly = isReferenceOnlyBlock(snapshot);
+  const refTarget = referenceOnly ? getReferenceTarget(snapshot) : undefined;
+  const backlinkLookupId = (refTarget as any)?.id ?? block.id;
+  const backlinkCount = useBacklinkCount(backlinkLookupId);
 
   const toggleExpanded = () => {
     Obj.update(block, (block) => {
@@ -105,15 +114,21 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
 
   return (
     <div>
-      <div className='flex items-baseline gap-1 group'>
+      <div
+        className='flex items-baseline gap-1'
+        onMouseEnter={() => setRowHovered(true)}
+        onMouseLeave={() => setRowHovered(false)}
+      >
         <ExpandChevron
           hasChildren={hasChildren}
           expanded={expanded}
+          visible={rowHovered && hasChildren}
           onToggle={toggleExpanded}
         />
         <Bullet
           hasChildren={hasChildren}
           expanded={expanded}
+          referenceOnly={referenceOnly}
           onToggle={hasChildren ? toggleExpanded : undefined}
         />
         <div className='flex-1 min-w-0 flex items-baseline gap-2'>
@@ -159,18 +174,49 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   );
 };
 
+// Detects a Block whose content is exactly one ref segment with no meaningful
+// text. Such Blocks are rendered as references to their target.
+const isReferenceOnlyBlock = (block: any): boolean => {
+  const content = (block?.content ?? []) as readonly any[];
+  if (!Array.isArray(content) || content.length === 0) {
+    return false;
+  }
+  let refCount = 0;
+  let textChars = 0;
+  for (const segment of content) {
+    if (segment?.kind === 'ref') {
+      refCount += 1;
+    } else if (segment?.kind === 'text') {
+      textChars += (segment.text ?? '').trim().length;
+    }
+  }
+  return refCount >= 1 && textChars === 0;
+};
+
+const getReferenceTarget = (block: any): unknown => {
+  const content = (block?.content ?? []) as readonly any[];
+  for (const segment of content) {
+    if (segment?.kind === 'ref') {
+      return segment.target?.target;
+    }
+  }
+  return undefined;
+};
+
 type ExpandChevronProps = {
   hasChildren: boolean;
   expanded: boolean;
+  visible: boolean;
   onToggle: () => void;
 };
 
 // F-V2 Expand/Collapse control: a chevron set inside a bordered, lightly
-// filled circle. Hidden by default; revealed only while any part of the
-// Block's row is hovered (group-hover) or while the chevron itself is
-// focused. For non-parents, an empty same-width spacer reserves the slot so
-// columns stay aligned. Tooltip surfaces the keyboard shortcut.
-const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) => {
+// filled circle. Hidden by default; the parent BlockNode tracks its row's
+// hover state via React and passes `visible`. Keyboard focus also reveals
+// the control via `focus-visible`. For non-parents an empty same-width
+// spacer reserves the slot so columns stay aligned. Tooltip surfaces the
+// keyboard shortcut.
+const ExpandChevron = ({ hasChildren, expanded, visible, onToggle }: ExpandChevronProps) => {
   if (!hasChildren) {
     return <span className='shrink-0 w-5' aria-hidden />;
   }
@@ -180,7 +226,10 @@ const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) 
       onClick={onToggle}
       title={expanded ? 'Collapse  ⌘↑' : 'Expand  ⌘↓'}
       aria-label={expanded ? 'Collapse' : 'Expand'}
-      className='shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 text-[11px] leading-none text-neutral-500 dark:text-neutral-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
+      className={
+        'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 text-[11px] leading-none text-neutral-500 dark:text-neutral-400 transition-opacity hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer focus-visible:opacity-100 ' +
+        (visible ? 'opacity-100' : 'opacity-0 pointer-events-none')
+      }
     >
       {expanded ? '▾' : '▸'}
     </button>
@@ -190,17 +239,20 @@ const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) 
 type BulletProps = {
   hasChildren: boolean;
   expanded: boolean;
+  referenceOnly?: boolean;
   onToggle?: () => void;
 };
 
-// F-V2 Block Bullet: always renders a small dark filled dot. When the Block
-// has children AND is collapsed, a shaded ring (halo) surrounds the dot —
-// the lone signal that hidden children exist. Open parents and leaves render
-// as the dot alone. Click toggles expanded state for parents; for leaves the
-// bullet is non-interactive.
-const Bullet = ({ hasChildren, expanded, onToggle }: BulletProps) => {
-  const isInteractive = Boolean(onToggle);
-  const showCollapsedHalo = hasChildren && !expanded;
+// Block Bullet: always renders a small dark filled dot. State indicators:
+// - Closed parent: dark dot with a shaded halo around it.
+// - Open parent or leaf: dark dot alone.
+// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring.
+// Click toggles expanded state for parents; reference-only and leaf bullets
+// are non-interactive.
+const Bullet = ({ hasChildren, expanded, referenceOnly, onToggle }: BulletProps) => {
+  const isInteractive = Boolean(onToggle) && !referenceOnly;
+  const showHalo = referenceOnly || (hasChildren && !expanded);
+  const showDashedRing = Boolean(referenceOnly);
 
   return (
     <button
@@ -208,15 +260,28 @@ const Bullet = ({ hasChildren, expanded, onToggle }: BulletProps) => {
       onClick={onToggle}
       disabled={!isInteractive}
       aria-label={
-        isInteractive ? (expanded ? 'Collapse children' : 'Expand children') : 'Bullet'
+        referenceOnly
+          ? 'Reference bullet'
+          : isInteractive
+            ? expanded
+              ? 'Collapse children'
+              : 'Expand children'
+            : 'Bullet'
       }
       className={
-        'shrink-0 mt-1 w-4 h-4 inline-flex items-center justify-center rounded-full transition-colors ' +
-        (showCollapsedHalo ? 'bg-neutral-200 dark:bg-neutral-700' : '') +
-        (isInteractive ? ' cursor-pointer' : '')
+        'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors ' +
+        (showDashedRing ? 'border border-dashed border-neutral-400 dark:border-neutral-500 ' : '') +
+        (isInteractive ? 'cursor-pointer ' : '')
       }
     >
-      <span className='inline-block w-2 h-2 rounded-full bg-neutral-500 dark:bg-neutral-400' />
+      <span
+        className={
+          'inline-flex items-center justify-center w-4 h-4 rounded-full ' +
+          (showHalo ? 'bg-neutral-200 dark:bg-neutral-700' : '')
+        }
+      >
+        <span className='inline-block w-2 h-2 rounded-full bg-neutral-500 dark:bg-neutral-400' />
+      </span>
     </button>
   );
 };
