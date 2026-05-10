@@ -9,19 +9,22 @@ import { type Command, EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { DXN, Obj } from '@dxos/echo';
+import { DXN, Obj, Ref } from '@dxos/echo';
 
 import { MentionPicker } from '../MentionPicker';
+import { TagPicker } from '../TagPicker';
 
 import type { Block } from '#types';
 
 import './block-editor.css';
 
 import { caretFixPlugin } from './caret-fix-plugin';
+import { type HashState, hashKey, hashPlugin } from './hash-plugin';
 import { type MentionState, mentionKey, mentionPlugin } from './mention-plugin';
 import { RefNodeView } from './RefNodeView';
 import { schema } from './schema';
 import { fromDoc, toDoc } from './serialize';
+import { type TagTypeEntry } from './tag-types';
 
 export type BlockEditorProps = {
   block: Block.Block;
@@ -99,6 +102,13 @@ export const BlockEditor = ({
   // open below the line (default) or flip above when there's no room.
   const [mention, setMention] = useState<{
     state: MentionState;
+    cursor: { left: number; top: number; bottom: number };
+  } | null>(null);
+
+  // F-6 Phase 1: tag picker UI state — same shape as mention, driven by
+  // hash-plugin (`#`) instead of mention-plugin (`@`).
+  const [tag, setTag] = useState<{
+    state: HashState;
     cursor: { left: number; top: number; bottom: number };
   } | null>(null);
 
@@ -258,6 +268,11 @@ export const BlockEditor = ({
         viewRef.current?.dispatch(state.tr.setMeta(mentionKey, 'close'));
         return true;
       }
+      const hState = hashKey.getState(state);
+      if (hState?.active) {
+        viewRef.current?.dispatch(state.tr.setMeta(hashKey, 'close'));
+        return true;
+      }
       return false;
     };
 
@@ -267,6 +282,7 @@ export const BlockEditor = ({
       plugins: [
         caretFixPlugin,
         mentionPlugin,
+        hashPlugin,
         history(),
         keymap({
           Enter: enterCommand,
@@ -302,7 +318,9 @@ export const BlockEditor = ({
           });
         }
 
-        // Drive the picker UI from plugin state.
+        // Drive the picker UI from plugin state. Mention (`@`) and tag
+        // (`#`) pickers are mutually exclusive — only one trigger can
+        // be active at a time per the plugin definitions.
         const mState = mentionKey.getState(next);
         if (mState?.active) {
           const coords = view.coordsAtPos(mState.from);
@@ -312,6 +330,16 @@ export const BlockEditor = ({
           });
         } else {
           setMention(null);
+        }
+        const hState = hashKey.getState(next);
+        if (hState?.active) {
+          const coords = view.coordsAtPos(hState.from);
+          setTag({
+            state: hState,
+            cursor: { left: coords.left, top: coords.top, bottom: coords.bottom },
+          });
+        } else {
+          setTag(null);
         }
       },
     });
@@ -371,6 +399,39 @@ export const BlockEditor = ({
     setMention(null);
   }, []);
 
+  // F-6 Phase 1: applying a tag — create a new instance of the selected
+  // type, add it to the block's database, append a Ref to
+  // `Block.supertags`, then strip the `#`-and-query trigger text from
+  // the editor (no inline marker — the chip lives outside the
+  // contenteditable, rendered by BlockNode).
+  const handleSelectTag = useCallback(
+    (entry: TagTypeEntry) => {
+      const view = viewRef.current;
+      if (!view || !tag || !db) {
+        return;
+      }
+      const instance = Obj.make(entry.schema as any, {} as any);
+      db.add(instance);
+      Obj.update(block, (mutable) => {
+        const previous = ((mutable as any).supertags ?? []) as readonly any[];
+        (mutable as any).supertags = [...previous, db.makeRef(Obj.getDXN(instance))];
+      });
+      const tr = view.state.tr.delete(tag.state.from, tag.state.to);
+      tr.setMeta(hashKey, 'close');
+      view.dispatch(tr);
+      view.focus();
+    },
+    [tag, db, block],
+  );
+
+  const handleCloseTagPicker = useCallback(() => {
+    const view = viewRef.current;
+    if (view) {
+      view.dispatch(view.state.tr.setMeta(hashKey, 'close'));
+    }
+    setTag(null);
+  }, []);
+
   return (
     <div className='relative'>
       <div ref={hostRef} data-block-id={block.id} className='outline-none' />
@@ -382,6 +443,14 @@ export const BlockEditor = ({
           excludeId={block.id}
           onSelect={handleSelectTarget}
           onClose={handleClosePicker}
+        />
+      )}
+      {tag && (
+        <TagPicker
+          query={tag.state.query}
+          cursor={tag.cursor}
+          onSelect={handleSelectTag}
+          onClose={handleCloseTagPicker}
         />
       )}
     </div>

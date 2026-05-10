@@ -843,9 +843,90 @@ feat F-5: Backlinks panel       # Increment 5 (current)
 ```
 
 ```mdl
-feat F-6: Tags and fields       # Increment 6
-  req F-6.1: A Block can be tagged via picker; TagDef is created on demand.
-  req F-6.2: Tagged Block renders typed fields inline below the bullet.
+feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 1 current)
+  desc: |
+    Tana-style supertags, but leveraging DXOS ECHO types directly
+    instead of inventing a parallel TagDef structure. Each "tag" IS
+    an existing ECHO type from the database — applying `#Task` to a
+    Block creates a new `Task` instance and links it to the Block via
+    `Block.supertags`. Field values for a tag live ON the linked
+    typed instance (so editing the Task's `title` edits the Task, not
+    the Block).
+
+    Phase split:
+
+    - Phase 1 (current): typing `#` opens a picker showing an
+      internal allowlist of typenames considered "tag-ready"
+      (initially `[Task, Person, Organization]` from `@dxos/types`).
+      Selecting a type creates a new instance via `Obj.make`,
+      `db.add`s it, and appends `Ref(instance)` to
+      `Block.supertags`. The applied tag renders as a chip inline
+      at the end of the bullet text. NO field editing yet.
+
+    - Phase 2 (planned): when a tagged bullet is expanded, render
+      a field-editor row between the bullet's content row and its
+      children, mirroring the screenshot layout. Field types are
+      derived from the linked instance's schema (text, ref, date,
+      etc.).
+
+    - Phase 3 (planned): clicking a tag chip opens the linked
+      instance in a popover or a new pane (via F-Open-Pane).
+      Allowlist becomes user-editable instead of hardcoded.
+
+    Implementation note: `Block.supertags` is already declared as
+    `Ref<Obj.Unknown>[]` so no schema migration is needed for
+    Phase 1. The placeholder `TagDef` ECHO type that was reserved
+    for an alternative design is removed in Phase 1.
+  req F-6.Phase1.trigger:
+    given: I am editing a node
+    when: I type the tag prefix character (`#`) anywhere in the paragraph
+    then:
+      - a tag picker opens adjacent to the cursor (anchored at the `#` position),
+        flipping above the line if there isn't room below — same
+        positioning rules as F-4's mention picker.
+      - the picker shows the entries from the `tag-types` allowlist,
+        each labelled by the type's title annotation.
+      - typing more chars after `#` filters the picker by
+        case-insensitive substring on the type title.
+      - pressing Escape closes the picker; the `#` and query remain as
+        plain text.
+      Note: the prior version of this req required `#` at start of
+      paragraph or after whitespace (matching `@` for refs); user
+      feedback called out that `#` should fire anywhere (Tana
+      convention), so the surrounding-context check was dropped.
+  req F-6.Phase1.escape:
+    given: I am editing a node and have typed the tag prefix character (`#`)
+    when: I press the Escape key
+    then:
+      - the `#` character remains in the node's text (the editor is
+        not modified)
+      - the tag picker closes
+      - the cursor stays in the node, immediately after the `#`
+      - subsequent keystrokes (typing more characters in the query
+        position of the same `#`) do NOT re-open the picker — the
+        picker stays dismissed for that specific `#` until the cursor
+        moves before it or the `#` itself is deleted.
+  req F-6.Phase1.apply:
+    given: the tag picker is open with a selectable type
+    when: user clicks an entry
+    then:
+      - the `#`-and-query range is removed from the bullet text
+        (no inline marker — the chip is rendered separately).
+      - a new instance of the selected type is created via `Obj.make`
+        and added to the same database as the Block.
+      - `Block.supertags` is updated to append `Ref(instance)`.
+      - the picker closes; cursor returns to the bullet text.
+  req F-6.Phase1.chip:
+    given: a Block has one or more entries in `supertags`
+    when: the Block renders
+    then:
+      - one tag chip renders for each supertag, inline at the end of
+        the bullet's text content (after the editor, before the
+        backlinks badge).
+      - the chip displays the typename's title (e.g. "Task",
+        "Person", "Organization") prefixed with `#`.
+      - chip styling: link-blue background tint, rounded, small text.
+        Different colour per typename (deterministic hash) optional.
 ```
 
 ```mdl

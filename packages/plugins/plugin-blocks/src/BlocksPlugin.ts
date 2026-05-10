@@ -15,7 +15,7 @@ import { type CreateObject } from '@dxos/plugin-space/types';
 import { ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
-import { Block, BlockOutline, TagDef } from '#types';
+import { Block, BlockOutline } from '#types';
 
 export const BlocksPlugin = Plugin.define(meta).pipe(
   AppPlugin.addMetadataModule({
@@ -38,7 +38,7 @@ export const BlocksPlugin = Plugin.define(meta).pipe(
     },
   }),
   AppPlugin.addSchemaModule({
-    schema: [Block.Block, BlockOutline.BlockOutline, TagDef.TagDef],
+    schema: [Block.Block, BlockOutline.BlockOutline],
   }),
   AppPlugin.addSurfaceModule({ activate: ReactSurface }),
   AppPlugin.addTranslationsModule({ translations }),

@@ -45,13 +45,15 @@ export const Block = Schema.Struct({
     Schema.Literal('bullet', 'heading', 'todo', 'image', 'url', 'search', 'view', 'code'),
   ),
 
-  // Supertags applied to this block. Refs target TagDef instances.
+  // F-6: Supertags as ECHO-typed instances. Each entry is a Ref to a
+  // newly-created instance of an ECHO type from the `tag-types`
+  // allowlist (e.g., `org.dxos.type.task`). Field values for the
+  // applied tag live ON the linked instance (not in `Block.fields`).
   // Named `supertags` (not `tags`) to avoid colliding with composer's
   // shared `BaseSchema.tags: Array<Ref<Tag>>` in `react-ui-form`'s
   // ObjectProperties — Effect-Schema cannot merge two `Array<Ref>`
   // fields of different element types when an object is opened in the
   // article surface (F-Open-Pane).
-  // TODO(plugin-blocks): tighten to Ref.Ref(TagDef.TagDef).
   supertags: Schema.optional(Schema.Array(Ref.Ref(Obj.Unknown))),
 
   // Field map: name -> sub-blocks (multi-value friendly).

@@ -9,6 +9,7 @@ import { useObject } from '@dxos/react-client/echo';
 
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
+import { TAG_TYPES } from '../BlockEditor/tag-types';
 
 import { Block } from '#types';
 
@@ -215,6 +216,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onShiftEnterAbove={handleShiftEnterAbove}
             />
           </div>
+          <TagChips block={snapshot} />
           {backlinkCount > 0 && (
             <span
               className='text-xs leading-none px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0'
@@ -432,5 +434,38 @@ const Bullet = ({ hasChildren, expanded, referenceOnly, onClick, onShiftClick }:
         <span className='inline-block w-2 h-2 rounded-full bg-neutral-500 dark:bg-neutral-400' />
       </span>
     </button>
+  );
+};
+
+// F-6 Phase 1: render one chip per entry in `block.supertags`. Each
+// chip shows the type's title from the `TAG_TYPES` allowlist (looked
+// up by typename of the linked instance) prefixed with `#`. No click
+// handler yet — Phase 3 will route clicks to F-Open-Pane on the
+// linked instance. Field editing for the linked instance lands in
+// Phase 2.
+const TagChips = ({ block }: { block: any }) => {
+  const supertags = ((block?.supertags ?? []) as readonly any[]).filter((ref) => ref?.target);
+  if (supertags.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {supertags.map((ref, index) => {
+        const target = ref.target as any;
+        const typename = Obj.getTypename(target);
+        const allowlistEntry = TAG_TYPES.find((entry) => entry.typename === typename);
+        const title = allowlistEntry?.title ?? typename ?? 'tag';
+        return (
+          <span
+            key={target?.id ?? index}
+            className='inline-flex items-baseline gap-0.5 text-xs leading-none px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 shrink-0'
+            title={typename ?? undefined}
+          >
+            <span className='opacity-60'>#</span>
+            <span>{title}</span>
+          </span>
+        );
+      })}
+    </>
   );
 };
