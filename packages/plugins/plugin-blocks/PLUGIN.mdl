@@ -263,7 +263,7 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
 ```
 
 ```mdl
-feat F-V1: Bullet markers and indent guide   # Future increment
+feat F-V1: Bullet markers and indent guide   # Increment V1 (current — landed alongside F-V2)
   desc: |
     Visual fidelity to the Tana outliner. Each rendered Block has a small
     bullet glyph to its left (filled circle by default). When a Block has
