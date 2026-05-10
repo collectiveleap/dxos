@@ -25,3 +25,18 @@
 .ProseMirror p.block-empty-paragraph {
   min-width: 1rem;
 }
+
+/*
+ * F-Pending-Child.cursor-alignment: the pending child row's editable
+ * is a `<div contentEditable>` (not a ProseMirror editor). When empty,
+ * an inline-block has no text content, so its inline-baseline defaults
+ * to the bottom of its box — and a cursor placed inside renders at the
+ * line-box TOP, well above where a real bullet's caret sits. Inject a
+ * zero-width-space via `::before` so the inline-block has a baseline
+ * anchored to text metrics; the parent flex's `items-baseline` then
+ * lines the caret up with the real-bullet baseline.
+ */
+.block-pending-child-editable::before {
+  content: '\200B';
+  pointer-events: none;
+}
