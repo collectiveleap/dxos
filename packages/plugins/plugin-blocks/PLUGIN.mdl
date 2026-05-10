@@ -305,6 +305,15 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       behaviour.
     - Hovering the Expand/Collapse control surfaces a tooltip with the
       shortcut.
+
+    Visual size:
+    - The chevron glyph inside the Expand/Collapse control matches the
+      surrounding body text size — it is not visually small relative to
+      the bullet's text.
+    - The chevron itself is rendered as a thin stroke (two diagonal lines
+      meeting at a point), matching Tana's visual style. Filled
+      triangles like ▸ / ▾ are NOT used — they read too heavy against
+      the body text.
   req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
   req F-V2.2:
     when: Block has children AND Block.state.expanded === false
@@ -412,6 +421,9 @@ feat F-V4: Inline backlink count badge        # Increment V4 (current)
     then:
       - within one paint frame after X's content is committed, Y's count badge increments by one
       - the user is NOT required to leave X, press Enter, navigate away, or reload
+  req F-V4.placement:
+    when: a Block has at least one incoming ref
+    then: the count badge is rendered immediately to the right of the Block's text content (not pushed to the row's far edge); when text wraps to multiple lines, the badge sits at the end of the last line on which the text fits, rather than at a fixed right margin.
   desc: |
     Each Block that is referenced by other Blocks displays a small inline
     count badge after its content showing how many bullets (or other ECHO

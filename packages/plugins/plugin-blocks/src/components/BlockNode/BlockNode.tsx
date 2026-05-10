@@ -131,8 +131,15 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           referenceOnly={referenceOnly}
           onToggle={hasChildren ? toggleExpanded : undefined}
         />
-        <div className='flex-1 min-w-0 flex items-baseline gap-2'>
-          <div className='flex-1 min-w-0'>
+        <div className='flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2'>
+          {/* Editor wrapper sized to its content so the badge sits right
+              next to the text rather than at the row's far edge. The
+              [&_*]:inline-block / [&_p]:inline-block hack collapses
+              ProseMirror's host div and its <p> to inline-block so the
+              wrap-width (not the parent's max width) drives the column
+              size, and flex-wrap can place the badge adjacent to the
+              last line of text. */}
+          <div className='min-w-0 max-w-full [&_.ProseMirror]:inline-block [&_p]:inline-block'>
             <BlockEditor
               block={block}
               autoFocus={focusId === block.id}
@@ -145,7 +152,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           </div>
           {backlinkCount > 0 && (
             <span
-              className='text-[10px] leading-none px-1 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0 mt-1'
+              className='text-xs leading-none px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0'
               title={`${backlinkCount} reference${backlinkCount === 1 ? '' : 's'}`}
             >
               {backlinkCount}
@@ -218,7 +225,7 @@ type ExpandChevronProps = {
 // keyboard shortcut.
 const ExpandChevron = ({ hasChildren, expanded, visible, onToggle }: ExpandChevronProps) => {
   if (!hasChildren) {
-    return <span className='shrink-0 w-5' aria-hidden />;
+    return <span className='shrink-0 w-6' aria-hidden />;
   }
   return (
     <button
@@ -227,11 +234,23 @@ const ExpandChevron = ({ hasChildren, expanded, visible, onToggle }: ExpandChevr
       title={expanded ? 'Collapse  ⌘↑' : 'Expand  ⌘↓'}
       aria-label={expanded ? 'Collapse' : 'Expand'}
       className={
-        'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 text-[11px] leading-none text-neutral-500 dark:text-neutral-400 transition-opacity hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer focus-visible:opacity-100 ' +
+        'shrink-0 mt-0.5 w-6 h-6 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 transition-opacity hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer focus-visible:opacity-100 ' +
         (visible ? 'opacity-100' : 'opacity-0 pointer-events-none')
       }
     >
-      {expanded ? '▾' : '▸'}
+      <svg
+        width='12'
+        height='12'
+        viewBox='0 0 12 12'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='1.75'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        aria-hidden='true'
+      >
+        {expanded ? <path d='M3 5 L6 8 L9 5' /> : <path d='M5 3 L8 6 L5 9' />}
+      </svg>
     </button>
   );
 };
