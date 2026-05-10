@@ -183,12 +183,19 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
         <div className='flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2'>
           {/* Editor wrapper sized to its content so the badge sits right
               next to the text rather than at the row's far edge. The
-              [&_*]:inline-block / [&_p]:inline-block hack collapses
-              ProseMirror's host div and its <p> to inline-block so the
-              wrap-width (not the parent's max width) drives the column
-              size, and flex-wrap can place the badge adjacent to the
-              last line of text. */}
-          <div className='min-w-0 max-w-full [&_.ProseMirror]:inline-block [&_p]:inline-block'>
+              `[&_.ProseMirror]:inline-block` collapses ProseMirror's host
+              div to inline-block so the wrap-width (not the parent's max
+              width) drives the column size, and flex-wrap can place the
+              badge adjacent to the last line of text.
+
+              F-Caret: we deliberately do NOT make the inner `<p>`
+              inline-block. PM auto-injects `<br class="ProseMirror-trailingBreak">`
+              into empty textblocks; for an inline-block `<p>` Safari
+              renders that as a 2-line-tall element and paints two
+              carets (one per line). Keeping `<p>` block-level inside
+              the inline-block `.ProseMirror` constrains the empty
+              paragraph to a single line height and yields one caret. */}
+          <div className='min-w-0 max-w-full [&_.ProseMirror]:inline-block'>
             <BlockEditor
               block={block}
               autoFocus={focusId === block.id}

@@ -3,38 +3,25 @@
  */
 
 /*
- * F-Caret: empty paragraph caret indicator.
+ * F-Caret: empty paragraph caret visibility.
  *
- * Empty bullets render `<p><br/></p>` inside an inline-block paragraph
- * (see F-V4.placement). The inline-block context collapses the empty
- * `<p>` to 0 width, and the browser refuses to paint a real caret at
- * the corresponding DOM position (`<p>, 1`) because it has no
- * geometry. ProseMirror enforces that selection sits at PM-positions,
- * so we can't manually move the DOM caret into a text node either.
+ * BlockNode wraps the editor in an inline-block shell so the backlinks
+ * badge can sit next to the text (per F-V4.placement). The inner `<p>`
+ * is left at its default block display so PM's auto-injected
+ * `<br class="ProseMirror-trailingBreak">` for empty textblocks renders
+ * as ONE line height instead of two — Safari paints two carets in the
+ * 2-line case (one above and one below the BR).
  *
- * Workaround: render a CSS-only blinking line via `::after` on the
- * empty paragraph whenever the editor has focus. The real PM caret
- * is invisible but the user sees a stand-in blinking indicator.
- * Typing still goes through PM normally; on first input the
- * paragraph stops being empty and the real caret renders inside the
- * text node it just created.
+ * To give the native browser caret somewhere to paint inside an empty
+ * `<p>` whose intrinsic content width is 0, force a min-width on the
+ * empty paragraph. The class `block-empty-paragraph` is applied by
+ * `caret-fix-plugin` via `Decoration.node` on any paragraph whose
+ * content size is 0.
  *
- * The `block-empty-paragraph` class is added by `caret-fix-plugin`
- * via `Decoration.node` on every paragraph whose content size is 0.
+ * Patterned after Tana's `.editable:empty { display: inline-block;
+ * min-width: 1rem }` rule.
  */
 
-@keyframes block-empty-caret-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.ProseMirror.ProseMirror-focused p.block-empty-paragraph::after {
-  content: '';
-  display: inline-block;
-  width: 1px;
-  height: 1.2em;
-  background: currentColor;
-  vertical-align: text-bottom;
-  animation: block-empty-caret-blink 1.06s steps(1) infinite;
+.ProseMirror p.block-empty-paragraph {
+  min-width: 1rem;
 }
