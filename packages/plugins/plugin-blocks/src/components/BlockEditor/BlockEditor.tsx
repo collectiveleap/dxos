@@ -36,6 +36,9 @@ export type BlockEditorProps = {
   // browser doesn't scroll on no-op edge cases.
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  // Shift+Enter creates an empty sibling Block after the current one
+  // without splitting current content. Cursor moves to the new sibling.
+  onShiftEnter?: () => void;
 };
 
 // Increment 4: editor gains an inline ref node. Typing `@` opens a picker;
@@ -52,6 +55,7 @@ export const BlockEditor = ({
   onExpandRequest,
   onMoveUp,
   onMoveDown,
+  onShiftEnter,
 }: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -62,6 +66,7 @@ export const BlockEditor = ({
   const onExpandRequestRef = useRef(onExpandRequest);
   const onMoveUpRef = useRef(onMoveUp);
   const onMoveDownRef = useRef(onMoveDown);
+  const onShiftEnterRef = useRef(onShiftEnter);
   onEnterRef.current = onEnter;
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
@@ -69,6 +74,7 @@ export const BlockEditor = ({
   onExpandRequestRef.current = onExpandRequest;
   onMoveUpRef.current = onMoveUp;
   onMoveDownRef.current = onMoveDown;
+  onShiftEnterRef.current = onShiftEnter;
 
   // Mention picker UI state, derived from the editor's mention plugin state.
   // The cursor coords carry top + bottom so the picker can decide whether to
@@ -171,6 +177,17 @@ export const BlockEditor = ({
       return true;
     };
 
+    // Shift+Enter creates an empty sibling Block AFTER the current one
+    // without splitting the current bullet's content. Distinct from Enter
+    // which splits at the cursor.
+    const shiftEnterCommand: Command = () => {
+      if (!onShiftEnterRef.current) {
+        return false;
+      }
+      onShiftEnterRef.current();
+      return true;
+    };
+
     // ArrowUp / ArrowDown move to the previous / next VISIBLE Block
     // unconditionally — single-line bullets don't need within-paragraph
     // line navigation. Always returns true so the browser doesn't scroll
@@ -202,6 +219,7 @@ export const BlockEditor = ({
         history(),
         keymap({
           Enter: enterCommand,
+          'Shift-Enter': shiftEnterCommand,
           Tab: tabCommand,
           'Shift-Tab': shiftTabCommand,
           'Mod-ArrowUp': collapseCommand,

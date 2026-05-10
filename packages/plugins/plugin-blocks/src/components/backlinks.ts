@@ -189,3 +189,10 @@ export const useBacklinkCount = (blockId: string): number => {
   const counts = useContext(BacklinkCountContext);
   return counts.get(blockId) ?? 0;
 };
+
+// React context that lets any BlockNode request a zoom into a Block by id.
+// Provided by BlockArticle. Default is a no-op so BlockNode renders cleanly
+// even when no provider is mounted (storybook stories, etc.).
+export const ZoomContext = createContext<(blockId: string) => void>(() => {});
+
+export const useZoom = () => useContext(ZoomContext);

@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
-import { useBacklinkCount } from '../backlinks';
+import { useBacklinkCount, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 
 import { Block } from '#types';
@@ -49,6 +49,11 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   const backlinkLookupId = (refTarget as any)?.id ?? block.id;
   const backlinkCount = useBacklinkCount(backlinkLookupId);
 
+  // F-Zoom: clicking the bullet zooms into this Block. The handler comes
+  // from BlockArticle via context; default is a no-op when no provider is
+  // mounted (e.g., storybook stories).
+  const zoom = useZoom();
+
   const toggleExpanded = () => {
     Obj.update(block, (block) => {
       const mutable = block as any;
@@ -56,19 +61,27 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     });
   };
 
-  const handleEnter = (_beforeText: string, afterText: string) => {
+  const insertSiblingAfter = (initialContent: any[]) => {
     if (siblingIndex < 0) {
       return;
     }
-    const newBlock = Block.make({
-      content: afterText.length > 0 ? [{ kind: 'text', text: afterText }] : [],
-    });
+    const newBlock = Block.make({ content: initialContent });
     const before = parentChildren.slice(0, siblingIndex + 1);
     const after = parentChildren.slice(siblingIndex + 1);
     Obj.update(parent, (parent) => {
       (parent as any).children = [...before, Ref.make(newBlock), ...after];
     });
     setFocusId(newBlock.id);
+  };
+
+  const handleEnter = (_beforeText: string, afterText: string) => {
+    insertSiblingAfter(afterText.length > 0 ? [{ kind: 'text', text: afterText }] : []);
+  };
+
+  // F-Shift-Enter: create an empty sibling Block AFTER this one without
+  // splitting the current bullet's content. Cursor moves to the new sibling.
+  const handleShiftEnter = () => {
+    insertSiblingAfter([]);
   };
 
   const handleIndent = () => {
@@ -142,7 +155,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           hasChildren={hasChildren}
           expanded={expanded}
           referenceOnly={referenceOnly}
-          onToggle={hasChildren ? toggleExpanded : undefined}
+          onClick={referenceOnly ? undefined : () => zoom(block.id)}
         />
         <div className='flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2'>
           {/* Editor wrapper sized to its content so the badge sits right
@@ -163,6 +176,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onExpandRequest={hasChildren && !expanded ? toggleExpanded : undefined}
               onMoveUp={handleMoveUp}
               onMoveDown={handleMoveDown}
+              onShiftEnter={handleShiftEnter}
             />
           </div>
           {backlinkCount > 0 && (
@@ -309,34 +323,29 @@ type BulletProps = {
   hasChildren: boolean;
   expanded: boolean;
   referenceOnly?: boolean;
-  onToggle?: () => void;
+  // F-Zoom: clicking the bullet zooms into the Block. Toggle is no longer
+  // bound to bullet click — that lives on the chevron and Cmd+Up/Down.
+  onClick?: () => void;
 };
 
 // Block Bullet: always renders a small dark filled dot. State indicators:
 // - Closed parent: dark dot with a shaded halo around it.
 // - Open parent or leaf: dark dot alone.
-// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring.
-// Click toggles expanded state for parents; reference-only and leaf bullets
-// are non-interactive.
-const Bullet = ({ hasChildren, expanded, referenceOnly, onToggle }: BulletProps) => {
-  const isInteractive = Boolean(onToggle) && !referenceOnly;
+// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring;
+//   non-interactive (cannot be zoomed into).
+// Click zooms into the Block (F-Zoom), not toggle.
+const Bullet = ({ hasChildren, expanded, referenceOnly, onClick }: BulletProps) => {
+  const isInteractive = Boolean(onClick) && !referenceOnly;
   const showHalo = referenceOnly || (hasChildren && !expanded);
   const showDashedRing = Boolean(referenceOnly);
 
   return (
     <button
       type='button'
-      onClick={onToggle}
+      onClick={onClick}
       disabled={!isInteractive}
-      aria-label={
-        referenceOnly
-          ? 'Reference bullet'
-          : isInteractive
-            ? expanded
-              ? 'Collapse children'
-              : 'Expand children'
-            : 'Bullet'
-      }
+      aria-label={referenceOnly ? 'Reference bullet' : isInteractive ? 'Zoom into block' : 'Bullet'}
+      title={isInteractive ? 'Zoom into block' : undefined}
       className={
         'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors ' +
         (showDashedRing ? 'border border-dashed border-neutral-400 dark:border-neutral-500 ' : '') +

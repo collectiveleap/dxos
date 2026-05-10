@@ -8,3 +8,4 @@ export * from './BlockNode';
 export * from './BlockTree';
 export * from './MentionPicker';
 export * from './backlinks';
+export * from './labels';

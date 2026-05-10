@@ -297,7 +297,6 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       spacer reserves the slot so columns stay aligned.
 
     Toggle inputs:
-    - Click the Block Bullet to toggle.
     - Click the Expand/Collapse control to toggle.
     - Mod+ArrowUp (Cmd+Up) collapses the current parent when open;
       Mod+ArrowDown (Cmd+Down) expands it when closed. Both are no-ops in
@@ -305,6 +304,8 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       behaviour.
     - Hovering the Expand/Collapse control surfaces a tooltip with the
       shortcut.
+    - The Block Bullet itself does NOT toggle; clicking it zooms into the
+      Block (see F-Zoom).
 
     Visual size:
     - The chevron glyph inside the Expand/Collapse control matches the
@@ -358,6 +359,59 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
   req F-V2.11:
     when: user hovers the chevron
     then: a tooltip displays "Collapse ⌘ ↑" or "Expand ⌘ ↓" matching the available action.
+```
+
+```mdl
+feat F-Shift-Enter: empty sibling shortcut         # Increment Shift-Enter (current)
+  desc: |
+    Shift+Enter creates an empty sibling Block AFTER the current Block
+    without splitting the current bullet's content. Distinct from Enter
+    which splits at the cursor. The cursor moves to the new empty sibling.
+  req F-Shift-Enter.1:
+    given: I am editing node X
+    when: I press Shift+Enter
+    then:
+      - a new sibling Block Y is created
+      - Y has the same parent as X
+      - Y is empty (no content)
+      - X's content is unchanged
+      - cursor moves to Y
+```
+
+```mdl
+feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
+  desc: |
+    Clicking a Block's bullet "zooms" the article surface to show only
+    that Block and its descendants. The zoomed Block appears at the top
+    as a large bold header; its child tree renders below. A small
+    "← Outline" link returns to the unzoomed (full outline) view.
+
+    Zoom state lives in BlockArticle's local state and is propagated to
+    BlockNode via ZoomContext so any descendant bullet can be the next
+    zoom target. Backlink counts continue to reflect the FULL outline
+    tree's incoming refs (not just the zoomed subtree) so badges remain
+    accurate at every zoom level.
+
+    Reference-only Blocks are not zoomable — clicking their bullet is a
+    no-op (their target's bullet should be clicked instead).
+  req F-Zoom.in:
+    given: there is a Block X with one or more children
+    when: I click X's Block Bullet
+    then:
+      - X is rendered as a header at the top of the article surface in
+        large bold font
+      - X's children render below the header recursively
+      - the unzoomed outline view is no longer shown
+      - a "← Outline" link is visible to return to the unzoomed view
+  req F-Zoom.out:
+    given: the article surface is currently zoomed into a Block
+    when: I click the "← Outline" link
+    then: the article returns to the unzoomed view, showing the full
+      outline tree from the root.
+  req F-Zoom.reference-only:
+    given: a reference-only Block (F-V6)
+    when: I click its bullet
+    then: nothing happens (zooming is disabled for reference-only Blocks).
 ```
 
 ```mdl
@@ -650,6 +704,59 @@ test T-8: Increment 4b — rename propagates without local edit
     - within one tick, the rendered label in the outline updates from "alpha" to "beta"
     - no manual reload or focus-change is required
 ```
+
+---
+
+## Remaining
+
+Captured here so the next session can resume without re-reading every commit.
+
+### Awaiting browser-verification
+
+The following features are spec'd in this document and the code has landed
+(build + lint pass), but the browser smoke pass was not completed because
+the dev server stalled. Re-run before considering the feature signed off.
+
+- F-Shift-Enter — type something into a bullet, press Shift+Enter, expect a new empty sibling Block to appear after it with the cursor on it; the original bullet's content should be unchanged.
+- F-Zoom — click any non-reference-only Block's bullet; expect the article surface to render that Block as a header with its child tree below; click the "← Outline" link to return to the unzoomed view.
+
+### How to resume the smoke test
+
+The user is remote and verifies via screenshots. To re-run the dev server on
+a stable port for an attached preview:
+
+1. Add a temporary entry to `.claude/launch.json` (do NOT commit):
+
+   ```json
+   {
+     "name": "composer-app-smoke",
+     "runtimeExecutable": "pnpm",
+     "runtimeArgs": ["--filter", "@dxos/composer-app", "exec", "vite", "dev", "--port", "5188", "--strictPort"],
+     "port": 5188
+   }
+   ```
+
+2. From the worktree (`.claude/worktrees/agitated-nash-bd0b0f`), start it via the
+   preview tool: `preview_start` with that entry name. Wait for "ready in".
+3. `preview_screenshot` after each interaction; share screenshots with user.
+4. When the verification is signed off, REVERT `.claude/launch.json` (the smoke
+   entry must not be committed — `launch.json` is a tracked file).
+
+Worktree path:  `.claude/worktrees/agitated-nash-bd0b0f`
+Branch:         `claude/agitated-nash-bd0b0f`
+Last commit before resume should mention "browser verification pending".
+
+### Future increments (not started)
+
+- F-6 Tags and fields — apply `#Task` etc. to a bullet; render typed fields inline below the bullet via the existing TagDef + Effect-Schema substrate. Smallest first cut: single-tag-per-Block, pre-defined TagDefs.
+- F-7 Tana Paste import — parse a payload starting with `%%tana%%` into Blocks + TagDefs, preserving structure, supertags, fields, refs, and dates via a stable-id translation table. Schema is already a faithful import target; what's missing is the parser.
+
+### Pieces flagged but not yet spec'd
+
+- Picker keyboard navigation (arrow keys + Enter to select; Esc already wired).
+- `add object label` translation key shows raw on hover for the create-Block-Outline affordance.
+- BacklinksPanel reactivity to a *source* Block's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
+- BlockEditor's Storybook story (referenced as standard practice but not yet authored).
 
 ---
 

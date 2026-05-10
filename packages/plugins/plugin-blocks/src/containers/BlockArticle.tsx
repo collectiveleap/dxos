@@ -2,33 +2,78 @@
 // Copyright 2025 DXOS.org
 //
 
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { useObject } from '@dxos/react-client/echo';
 import { Panel } from '@dxos/react-ui';
 
-import { BacklinkCountContext, BacklinksPanel, BlockTree, useBacklinks } from '#components';
-import type { BlockOutline } from '#types';
+import {
+  BacklinkCountContext,
+  BacklinksPanel,
+  BlockTree,
+  ZoomContext,
+  getDisplayLabel,
+  useBacklinks,
+} from '#components';
+import { Block, type BlockOutline } from '#types';
 
 export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline>;
 
-// Increment 3 + F-5 + F-V4: renders the outline tree with a Linked-references
-// panel below it. The backlink scan runs once via useBacklinks; the count map
-// flows through React context to each BlockNode for the per-bullet badge,
-// while the flat list goes to the panel.
+// Renders the outline tree with a Linked-references panel below it.
+// F-Zoom: when zoomedBlockId is set, the article renders the zoomed Block
+// as a header at the top of the page and its descendant tree below it.
+// Clicking the bullet on a Block zooms into it. The "← Outline" link
+// returns to the full outline view.
 export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
   const [outline] = useObject(subject);
   const root = outline.root?.target;
   const { list, countByTargetId } = useBacklinks(subject);
 
+  const [zoomedBlockId, setZoomedBlockId] = useState<string | null>(null);
+  const zoomedBlock = useMemo(() => {
+    if (!zoomedBlockId || !root) {
+      return null;
+    }
+    return findBlockById(root, zoomedBlockId);
+  }, [root, zoomedBlockId]);
+
+  const handleZoom = useCallback(
+    (blockId: string) => {
+      setZoomedBlockId(blockId);
+    },
+    [],
+  );
+
+  const handleZoomOut = useCallback(() => {
+    setZoomedBlockId(null);
+  }, []);
+
+  const treeRoot = zoomedBlock || root;
+
   return (
     <Panel.Root role={role}>
       <Panel.Content>
-        {root ? (
+        {treeRoot ? (
           <div className='p-4'>
+            {zoomedBlock && (
+              <div className='mb-4'>
+                <button
+                  type='button'
+                  onClick={handleZoomOut}
+                  className='text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
+                >
+                  ← Outline
+                </button>
+                <h1 className='mt-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
+                  {getDisplayLabel(zoomedBlock) || '(empty)'}
+                </h1>
+              </div>
+            )}
             <BacklinkCountContext.Provider value={countByTargetId}>
-              <BlockTree rootBlock={root} />
+              <ZoomContext.Provider value={handleZoom}>
+                <BlockTree rootBlock={treeRoot} />
+              </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
             <BacklinksPanel backlinks={list} />
           </div>
@@ -38,6 +83,24 @@ export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
       </Panel.Content>
     </Panel.Root>
   );
+};
+
+const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
+  const stack: Block.Block[] = [root];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.id === id) {
+      return current;
+    }
+    const childRefs = (current.children ?? []) as readonly any[];
+    for (const ref of childRefs) {
+      const child = ref?.target;
+      if (child) {
+        stack.push(child);
+      }
+    }
+  }
+  return null;
 };
 
 export default BlockArticle;
