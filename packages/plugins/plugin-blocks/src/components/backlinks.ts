@@ -5,7 +5,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
 import { Filter, Obj } from '@dxos/echo';
-import { useObject } from '@dxos/react-client/echo';
 
 import { getDisplayLabel } from './labels';
 
@@ -39,7 +38,6 @@ const empty: BacklinkData = { list: [], countByTargetId: new Map() };
 // For perf at scale, populate a typed `Block.references: Array<Ref<Obj.Unknown>>`
 // sidecar at save and switch to db.query.referencedBy(Block, 'references').
 export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData => {
-  const [snapshot] = useObject(outline);
   const [data, setData] = useState<BacklinkData>(empty);
 
   useEffect(() => {
@@ -49,7 +47,14 @@ export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData =
     }
     let cancelled = false;
 
-    void (async () => {
+    const compute = () => {
+      if (cancelled) {
+        return;
+      }
+
+      // Walk the outline's tree to collect every Block id "inside" the
+      // outline. Read live from `outline` (not a snapshot) so the most
+      // recent structure is reflected on every recompute.
       const innerIds = new Set<string>();
       const collectIds = (block: any): void => {
         if (!block || innerIds.has(block.id)) {
@@ -61,12 +66,13 @@ export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData =
           collectIds(ref?.target);
         }
       };
-      const root = (snapshot as any)?.root?.target;
+      const root = (outline as any)?.root?.target;
       if (root) {
         collectIds(root);
       }
 
-      const allBlocks = (await db.query(Filter.typename(Block.Block.typename)).run()) ?? [];
+      const allBlocks = db.query(Filter.typename(Block.Block.typename)).runSync() ?? [];
+
       const list: Backlink[] = [];
       const counts = new Map<string, number>();
       const seenSourceForTarget = new Set<string>();
@@ -111,12 +117,33 @@ export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData =
       if (!cancelled) {
         setData({ list, countByTargetId: counts });
       }
-    })();
+    };
+
+    // Initial scan plus subscribe to all Block mutations. This makes the
+    // per-bullet count badges and the BacklinksPanel update reactively when
+    // any Block is created, modified, or deleted anywhere in the database
+    // — without requiring a reload.
+    compute();
+    const queryResult = db.query(Filter.typename(Block.Block.typename));
+    const subscription = (queryResult as any).subscribe?.(() => compute());
 
     return () => {
       cancelled = true;
+      if (typeof subscription === 'function') {
+        try {
+          subscription();
+        } catch {
+          /* noop */
+        }
+      } else if (subscription && typeof subscription.unsubscribe === 'function') {
+        try {
+          subscription.unsubscribe();
+        } catch {
+          /* noop */
+        }
+      }
     };
-  }, [outline, snapshot]);
+  }, [outline]);
 
   return data;
 };

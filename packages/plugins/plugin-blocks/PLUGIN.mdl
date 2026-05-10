@@ -235,10 +235,15 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
   req F-4.1:
     when: user types @ at the start of a paragraph or after whitespace
     then: |
-      a picker popover opens at the cursor showing matching ECHO objects.
-      Individual Blocks (bullets) are first-class candidates and appear in
-      the picker labelled by their text content; empty-labelled objects
-      (Blocks with no text, unnamed system rows) are hidden.
+      a picker popover opens adjacent to the cursor, with its top-left
+      corner anchored at the @ position. The popover flips above the line
+      when there isn't enough room below; otherwise it opens below. Both
+      coordinates are clamped to the viewport so it never goes off-screen.
+      The picker shows matching ECHO objects. Individual Blocks (bullets)
+      are first-class candidates and appear labelled by their text content;
+      empty-labelled objects (Blocks with no text, unnamed system rows)
+      are hidden. The Block currently being edited is excluded from
+      results — a bullet cannot reference itself.
   req F-4.2:
     when: user types more letters after @
     then: the picker filters live by case-insensitive substring on the object's label

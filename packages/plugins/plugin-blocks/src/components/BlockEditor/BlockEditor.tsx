@@ -59,9 +59,11 @@ export const BlockEditor = ({
   onExpandRequestRef.current = onExpandRequest;
 
   // Mention picker UI state, derived from the editor's mention plugin state.
+  // The cursor coords carry top + bottom so the picker can decide whether to
+  // open below the line (default) or flip above when there's no room.
   const [mention, setMention] = useState<{
     state: MentionState;
-    coords: { left: number; top: number };
+    cursor: { left: number; top: number; bottom: number };
   } | null>(null);
 
   // Resolver used by both the NodeView (for label rendering) and serialize.fromDoc
@@ -206,7 +208,10 @@ export const BlockEditor = ({
         const mState = mentionKey.getState(next);
         if (mState?.active) {
           const coords = view.coordsAtPos(mState.from);
-          setMention({ state: mState, coords: { left: coords.left, top: coords.bottom } });
+          setMention({
+            state: mState,
+            cursor: { left: coords.left, top: coords.top, bottom: coords.bottom },
+          });
         } else {
           setMention(null);
         }
@@ -256,7 +261,8 @@ export const BlockEditor = ({
         <MentionPicker
           db={Obj.getDatabase(block)}
           query={mention.state.query}
-          position={mention.coords}
+          cursor={mention.cursor}
+          excludeId={block.id}
           onSelect={handleSelectTarget}
           onClose={handleClosePicker}
         />
