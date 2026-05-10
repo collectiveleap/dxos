@@ -6,21 +6,41 @@ import { Obj } from '@dxos/echo';
 
 import { Block } from '#types';
 
-// Label resolver shared by the mention picker and the RefNodeView. Falls back
-// to the Block's text content when an object has no canonical label — without
-// this, individual bullets render as "block/<id>" placeholders even though
-// they're addressable graph nodes.
-export const getDisplayLabel = (object: any): string => {
+// Label resolver shared by the mention picker, RefNodeView, and the
+// outline's H1 → name auto-sync. For Block objects, expands inline ref
+// segments by recursively resolving each ref's target via this same
+// function so the rendered label includes ref text — without this, a
+// bullet whose content is `"hello [@A] world"` would render as
+// `"hello  world"` (gaps where the refs were).
+//
+// Recursion is guarded with a `visited` set so that ref cycles
+// (`A → B → A`) terminate with a `…` placeholder rather than looping.
+export const getDisplayLabel = (object: any, visited: Set<string> = new Set()): string => {
   const stdLabel = Obj.getLabel(object);
   if (typeof stdLabel === 'string' && stdLabel.length > 0) {
     return stdLabel;
   }
 
   if (Obj.getTypename(object) === Block.Block.typename) {
+    const id = object?.id as string | undefined;
+    if (id && visited.has(id)) {
+      return '…';
+    }
+    if (id) {
+      visited.add(id);
+    }
     const segments = (object?.content ?? []) as readonly any[];
     const text = segments
-      .filter((segment) => segment?.kind === 'text')
-      .map((segment) => segment.text ?? '')
+      .map((segment) => {
+        if (segment?.kind === 'text') {
+          return segment.text ?? '';
+        }
+        if (segment?.kind === 'ref') {
+          const target = segment.target?.target;
+          return target ? getDisplayLabel(target, visited) : '';
+        }
+        return '';
+      })
       .join('')
       .trim();
     if (text.length > 0) {

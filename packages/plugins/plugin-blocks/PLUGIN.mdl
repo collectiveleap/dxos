@@ -474,6 +474,85 @@ feat F-Headline: zoomed headline preserves all content   # Increment Headline (c
 ```
 
 ```mdl
+feat F-Page-Header: root as editable header with parent breadcrumb   # Increment Page-Header (current)
+  desc: |
+    The article surface ALWAYS renders the current page block as an
+    editable H1 header at the top of the page, with that block's
+    children rendered as bullets below. There is no separate
+    "unzoomed" view — the default page block is the outline's root,
+    so the root Block IS the title node.
+
+    F-Zoom's mechanic still applies: clicking a bullet (other than a
+    reference-only Block) makes that Block the page block, with its
+    own children rendered below. But the header is no longer hidden
+    when the page block is the root.
+
+    The header is a real `BlockEditor`, not a read-only display.
+    Typing into it edits `pageBlock.content`. F-V3 inline ref
+    styling and F-V4 ref-mention all work the same as in body
+    bullets. A `headlineMode` prop tells the editor to apply
+    H1-large styling.
+
+    Parent navigation (replaces F-Zoom's "← Outline" link):
+    - When the page block is NOT the root, a "← {parent label}"
+      breadcrumb renders above the H1. Clicking it makes the parent
+      the new page block. This is recursive: click after click
+      climbs up one level at a time until the page block is the
+      root, where the breadcrumb is hidden.
+    - The parent label is resolved via the same `BlockContent`
+      pipeline used for the headline (text + refs).
+
+    `BlockOutline.name` (the navigator label) is auto-synced from
+    `root.content` via `useEffect` so the navigator always reflects
+    the title the user sees in the header. No explicit name editing
+    in the create dialog beyond the schema field default.
+
+    Migration on first mount of an existing outline: if `root.content`
+    is empty AND `outline.name` is non-empty, copy `name` into
+    `root.content` (one-time) so existing outlines render their
+    previous name in the new header position.
+  req F-Page-Header.1:
+    given: a BlockOutline whose root Block is X
+    when: the outline is opened
+    then:
+      - X's content is rendered as the H1 header at the top of the
+        article surface (editable, with F-V3/F-V4 ref styling)
+      - X's children render below the header recursively
+      - no parent breadcrumb is shown (X is the root)
+  req F-Page-Header.2:
+    given: an outline currently displayed with page block X (root or child)
+    when: I click the bullet of a child Y of X
+    then:
+      - Y replaces X as the page block (Y becomes the H1 header)
+      - Y's children render below the header
+      - a "← {label of X}" breadcrumb renders above the H1
+  req F-Page-Header.3:
+    given: the page block is some Block X whose parent in the outline tree is P
+    when: I click the "← {label of P}" breadcrumb
+    then:
+      - P becomes the page block (P is the H1 header)
+      - P's children render below (X is now visible as a child bullet)
+      - if P is the root, the breadcrumb is hidden;
+        otherwise the breadcrumb shows "← {label of P's parent}"
+  req F-Page-Header.4:
+    given: the page block X has empty content
+    when: the article is rendered
+    then: the H1 renders an empty editable area (no "(empty)" placeholder text);
+      typing into it populates `X.content`
+  req F-Page-Header.5:
+    given: an outline whose root Block has empty content but `outline.name` is set
+    when: the outline mounts for the first time after this feature ships
+    then: `root.content` is populated with `outline.name` as a single text segment
+      (one-time migration); after the migration `outline.name` continues to mirror
+      `root.content`'s rendered text via auto-sync
+  req F-Page-Header.6:
+    given: the user edits `root.content` via the H1 editor (typing, paste, delete)
+    when: the change commits to ECHO
+    then: `outline.name` is updated to match the rendered text of `root.content`
+      within one tick, so the navigator label stays in step
+```
+
+```mdl
 feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
   desc: |
     The unmodified ArrowUp / ArrowDown keys move the cursor to the

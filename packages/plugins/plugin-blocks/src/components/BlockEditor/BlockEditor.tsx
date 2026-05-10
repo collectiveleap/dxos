@@ -45,6 +45,12 @@ export type BlockEditorProps = {
   // Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Block
   // BEFORE the current one (visually above it). Mirror of onShiftEnter.
   onShiftEnterAbove?: () => void;
+  // F-Page-Header: when true, the editor is the H1 page header. Enter,
+  // Shift+Enter, Cmd+Shift+Enter, Tab, and Shift+Tab are all consumed
+  // without splitting content or invoking callbacks — the header has
+  // no parent in the outline tree, so sibling-creation and indent/dedent
+  // semantics don't apply. Body bullets keep their normal handlers.
+  headlineMode?: boolean;
 };
 
 // Increment 4: editor gains an inline ref node. Typing `@` opens a picker;
@@ -63,6 +69,7 @@ export const BlockEditor = ({
   onMoveDown,
   onShiftEnter,
   onShiftEnterAbove,
+  headlineMode,
 }: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -75,6 +82,7 @@ export const BlockEditor = ({
   const onMoveDownRef = useRef(onMoveDown);
   const onShiftEnterRef = useRef(onShiftEnter);
   const onShiftEnterAboveRef = useRef(onShiftEnterAbove);
+  const headlineModeRef = useRef(headlineMode);
   onEnterRef.current = onEnter;
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
@@ -84,6 +92,7 @@ export const BlockEditor = ({
   onMoveDownRef.current = onMoveDown;
   onShiftEnterRef.current = onShiftEnter;
   onShiftEnterAboveRef.current = onShiftEnterAbove;
+  headlineModeRef.current = headlineMode;
 
   // Mention picker UI state, derived from the editor's mention plugin state.
   // The cursor coords carry top + bottom so the picker can decide whether to
@@ -137,11 +146,17 @@ export const BlockEditor = ({
       if (mState?.active) {
         return true;
       }
+      // F-Page-Header: header consumes Enter without splitting or callbacks
+      // (the header has no parent in the outline tree, so sibling-creation
+      // via Enter doesn't apply).
+      if (headlineModeRef.current) {
+        return true;
+      }
       if (!onEnterRef.current) {
         return false;
       }
       const { $from } = state.selection;
-      const text = $from.parent.textBetween(0, $from.parent.content.size, '', '');
+      const text = $from.parent.textBetween(0, $from.parent.content.size, '', '');
       const cursor = $from.parentOffset;
       const beforeText = text.slice(0, cursor);
       const afterText = text.slice(cursor);
@@ -156,11 +171,19 @@ export const BlockEditor = ({
     };
 
     const tabCommand: Command = () => {
+      // F-Page-Header: header has no parent, indent is a no-op (consumed).
+      if (headlineModeRef.current) {
+        return true;
+      }
       onIndentRef.current?.();
       return true;
     };
 
     const shiftTabCommand: Command = () => {
+      // F-Page-Header: header has no parent, dedent is a no-op (consumed).
+      if (headlineModeRef.current) {
+        return true;
+      }
       onDedentRef.current?.();
       return true;
     };
@@ -190,6 +213,10 @@ export const BlockEditor = ({
     // without splitting the current bullet's content. Distinct from Enter
     // which splits at the cursor.
     const shiftEnterCommand: Command = () => {
+      // F-Page-Header: header consumes Shift+Enter (no parent → no sibling).
+      if (headlineModeRef.current) {
+        return true;
+      }
       if (!onShiftEnterRef.current) {
         return false;
       }
@@ -200,6 +227,10 @@ export const BlockEditor = ({
     // Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Block
     // BEFORE the current one (visually above). Mirror of Shift+Enter.
     const shiftEnterAboveCommand: Command = () => {
+      // F-Page-Header: header consumes Cmd+Shift+Enter (no parent → no sibling).
+      if (headlineModeRef.current) {
+        return true;
+      }
       if (!onShiftEnterAboveRef.current) {
         return false;
       }
