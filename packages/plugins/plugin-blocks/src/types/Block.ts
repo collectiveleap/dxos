@@ -46,8 +46,13 @@ export const Block = Schema.Struct({
   ),
 
   // Supertags applied to this block. Refs target TagDef instances.
+  // Named `supertags` (not `tags`) to avoid colliding with composer's
+  // shared `BaseSchema.tags: Array<Ref<Tag>>` in `react-ui-form`'s
+  // ObjectProperties — Effect-Schema cannot merge two `Array<Ref>`
+  // fields of different element types when an object is opened in the
+  // article surface (F-Open-Pane).
   // TODO(plugin-blocks): tighten to Ref.Ref(TagDef.TagDef).
-  tags: Schema.optional(Schema.Array(Ref.Ref(Obj.Unknown))),
+  supertags: Schema.optional(Schema.Array(Ref.Ref(Obj.Unknown))),
 
   // Field map: name -> sub-blocks (multi-value friendly).
   fields: Schema.optional(

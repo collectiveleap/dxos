@@ -5,9 +5,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { type AppSurface } from '@dxos/app-toolkit/ui';
+import { LayoutOperation, SettingsOperation, getObjectPathFromObject } from '@dxos/app-toolkit';
+import { useAtomCapability, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Obj } from '@dxos/echo';
+import { DeckCapabilities } from '@dxos/plugin-deck/types';
 import { useObject } from '@dxos/react-client/echo';
-import { Panel } from '@dxos/react-ui';
+import { Panel, useTranslation } from '@dxos/react-ui';
+
+import { meta } from '#meta';
 
 import {
   BacklinkCountContext,
@@ -15,92 +20,174 @@ import {
   BlockContent,
   BlockEditor,
   BlockTree,
+  OpenPaneContext,
   ZoomContext,
   getDisplayLabel,
   useBacklinks,
 } from '#components';
 import { Block, type BlockOutline } from '#types';
 
-export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline>;
+// The article surface accepts either a `BlockOutline` (top-level outline
+// opened via the navigator) or a `Block` (opened in a new pane via
+// shift-click on a child bullet, per F-Open-Pane). Both render the same
+// page UI: editable H1 header + breadcrumb + child tree + (when applicable)
+// backlinks panel.
+export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline | Block.Block>;
 
-// Renders the outline as a Tana-style page: an editable H1 header (the
-// current "page block", default = root) with the page block's children
-// rendered as bullets below, and a Linked-references panel below those.
-// F-Zoom + F-Page-Header: clicking a child bullet makes that block the
-// new page block (its content becomes the H1, its own children render
-// below). A "← {parent label}" breadcrumb above the H1 climbs back up
-// the parent chain one level per click; it's hidden at the root.
-export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
-  const [outline] = useObject(subject);
-  const root = outline.root?.target;
-  const { list, countByTargetId } = useBacklinks(subject);
+// Renders the outline / sub-block as a Tana-style page. F-Page-Header:
+// the page block (default = the pane's root) ALWAYS renders as an
+// editable H1 at the top, with its children rendered as bullets below.
+// Clicking a child's bullet makes that block the new page block within
+// the pane; shift-clicking opens it in a new pane (F-Open-Pane).
+export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps) => {
+  // Subscribe to the subject for re-renders on top-level field changes
+  // (e.g. outline.name). Snapshots from useObject are NOT extensible and
+  // cannot be passed to other useObject calls or to Obj.update — always
+  // pipe the LIVE entity (`subject`, `subject.root?.target`) to anything
+  // downstream. The snapshot is only here to trigger React re-renders.
+  useObject(subject);
+  const { invokePromise } = useOperationInvoker();
+  const { t } = useTranslation(meta.id);
+  // F-Open-Pane.deck-disabled-fallback: read the deck-mode toggle so we
+  // can detect when shift-click would silently fail (Composer's
+  // `DeckContent` reverts any multi-mode transition while
+  // `enableDeck === false`) and fall back to F-Zoom + a toast.
+  const deckSettings = useAtomCapability(DeckCapabilities.Settings);
 
-  // The "page block" is the current zoom target. `null` means "at root".
+  // Subject can be a BlockOutline (has `root`) or a Block (opened in a
+  // new pane via F-Open-Pane). The pane's root is the outline's root
+  // for outline subjects, or the subject itself for Block subjects.
+  const isOutline = isBlockOutline(subject);
+  const liveOutline = isOutline ? (subject as BlockOutline.BlockOutline) : null;
+  const paneRootBlock = (isOutline
+    ? (subject as any).root?.target
+    : (subject as Block.Block)) as Block.Block | null;
+
+  // Subscribe to the pane root so a change to its content (e.g. typing
+  // in the H1) re-renders this component (used by the rootLabel auto-sync).
+  // Falls back to `subject` when paneRootBlock is briefly null (e.g. an
+  // outline whose root ref hasn't resolved yet) since useObject expects
+  // a non-null reactive object.
+  useObject(paneRootBlock ?? subject);
+
+  const { list, countByTargetId } = useBacklinks(isOutline ? (subject as BlockOutline.BlockOutline) : undefined);
+
+  // The "page block" within this pane is the current zoom target. `null`
+  // means "at pane root".
   const [pageBlockId, setPageBlockId] = useState<string | null>(null);
   const pageBlock = useMemo(() => {
-    if (!root) {
+    if (!paneRootBlock) {
       return null;
     }
     if (!pageBlockId) {
-      return root;
+      return paneRootBlock;
     }
-    return findBlockById(root, pageBlockId) ?? root;
-  }, [root, pageBlockId]);
+    return findBlockById(paneRootBlock, pageBlockId) ?? paneRootBlock;
+  }, [paneRootBlock, pageBlockId]);
 
-  // Parent of the page block in the outline tree (null when page block === root).
+  // Parent of the page block within the pane's tree (null when page block
+  // === pane root).
   const parentBlock = useMemo(() => {
-    if (!root || !pageBlock || pageBlock.id === root.id) {
+    if (!paneRootBlock || !pageBlock || pageBlock.id === paneRootBlock.id) {
       return null;
     }
-    return findParent(root, pageBlock.id);
-  }, [root, pageBlock]);
+    return findParent(paneRootBlock, pageBlock.id);
+  }, [paneRootBlock, pageBlock]);
 
   const handleZoom = useCallback((blockId: string) => {
     setPageBlockId(blockId);
   }, []);
 
   const handleZoomToParent = useCallback(() => {
-    if (!root || !parentBlock) {
+    if (!paneRootBlock || !parentBlock) {
       return;
     }
-    // Climb one level. If parent is the root, drop back to the implicit
-    // root view (pageBlockId = null) so the breadcrumb hides.
-    setPageBlockId(parentBlock.id === root.id ? null : parentBlock.id);
-  }, [root, parentBlock]);
+    setPageBlockId(parentBlock.id === paneRootBlock.id ? null : parentBlock.id);
+  }, [paneRootBlock, parentBlock]);
 
-  // F-Page-Header.5: one-time migration — if `root.content` is empty AND
-  // `outline.name` was set on creation, copy `name` into `root.content` so
-  // existing outlines render the previous name in the new H1 position.
-  // Mutations go through the LIVE entity (`subject`, `subject.root?.target`)
-  // since the snapshots returned by `useObject` are not extensible.
+  // F-Open-Pane: invoke `LayoutOperation.Open` with the pane's
+  // `attendableId` as `pivotId` so the new pane lands as a sibling
+  // plank to the right of THIS pane. The deck's open handler expects
+  // a CANONICAL QUALIFIED PATH (`<root>/<spaceId>/types/<typename>/all/<id>`),
+  // not a bare object id, so we derive the path from the live Block via
+  // `getObjectPathFromObject`. The corresponding article surface
+  // (registered for `Block.Block` in `react-surface.tsx`) picks the
+  // Block up as the new pane's subject.
+  //
+  // Solo→multi transition keeps the current pane: when the deck is in
+  // solo mode, `SetLayoutMode { mode: 'multi' }` clears the solo entry
+  // without adding it back to `active` (the unsolo path in
+  // `plugin-deck/operations/adjust.ts` re-opens it explicitly). So we
+  // pass BOTH the current pane's id AND the new path to `Open` and
+  // pivot off the current id, so the current pane is restored to
+  // `active` and the new pane lands as a sibling to its right.
+  //
+  // F-Open-Pane.deck-disabled-fallback: when Composer's deck-mode
+  // toggle is OFF (`settings.enableDeck === false`), `DeckContent`
+  // reverts any multi-mode transition immediately, so a new pane
+  // would never appear. Detect that case up-front, fall back to
+  // F-Zoom (block becomes the page block of the current pane), and
+  // surface a toast that links to the Deck settings panel.
+  const handleOpenPane = useCallback(
+    async (target: Block.Block) => {
+      if (!deckSettings?.enableDeck) {
+        setPageBlockId(target.id);
+        await invokePromise?.(LayoutOperation.AddToast, {
+          id: `${meta.id}/open-pane-disabled/${target.id}`,
+          title: t('open-pane.disabled.toast.title'),
+          description: t('open-pane.disabled.toast.description'),
+          actionLabel: t('open-pane.disabled.toast.action.label'),
+          onAction: () => {
+            void invokePromise?.(SettingsOperation.Open, { plugin: 'org.dxos.plugin.deck' });
+          },
+        });
+        return;
+      }
+      const path = getObjectPathFromObject(target);
+      await invokePromise?.(LayoutOperation.SetLayoutMode, { mode: 'multi' });
+      // Pause briefly so the SetLayoutMode atom update propagates before
+      // Open reads `deck.solo` again — without this, Open observes the
+      // stale (solo-set) state and `computeActiveUpdates` re-establishes
+      // solo with `outline_path`, undoing the multi-mode switch.
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      await invokePromise?.(LayoutOperation.Open, {
+        subject: [attendableId, path],
+        pivotId: attendableId,
+        navigation: 'immediate',
+      });
+    },
+    [invokePromise, attendableId, deckSettings?.enableDeck, t],
+  );
+
+  // F-Page-Header.5 (outline subject only): one-time migration — copy
+  // `outline.name` into `root.content` if root is empty AND name is set.
   useEffect(() => {
-    const liveRoot = subject.root?.target;
-    if (!outline || !liveRoot) {
+    if (!liveOutline || !paneRootBlock) {
       return;
     }
-    if (hasContent(liveRoot) || !outline.name || outline.name.length === 0) {
+    if (hasContent(paneRootBlock) || !liveOutline.name || liveOutline.name.length === 0) {
       return;
     }
-    const initialName = outline.name;
-    Obj.update(liveRoot, (mutable) => {
+    const initialName = liveOutline.name;
+    Obj.update(paneRootBlock, (mutable) => {
       (mutable as any).content = [{ kind: 'text', text: initialName }];
     });
     // Run once at mount per outline.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // F-Page-Header.6: keep `outline.name` in step with `root.content`'s
-  // rendered text so the navigator label always reflects what the user
-  // sees in the H1.
-  const rootLabel = root ? getDisplayLabel(root) : '';
+  // F-Page-Header.6 (outline subject only): keep `outline.name` in step
+  // with `root.content`'s rendered text so the navigator label always
+  // reflects what the user sees in the H1.
+  const rootLabel = paneRootBlock ? getDisplayLabel(paneRootBlock) : '';
   useEffect(() => {
-    if (!outline || rootLabel.length === 0 || outline.name === rootLabel) {
+    if (!liveOutline || rootLabel.length === 0 || liveOutline.name === rootLabel) {
       return;
     }
-    Obj.update(subject, (mutable) => {
+    Obj.update(liveOutline, (mutable) => {
       (mutable as any).name = rootLabel;
     });
-  }, [subject, outline, rootLabel]);
+  }, [liveOutline, rootLabel]);
 
   return (
     <Panel.Root role={role}>
@@ -124,10 +211,12 @@ export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
             </h1>
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
-                <BlockTree rootBlock={pageBlock} />
+                <OpenPaneContext.Provider value={handleOpenPane}>
+                  <BlockTree rootBlock={pageBlock} />
+                </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
-            <BacklinksPanel backlinks={list} />
+            {isOutline && <BacklinksPanel backlinks={list} />}
           </div>
         ) : (
           <div className='p-4 text-sm opacity-60'>(loading…)</div>
@@ -136,6 +225,10 @@ export const BlockArticle = ({ role, subject }: BlockArticleProps) => {
     </Panel.Root>
   );
 };
+
+// True when `obj` is a BlockOutline (has a `root` field). Distinguishes
+// outline subjects from raw Block subjects opened via F-Open-Pane.
+const isBlockOutline = (obj: any): boolean => Boolean(obj && 'root' in obj && obj.root);
 
 const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
   const stack: Block.Block[] = [root];
@@ -157,7 +250,7 @@ const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
 
 // Walks the outline tree to find the Block whose `children` includes a
 // child whose id matches `id`. Returns null if no parent is found (e.g.
-// when `id` IS the root, or `id` is not present in the tree).
+// when `id` IS the pane root, or `id` is not present in the tree).
 const findParent = (root: Block.Block, id: string): Block.Block | null => {
   const stack: Block.Block[] = [root];
   while (stack.length > 0) {

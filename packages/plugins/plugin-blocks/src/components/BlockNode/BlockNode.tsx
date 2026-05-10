@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
-import { useBacklinkCount, useZoom } from '../backlinks';
+import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 
 import { Block } from '#types';
@@ -53,6 +53,10 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // from BlockArticle via context; default is a no-op when no provider is
   // mounted (e.g., storybook stories).
   const zoom = useZoom();
+  // F-Open-Pane: shift-clicking the bullet opens the Block in a new pane
+  // to the right. For reference-only Blocks, the TARGET is what gets
+  // opened (per F-Open-Pane.ref-only).
+  const openPane = useOpenPane();
 
   const toggleExpanded = () => {
     Obj.update(block, (block) => {
@@ -179,6 +183,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           expanded={expanded}
           referenceOnly={referenceOnly}
           onClick={referenceOnly ? undefined : () => zoom(block.id)}
+          onShiftClick={() => openPane((refTarget as Block.Block | undefined) ?? block)}
         />
         <div className='flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2'>
           {/* Editor wrapper sized to its content so the badge sits right
@@ -359,27 +364,59 @@ type BulletProps = {
   referenceOnly?: boolean;
   // F-Zoom: clicking the bullet zooms into the Block. Toggle is no longer
   // bound to bullet click — that lives on the chevron and Cmd+Up/Down.
+  // For reference-only Blocks, regular click is suppressed (the user should
+  // click the target's bullet instead).
   onClick?: () => void;
+  // F-Open-Pane: shift-click opens the Block in a new pane. Always wired,
+  // including for reference-only Blocks (the parent maps it to the target).
+  onShiftClick?: () => void;
 };
 
 // Block Bullet: always renders a small dark filled dot. State indicators:
 // - Closed parent: dark dot with a shaded halo around it.
 // - Open parent or leaf: dark dot alone.
-// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring;
-//   non-interactive (cannot be zoomed into).
-// Click zooms into the Block (F-Zoom), not toggle.
-const Bullet = ({ hasChildren, expanded, referenceOnly, onClick }: BulletProps) => {
-  const isInteractive = Boolean(onClick) && !referenceOnly;
+// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring.
+// Click zooms into the Block (F-Zoom). Shift-click opens it in a new pane
+// (F-Open-Pane). Reference-only Blocks accept shift-click but not click.
+const Bullet = ({ hasChildren, expanded, referenceOnly, onClick, onShiftClick }: BulletProps) => {
+  const canClick = Boolean(onClick) && !referenceOnly;
+  const canShiftClick = Boolean(onShiftClick);
+  const isInteractive = canClick || canShiftClick;
   const showHalo = referenceOnly || (hasChildren && !expanded);
   const showDashedRing = Boolean(referenceOnly);
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (event.shiftKey && onShiftClick) {
+      event.preventDefault();
+      onShiftClick();
+      return;
+    }
+    if (canClick) {
+      onClick?.();
+    }
+  };
 
   return (
     <button
       type='button'
-      onClick={onClick}
+      onClick={handleClick}
       disabled={!isInteractive}
-      aria-label={referenceOnly ? 'Reference bullet' : isInteractive ? 'Zoom into block' : 'Bullet'}
-      title={isInteractive ? 'Zoom into block' : undefined}
+      aria-label={
+        referenceOnly
+          ? canShiftClick
+            ? 'Reference bullet (shift-click to open in pane)'
+            : 'Reference bullet'
+          : canClick
+            ? 'Zoom into block (shift-click to open in pane)'
+            : 'Bullet'
+      }
+      title={
+        canClick
+          ? 'Zoom (shift+click to open in new pane)'
+          : referenceOnly && canShiftClick
+            ? 'Shift+click to open in new pane'
+            : undefined
+      }
       className={
         'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors ' +
         (showDashedRing ? 'border border-dashed border-neutral-400 dark:border-neutral-500 ' : '') +

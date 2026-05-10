@@ -37,10 +37,14 @@ const empty: BacklinkData = { list: [], countByTargetId: new Map() };
 // union segments, so the scan reads each Block's `content` array directly.
 // For perf at scale, populate a typed `Block.references: Array<Ref<Obj.Unknown>>`
 // sidecar at save and switch to db.query.referencedBy(Block, 'references').
-export const useBacklinks = (outline: BlockOutline.BlockOutline): BacklinkData => {
+export const useBacklinks = (outline: BlockOutline.BlockOutline | undefined): BacklinkData => {
   const [data, setData] = useState<BacklinkData>(empty);
 
   useEffect(() => {
+    if (!outline) {
+      setData(empty);
+      return;
+    }
     const db = Obj.getDatabase(outline);
     if (!db) {
       return;
@@ -196,3 +200,15 @@ export const useBacklinkCount = (blockId: string): number => {
 export const ZoomContext = createContext<(blockId: string) => void>(() => {});
 
 export const useZoom = () => useContext(ZoomContext);
+
+// F-Open-Pane: lets any BlockNode request that a Block be opened in a NEW
+// pane (sibling plank) to the right of the current pane. Provided by
+// BlockArticle, which wires this through `LayoutOperation.Open` with the
+// pane's `attendableId` as `pivotId` so the new plank lands next to the
+// current one. Takes the live Block object (not just an id) so the
+// handler can derive the canonical qualified path via
+// `getObjectPathFromObject`. Default is a no-op for storybook / standalone
+// renders.
+export const OpenPaneContext = createContext<(block: Block.Block) => void>(() => {});
+
+export const useOpenPane = () => useContext(OpenPaneContext);

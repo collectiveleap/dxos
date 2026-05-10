@@ -54,7 +54,7 @@ type Block
     content?: StructuredContent
     children?: Ref<Block>[]
     kind?: 'bullet' | 'heading' | 'todo' | 'image' | 'url' | 'search' | 'view' | 'code'
-    tags?: Ref<TagDef>[]
+    supertags?: Ref<TagDef>[]
     fields?: Record<string, Ref<Block>[]>
     state?: { checked?: boolean }
     view?: { kind: 'table' | 'cards' | 'tabs' | 'calendar' }
@@ -550,6 +550,74 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     when: the change commits to ECHO
     then: `outline.name` is updated to match the rendered text of `root.content`
       within one tick, so the navigator label stays in step
+```
+
+```mdl
+feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-Pane (current)
+  desc: |
+    Shift-clicking any bullet opens that bullet's Block in a NEW pane
+    (sibling plank) to the right of the current pane. The new pane
+    renders the Block as the page block per F-Page-Header — H1 header
+    + child tree below + parent breadcrumb (within the pane's own
+    subtree). Subsequent shift-clicks on bullets within the new pane
+    open ANOTHER nested pane, recursively, as many levels deep as the
+    user clicks.
+
+    Reference-only Blocks (F-V6) participate too: shift-clicking a
+    reference-only bullet opens the REF'S TARGET in the new pane
+    (the reference itself is just a stand-in for the target, so the
+    user is conceptually "opening the target").
+
+    Implementation: BlockArticle provides an `OpenPaneContext` that
+    invokes `LayoutOperation.Open` from `@dxos/app-toolkit` with the
+    target Block id as `subject` and the current pane's `attendableId`
+    as `pivotId`, so Composer's Deck plugin lands the new pane as a
+    sibling to the current one. A second article surface is registered
+    for `Block.Block` so the new pane has a renderer (the same
+    `BlockArticle`, but with the Block as the pane's root rather than
+    a `BlockOutline.root`).
+
+    The Bullet component now accepts both `onClick` (zoom, regular
+    click) and `onShiftClick` (open in pane). Reference-only bullets,
+    which previously suppressed all clicks, accept shift-click so the
+    "open the target" path works.
+  req F-Open-Pane.1:
+    given: an outline displayed in pane P; the outline contains a Block X
+      somewhere in its tree
+    when: the user shift-clicks X's bullet
+    then:
+      - a new pane P' opens to the right of P (`pivotId` = P's
+        attendableId)
+      - P' renders X as the page block (H1 header) with X's children below
+      - P remains visible (not replaced)
+  req F-Open-Pane.recursive:
+    given: pane P' is already open (rooted at Block X) and contains a child Block Y
+    when: the user shift-clicks Y's bullet inside P'
+    then: a further pane P'' opens to the right of P', rooted at Y. Both
+      P and P' remain visible.
+  req F-Open-Pane.ref-only:
+    given: a reference-only Block R whose ref points at Block T
+    when: the user shift-clicks R's bullet
+    then: a new pane opens rooted at T (the ref's target), not at R itself.
+  req F-Open-Pane.regular-click:
+    given: any bullet other than a reference-only one
+    when: the user clicks (no shift) the bullet
+    then: F-Zoom behaviour fires — the block becomes the page block of the
+      CURRENT pane (no new pane opened).
+  req F-Open-Pane.deck-disabled-fallback:
+    given: Composer's deck-mode toggle is OFF (`settings.enableDeck === false`),
+      i.e. the user is in single-pane mode
+    when: the user shift-clicks any bullet
+    then:
+      - no new pane opens (Composer's `DeckContent` would immediately
+        revert any multi-mode transition while deck is disabled)
+      - the block becomes the page block of the CURRENT pane
+        (F-Zoom-style fallback)
+      - a toast is shown: title "Multi-pane disabled", description
+        "Shift-click would open a new pane. Enable Deck mode in
+        Settings to use this.", with an "Open Settings" action that
+        invokes `SettingsOperation.Open({ plugin: 'org.dxos.plugin.deck' })`
+        so the user lands directly on the Deck settings panel.
 ```
 
 ```mdl

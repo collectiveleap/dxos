@@ -25,6 +25,11 @@ export const translations = [
 
       [meta.id]: {
         'plugin.name': 'Blocks',
+        // F-Open-Pane.deck-disabled-fallback
+        'open-pane.disabled.toast.title': 'Multi-pane disabled',
+        'open-pane.disabled.toast.description':
+          'Shift-click would open a new pane. Enable Deck mode in Settings to use this.',
+        'open-pane.disabled.toast.action.label': 'Open Settings',
       },
     },
   },

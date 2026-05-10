@@ -48,6 +48,9 @@
       "path": "../../ui/ui-theme"
     },
     {
+      "path": "../plugin-deck"
+    },
+    {
       "path": "../plugin-space"
     },
     {
