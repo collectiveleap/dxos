@@ -276,21 +276,26 @@ feat F-V1: Bullet markers and indent guide   # Future increment
 feat F-V2: Collapse / expand parents         # Increment V2 (current)
   desc: |
     A parent Block can be collapsed; its children are hidden until expanded.
-    Visually, a closed parent's bullet renders as a hollow circle (or similar
-    distinct marker) and shows a small count badge of the hidden direct children.
-    Click the bullet marker to toggle. The state lives on Block.state.expanded
-    so it persists across reloads and across peers.
+    The bullet itself is the only indicator: hollow when closed, filled when
+    open or leaf. There is NO numeric badge for hidden children — keeping the
+    glyph minimal matches Tana. Click the bullet marker to toggle. State lives
+    on Block.state.expanded so it persists across reloads and peers.
   req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
   req F-V2.2:
-    when: Block.state.expanded === false (or absent and explicitly collapsed)
+    when: Block.state.expanded === false
     then:
       - the children column is not rendered
       - the bullet renders in the "closed" visual style (hollow / outlined)
-      - a small count badge displays the number of direct children
+      - no count badge or other annotation is added (the hollow glyph alone
+        signals that children exist)
   req F-V2.3:
     when: Block has no children
-    then: bullet renders in the leaf style (no toggle behaviour, no badge)
-  req F-V2.4: collapsed state is persisted on Block.state.expanded and survives reloads.
+    then: bullet renders in the filled leaf style (no toggle behaviour)
+  req F-V2.4:
+    when: Block has children and Block.state.expanded is undefined or true
+    then: bullet renders in the same filled style as a leaf — only the
+      indented child column + guide line distinguish open parents from leaves.
+  req F-V2.5: collapsed state is persisted on Block.state.expanded and survives reloads.
 ```
 
 ```mdl

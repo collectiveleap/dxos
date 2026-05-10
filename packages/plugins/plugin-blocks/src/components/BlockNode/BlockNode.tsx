@@ -109,7 +109,6 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
         <Bullet
           hasChildren={hasChildren}
           expanded={expanded}
-          childCount={childRefs.length}
           onToggle={hasChildren ? toggleExpanded : undefined}
         />
         <div className='flex-1 min-w-0 flex items-baseline gap-2'>
@@ -156,39 +155,32 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
 type BulletProps = {
   hasChildren: boolean;
   expanded: boolean;
-  childCount: number;
   onToggle?: () => void;
 };
 
-// F-V1 + F-V2 visual: small clickable bullet glyph. Filled circle by default,
-// outlined when a parent is collapsed; a count badge of hidden children
-// appears next to a collapsed parent. Click toggles expanded state.
-const Bullet = ({ hasChildren, expanded, childCount, onToggle }: BulletProps) => {
+// F-V1 + F-V2 visual: small clickable bullet glyph. Filled circle by default
+// (open parent or leaf), outlined when a parent is collapsed. The hollow
+// bullet is the *only* signal that a closed node has children — there is no
+// child-count badge. Click toggles expanded state.
+const Bullet = ({ hasChildren, expanded, onToggle }: BulletProps) => {
   const isInteractive = Boolean(onToggle);
   const showCollapsed = hasChildren && !expanded;
 
   return (
-    <span className='flex shrink-0 items-center gap-1 mt-2'>
-      <button
-        type='button'
-        onClick={onToggle}
-        disabled={!isInteractive}
-        aria-label={
-          isInteractive ? (expanded ? 'Collapse children' : `Expand ${childCount} children`) : 'Bullet'
-        }
-        className={
-          'inline-block w-2 h-2 rounded-full transition-colors ' +
-          (showCollapsed
-            ? 'border border-neutral-500 bg-transparent'
-            : 'bg-neutral-400 dark:bg-neutral-500') +
-          (isInteractive ? ' cursor-pointer hover:bg-neutral-700 dark:hover:bg-neutral-300' : '')
-        }
-      />
-      {showCollapsed && childCount > 0 && (
-        <span className='text-[10px] leading-none px-1 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400'>
-          {childCount}
-        </span>
-      )}
-    </span>
+    <button
+      type='button'
+      onClick={onToggle}
+      disabled={!isInteractive}
+      aria-label={
+        isInteractive ? (expanded ? 'Collapse children' : 'Expand children') : 'Bullet'
+      }
+      className={
+        'shrink-0 mt-2 inline-block w-2 h-2 rounded-full transition-colors ' +
+        (showCollapsed
+          ? 'border border-neutral-500 bg-transparent'
+          : 'bg-neutral-400 dark:bg-neutral-500') +
+        (isInteractive ? ' cursor-pointer hover:bg-neutral-700 dark:hover:bg-neutral-300' : '')
+      }
+    />
   );
 };
