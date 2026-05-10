@@ -473,6 +473,57 @@ feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
 ```
 
 ```mdl
+feat F-Caret: cursor visible after focus      # Increment Caret (current)
+  desc: |
+    Whenever a Block's editor receives focus — by mouse click, by being
+    the new sibling created via Enter / Shift+Enter / Cmd+Shift+Enter,
+    or by ArrowUp / ArrowDown navigation (F-Nav) — a visible caret
+    renders inside the editor at a paintable position.
+
+    Current-behavior gaps that prompted this spec:
+    - Empty bullets render `<p><br/></p>`. Because the editor wrapper is
+      `inline-block` (per F-V4.placement, so the badge can sit next to
+      the text), an empty `<p>` collapses to 0 width and the browser
+      refuses to compute a caret rect at any element-boundary position
+      inside it. PM enforces that DOM selection sits at PM-positions,
+      so manually moving the caret into a real text node gets clobbered
+      on the next sync. Pragmatic workaround: the `caret-fix-plugin`
+      tags every empty paragraph with the `block-empty-paragraph`
+      class via `Decoration.node`; CSS in `block-editor.css` then
+      renders a CSS-only blinking line via `::after` whenever the
+      editor has focus. The real PM caret stays invisible but the
+      user sees a stand-in indicator. On first input the paragraph
+      stops being empty, the indicator goes away, and the real caret
+      renders inside the new text node.
+    - F-Nav's focus helper called
+      `range.selectNodeContents(editable); range.collapse(true)`,
+      which put the DOM selection at `editable, 0` — BEFORE the
+      `<p>`. That position has no caret rect even for non-empty
+      paragraphs. Fix: F-Nav now routes focus through the
+      `setFocusId` / `autoFocus` mechanism used by sibling-creation;
+      the `BlockEditor` then sets PM selection at
+      `TextSelection.atStart(doc)` and calls `view.focus()`, so PM
+      places the caret inside the first text node (real caret
+      visible) or inside the empty paragraph (CSS indicator visible).
+    - Mouse-click on an empty bullet hit the same empty-paragraph
+      issue as Enter family; it is fixed by the same Decoration.
+  req F-Caret.1:
+    given: there is a Block X
+    when: X's editor is selected for focus (by click, sibling creation,
+      or ArrowUp/ArrowDown navigation)
+    then:
+      - a visible cursor indicator is rendered inside X's editor (the
+        real PM caret when X has any text, or the CSS-only blinking
+        line drawn by `block-editor.css` when X is empty)
+      - the indicator is positioned as close as possible to where the
+        selection occurred (click → click target; sibling creation →
+        start of new bullet; arrow nav → start of target bullet)
+      - if X has any text content, the cursor is positioned inside that
+        content (DOM selection anchor is a Text node, not the editor
+        DIV or paragraph element)
+```
+
+```mdl
 feat F-V6: Reference-only Block               # Increment V6 (current)
   desc: |
     A Block whose content is exactly one inline ref segment (and no
@@ -732,6 +783,24 @@ test T-Cmd-Shift-Enter: Cmd+Shift+Enter inserts an empty sibling ABOVE
     - Y.content is empty
     - X.content is unchanged
     - cursor lands at the start of Y (Y has focus)
+```
+
+```mdl
+test T-Caret: focus paths produce a visible cursor indicator
+  given: an outline with two top-level bullets X (with text) and Y (empty)
+  when: X's or Y's editor receives focus via any path (click, sibling
+    creation, ArrowUp/ArrowDown nav)
+  then:
+    - the editor is the active element (document.activeElement is the
+      .ProseMirror DIV)
+    - for X (non-empty): the selection anchor is a Text node, and
+      `getSelection().getRangeAt(0).getBoundingClientRect()` returns a
+      rect with non-zero height (real PM caret renders)
+    - for Y (empty): the paragraph carries the
+      `block-empty-paragraph` class added by `caret-fix-plugin`, and
+      the editor has the `ProseMirror-focused` class so
+      `block-editor.css` renders the CSS-only blinking line via
+      `::after` (visible cursor indicator stand-in)
 ```
 
 ---

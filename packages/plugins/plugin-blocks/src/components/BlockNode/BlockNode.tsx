@@ -133,11 +133,11 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // row and focuses its editor at the start. Scrolls the target into view
   // if it's outside the viewport. No-op at the top/bottom edge.
   const handleMoveUp = () => {
-    moveToAdjacentVisibleBlock(block.id, 'up');
+    moveToAdjacentVisibleBlock(block.id, 'up', setFocusId);
   };
 
   const handleMoveDown = () => {
-    moveToAdjacentVisibleBlock(block.id, 'down');
+    moveToAdjacentVisibleBlock(block.id, 'down', setFocusId);
   };
 
   const handleDedent = () => {
@@ -238,7 +238,21 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
 // `currentId`, and focus the previous/next sibling. The DOM order matches
 // the visible-tree order because collapsed children aren't rendered. Scrolls
 // the target into view if it's off-screen. Returns true if focus moved.
-const moveToAdjacentVisibleBlock = (currentId: string, direction: 'up' | 'down'): boolean => {
+//
+// F-Caret: focusing is routed through `setFocusId` rather than calling
+// `editable.focus()` + setting a DOM Range directly. The previous DOM-level
+// approach placed the selection at `editable, 0` (BEFORE the `<p>`), which
+// has no caret rect — so the cursor was invisible after every arrow nav.
+// `setFocusId` flips the target BlockEditor's `autoFocus` prop, which in
+// turn triggers the editor's autoFocus useEffect to set PM's selection at
+// `TextSelection.atStart(doc)` and call `view.focus()`. PM then places the
+// DOM caret inside the first text node (or, for an empty paragraph, past
+// the zero-width-space widget injected by caret-fix-plugin).
+const moveToAdjacentVisibleBlock = (
+  currentId: string,
+  direction: 'up' | 'down',
+  setFocusId: (id: string | null) => void,
+): boolean => {
   const all = Array.from(document.querySelectorAll('[data-block-id]')) as HTMLElement[];
   const currentIndex = all.findIndex((el) => el.dataset.blockId === currentId);
   if (currentIndex < 0) {
@@ -249,22 +263,11 @@ const moveToAdjacentVisibleBlock = (currentId: string, direction: 'up' | 'down')
     return false;
   }
   const targetEl = all[targetIndex];
-  const editable = targetEl.querySelector<HTMLElement>('[contenteditable="true"]');
-  if (!editable) {
+  const targetId = targetEl.dataset.blockId;
+  if (!targetId) {
     return false;
   }
-  editable.focus();
-  // Place caret at the start of the target's editor.
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(editable);
-    range.collapse(true);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  } catch {
-    /* selection setup is best-effort */
-  }
+  setFocusId(targetId);
   targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   return true;
 };

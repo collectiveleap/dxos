@@ -1,0 +1,40 @@
+/*
+ * Copyright 2025 DXOS.org
+ */
+
+/*
+ * F-Caret: empty paragraph caret indicator.
+ *
+ * Empty bullets render `<p><br/></p>` inside an inline-block paragraph
+ * (see F-V4.placement). The inline-block context collapses the empty
+ * `<p>` to 0 width, and the browser refuses to paint a real caret at
+ * the corresponding DOM position (`<p>, 1`) because it has no
+ * geometry. ProseMirror enforces that selection sits at PM-positions,
+ * so we can't manually move the DOM caret into a text node either.
+ *
+ * Workaround: render a CSS-only blinking line via `::after` on the
+ * empty paragraph whenever the editor has focus. The real PM caret
+ * is invisible but the user sees a stand-in blinking indicator.
+ * Typing still goes through PM normally; on first input the
+ * paragraph stops being empty and the real caret renders inside the
+ * text node it just created.
+ *
+ * The `block-empty-paragraph` class is added by `caret-fix-plugin`
+ * via `Decoration.node` on every paragraph whose content size is 0.
+ */
+
+@keyframes block-empty-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.ProseMirror.ProseMirror-focused p.block-empty-paragraph::after {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 1.2em;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: block-empty-caret-blink 1.06s steps(1) infinite;
+}

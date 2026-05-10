@@ -5,7 +5,7 @@
 import { baseKeymap } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
-import { type Command, EditorState } from 'prosemirror-state';
+import { type Command, EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -15,6 +15,9 @@ import { MentionPicker } from '../MentionPicker';
 
 import type { Block } from '#types';
 
+import './block-editor.css';
+
+import { caretFixPlugin } from './caret-fix-plugin';
 import { type MentionState, mentionKey, mentionPlugin } from './mention-plugin';
 import { RefNodeView } from './RefNodeView';
 import { schema } from './schema';
@@ -231,6 +234,7 @@ export const BlockEditor = ({
       doc: toDoc(block.content as any),
       schema,
       plugins: [
+        caretFixPlugin,
         mentionPlugin,
         history(),
         keymap({
@@ -291,6 +295,25 @@ export const BlockEditor = ({
       viewRef.current = null;
     };
   }, [block, makeRef, resolveRef]);
+
+  // F-Caret: when autoFocus flips to true on an already-mounted editor (e.g.
+  // F-Nav arrow navigation flipping focusId on the BlockTree), the mount
+  // effect does NOT re-run, so view.focus() is never called. Wire a
+  // dedicated effect that focuses the view AND places the PM selection at
+  // the start of the doc so the caret has a paintable position. The
+  // caret-fix decoration handles the case where the doc is empty.
+  useEffect(() => {
+    if (!autoFocus) {
+      return;
+    }
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const tr = view.state.tr.setSelection(TextSelection.atStart(view.state.doc));
+    view.dispatch(tr);
+    view.focus();
+  }, [autoFocus]);
 
   const handleSelectTarget = useCallback(
     (target: Obj.Any) => {
