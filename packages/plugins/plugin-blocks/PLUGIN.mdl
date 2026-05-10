@@ -379,6 +379,24 @@ feat F-Shift-Enter: empty sibling shortcut         # Increment Shift-Enter (curr
 ```
 
 ```mdl
+feat F-Cmd-Shift-Enter: empty sibling above shortcut   # Increment Cmd-Shift-Enter (current)
+  desc: |
+    Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Block
+    BEFORE the current Block — i.e. visually above it — without
+    splitting the current bullet's content. Mirrors F-Shift-Enter
+    which inserts AFTER. The cursor moves to the new empty sibling.
+  req F-Cmd-Shift-Enter.1:
+    given: my cursor is in node X
+    when: I press Cmd+Shift+Enter (Mod+Shift+Enter)
+    then:
+      - a new sibling Block Y is created visually above X
+      - Y has the same parent as X
+      - Y is empty (no content)
+      - X's content is unchanged
+      - cursor moves to Y
+```
+
+```mdl
 feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
   desc: |
     Clicking a Block's bullet "zooms" the article surface to show only
@@ -705,20 +723,22 @@ test T-8: Increment 4b — rename propagates without local edit
     - no manual reload or focus-change is required
 ```
 
+```mdl
+test T-Cmd-Shift-Enter: Cmd+Shift+Enter inserts an empty sibling ABOVE
+  given: an outline with a single bullet X containing some text
+  when: cursor is in X and user presses Cmd+Shift+Enter (Mod+Shift+Enter)
+  then:
+    - parent.children has two Block refs in order [Y, X]
+    - Y.content is empty
+    - X.content is unchanged
+    - cursor lands at the start of Y (Y has focus)
+```
+
 ---
 
 ## Remaining
 
 Captured here so the next session can resume without re-reading every commit.
-
-### Awaiting browser-verification
-
-The following features are spec'd in this document and the code has landed
-(build + lint pass), but the browser smoke pass was not completed because
-the dev server stalled. Re-run before considering the feature signed off.
-
-- F-Shift-Enter — type something into a bullet, press Shift+Enter, expect a new empty sibling Block to appear after it with the cursor on it; the original bullet's content should be unchanged.
-- F-Zoom — click any non-reference-only Block's bullet; expect the article surface to render that Block as a header with its child tree below; click the "← Outline" link to return to the unzoomed view.
 
 ### How to resume the smoke test
 
@@ -744,7 +764,6 @@ a stable port for an attached preview:
 
 Worktree path:  `.claude/worktrees/agitated-nash-bd0b0f`
 Branch:         `claude/agitated-nash-bd0b0f`
-Last commit before resume should mention "browser verification pending".
 
 ### Future increments (not started)
 

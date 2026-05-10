@@ -74,6 +74,22 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     setFocusId(newBlock.id);
   };
 
+  // F-Cmd-Shift-Enter: insert a new empty sibling BEFORE this one
+  // (visually above). Mirror of insertSiblingAfter; splice at the
+  // current sibling's index rather than index + 1.
+  const insertSiblingBefore = (initialContent: any[]) => {
+    if (siblingIndex < 0) {
+      return;
+    }
+    const newBlock = Block.make({ content: initialContent });
+    const before = parentChildren.slice(0, siblingIndex);
+    const after = parentChildren.slice(siblingIndex);
+    Obj.update(parent, (parent) => {
+      (parent as any).children = [...before, Ref.make(newBlock), ...after];
+    });
+    setFocusId(newBlock.id);
+  };
+
   const handleEnter = (_beforeText: string, afterText: string) => {
     insertSiblingAfter(afterText.length > 0 ? [{ kind: 'text', text: afterText }] : []);
   };
@@ -82,6 +98,13 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // splitting the current bullet's content. Cursor moves to the new sibling.
   const handleShiftEnter = () => {
     insertSiblingAfter([]);
+  };
+
+  // F-Cmd-Shift-Enter: create an empty sibling Block BEFORE this one
+  // (visually above) without splitting current content. Cursor moves
+  // to the new sibling.
+  const handleShiftEnterAbove = () => {
+    insertSiblingBefore([]);
   };
 
   const handleIndent = () => {
@@ -177,6 +200,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onMoveUp={handleMoveUp}
               onMoveDown={handleMoveDown}
               onShiftEnter={handleShiftEnter}
+              onShiftEnterAbove={handleShiftEnterAbove}
             />
           </div>
           {backlinkCount > 0 && (
