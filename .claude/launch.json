@@ -9,7 +9,7 @@
     },
     {
       "name": "composer-app",
-      "runtimeExecutable": "moon",
+      "runtimeExecutable": "/Users/san/.proto/shims/moon",
       "runtimeArgs": ["run", "composer-app:serve"],
       "port": 5173
     },
