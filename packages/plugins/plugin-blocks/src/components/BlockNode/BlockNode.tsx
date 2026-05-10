@@ -165,14 +165,14 @@ type ExpandChevronProps = {
   onToggle: () => void;
 };
 
-// F-V2 hover affordance: a small chevron that appears to the left of any
-// parent bullet only while the parent's row is hovered. Closed → ▸, open → ▾.
-// The slot is reserved with a same-width spacer for non-parents so the
-// bullet column stays aligned across siblings. Tooltip surfaces the keyboard
-// shortcut.
+// F-V2 Expand/Collapse control: a chevron set inside a bordered, lightly
+// filled circle. Hidden by default; revealed only while any part of the
+// Block's row is hovered (group-hover) or while the chevron itself is
+// focused. For non-parents, an empty same-width spacer reserves the slot so
+// columns stay aligned. Tooltip surfaces the keyboard shortcut.
 const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) => {
   if (!hasChildren) {
-    return <span className='shrink-0 w-4' aria-hidden />;
+    return <span className='shrink-0 w-5' aria-hidden />;
   }
   return (
     <button
@@ -180,7 +180,7 @@ const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) 
       onClick={onToggle}
       title={expanded ? 'Collapse  ⌘↑' : 'Expand  ⌘↓'}
       aria-label={expanded ? 'Collapse' : 'Expand'}
-      className='shrink-0 mt-1 w-4 h-4 inline-flex items-center justify-center rounded text-xs text-neutral-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer'
+      className='shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900 text-[11px] leading-none text-neutral-500 dark:text-neutral-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
     >
       {expanded ? '▾' : '▸'}
     </button>
@@ -193,13 +193,14 @@ type BulletProps = {
   onToggle?: () => void;
 };
 
-// F-V1 + F-V2 visual: small clickable bullet glyph. Filled circle by default
-// (open parent or leaf), outlined when a parent is collapsed. The hollow
-// bullet is the *only* signal that a closed node has children — there is no
-// child-count badge. Click toggles expanded state.
+// F-V2 Block Bullet: always renders a small dark filled dot. When the Block
+// has children AND is collapsed, a shaded ring (halo) surrounds the dot —
+// the lone signal that hidden children exist. Open parents and leaves render
+// as the dot alone. Click toggles expanded state for parents; for leaves the
+// bullet is non-interactive.
 const Bullet = ({ hasChildren, expanded, onToggle }: BulletProps) => {
   const isInteractive = Boolean(onToggle);
-  const showCollapsed = hasChildren && !expanded;
+  const showCollapsedHalo = hasChildren && !expanded;
 
   return (
     <button
@@ -210,12 +211,12 @@ const Bullet = ({ hasChildren, expanded, onToggle }: BulletProps) => {
         isInteractive ? (expanded ? 'Collapse children' : 'Expand children') : 'Bullet'
       }
       className={
-        'shrink-0 mt-2 inline-block w-2 h-2 rounded-full transition-colors ' +
-        (showCollapsed
-          ? 'border border-neutral-500 bg-transparent'
-          : 'bg-neutral-400 dark:bg-neutral-500') +
-        (isInteractive ? ' cursor-pointer hover:bg-neutral-700 dark:hover:bg-neutral-300' : '')
+        'shrink-0 mt-1 w-4 h-4 inline-flex items-center justify-center rounded-full transition-colors ' +
+        (showCollapsedHalo ? 'bg-neutral-200 dark:bg-neutral-700' : '') +
+        (isInteractive ? ' cursor-pointer' : '')
       }
-    />
+    >
+      <span className='inline-block w-2 h-2 rounded-full bg-neutral-500 dark:bg-neutral-400' />
+    </button>
   );
 };

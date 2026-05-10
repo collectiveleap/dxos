@@ -276,43 +276,58 @@ feat F-V1: Bullet markers and indent guide   # Future increment
 feat F-V2: Collapse / expand parents         # Increment V2 (current)
   desc: |
     A parent Block can be collapsed; its children are hidden until expanded.
-    The bullet itself is the only state indicator: hollow when closed, filled
-    when open or leaf. There is NO numeric badge for hidden children — keeping
-    the glyph minimal matches Tana. State lives on Block.state.expanded so it
-    persists across reloads and peers.
+    State lives on Block.state.expanded so it persists across reloads and peers.
 
-    Toggle affordances (matching Tana):
-    - Click the bullet marker to toggle.
-    - On hover over a parent's row, a chevron appears to the LEFT of the
-      bullet (▸ closed, ▾ open); clicking it also toggles. The chevron is
-      hidden by default and only revealed while the row is hovered or the
-      chevron itself is focused. Hovering the chevron shows a tooltip with
-      the keyboard shortcut.
-    - Leaves render no chevron — an empty spacer of the chevron's width
-      preserves alignment across siblings.
-    - Keyboard: Mod+ArrowUp (Cmd+Up) collapses the current parent if open;
-      Mod+ArrowDown (Cmd+Down) expands it if closed. Both are no-ops in any
-      other state and fall through to the editor's default cursor behaviour.
+    Visual vocabulary (terminology used below):
+    - "Block Bullet" — the small dark filled dot rendered for every Block.
+      When a Block has children AND is collapsed, a shaded ring (halo)
+      surrounds the dot. When a Block has children AND is expanded, or has
+      no children, the dot is alone — no halo. The halo is the lone signal
+      that hidden children exist; there is NO numeric badge.
+    - "Expand/Collapse control" — a chevron (▸ closed, ▾ open) set inside a
+      bordered, lightly filled circle, rendered to the IMMEDIATE LEFT of the
+      Block Bullet for parents only. It is hidden by default and revealed
+      ONLY while any part of the Block's row is hovered, or while the
+      control itself has focus. Leaves render no control — a same-width
+      spacer reserves the slot so columns stay aligned.
+
+    Toggle inputs:
+    - Click the Block Bullet to toggle.
+    - Click the Expand/Collapse control to toggle.
+    - Mod+ArrowUp (Cmd+Up) collapses the current parent when open;
+      Mod+ArrowDown (Cmd+Down) expands it when closed. Both are no-ops in
+      any other state and fall through to the editor's default cursor
+      behaviour.
+    - Hovering the Expand/Collapse control surfaces a tooltip with the
+      shortcut.
   req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
   req F-V2.2:
-    when: Block.state.expanded === false
+    when: Block has children AND Block.state.expanded === false
     then:
       - the children column is not rendered
-      - the bullet renders in the "closed" visual style (hollow / outlined)
-      - no count badge or other annotation is added (the hollow glyph alone
-        signals that children exist)
+      - the Block Bullet renders the dark filled dot WITH a shaded ring (halo) surrounding it
+      - no count badge or other annotation is added (the halo alone signals hidden children)
   req F-V2.3:
     when: Block has no children
-    then: bullet renders in the filled leaf style (no toggle behaviour)
+    then: the Block Bullet renders the dark filled dot alone (no halo); the bullet is non-interactive.
   req F-V2.4:
-    when: Block has children and Block.state.expanded is undefined or true
-    then: bullet renders in the same filled style as a leaf — only the
-      indented child column + guide line distinguish open parents from leaves.
+    when: Block has children AND state.expanded is undefined or true
+    then:
+      - the Block Bullet renders the dark filled dot alone (no halo) — visually identical to a leaf
+      - the indented child column + guide line below the row distinguish the open parent from a leaf
   req F-V2.5: collapsed state is persisted on Block.state.expanded and survives reloads.
   req F-V2.6:
-    when: Block has children and the user hovers the bullet's row (or the chevron is focused)
-    then: a chevron button (▸ closed, ▾ open) becomes visible left of the bullet; clicking it toggles state.expanded.
-    note: the chevron is hidden (opacity 0) by default; the slot is still reserved by a spacer so layout doesn't shift on hover.
+    when: Block has children
+    then: an Expand/Collapse control (chevron in a bordered circle) is mounted to the immediate left of the Block Bullet; the control's slot is reserved at all times so layout does not shift on hover.
+  req F-V2.6a:
+    when: the user hovers any part of the Block's row OR the Expand/Collapse control has focus
+    then: the control becomes fully visible (opacity 1).
+  req F-V2.6b:
+    when: no part of the Block's row is hovered AND the control does not have focus
+    then: the control is hidden (opacity 0); the slot remains reserved.
+  req F-V2.6c:
+    when: the user clicks the Expand/Collapse control
+    then: state.expanded toggles, identical to clicking the Block Bullet.
   req F-V2.7:
     when: Block has no children
     then: a same-width empty spacer renders in place of the chevron so leaves align with parents.
