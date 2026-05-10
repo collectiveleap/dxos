@@ -105,7 +105,12 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
 
   return (
     <div>
-      <div className='flex items-baseline gap-2'>
+      <div className='flex items-baseline gap-1 group'>
+        <ExpandChevron
+          hasChildren={hasChildren}
+          expanded={expanded}
+          onToggle={toggleExpanded}
+        />
         <Bullet
           hasChildren={hasChildren}
           expanded={expanded}
@@ -119,6 +124,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onEnter={handleEnter}
               onIndent={handleIndent}
               onDedent={handleDedent}
+              onCollapseRequest={hasChildren && expanded ? toggleExpanded : undefined}
+              onExpandRequest={hasChildren && !expanded ? toggleExpanded : undefined}
             />
           </div>
           {backlinkCount > 0 && (
@@ -149,6 +156,34 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
         </div>
       )}
     </div>
+  );
+};
+
+type ExpandChevronProps = {
+  hasChildren: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+};
+
+// F-V2 hover affordance: a small chevron that appears to the left of any
+// parent bullet only while the parent's row is hovered. Closed → ▸, open → ▾.
+// The slot is reserved with a same-width spacer for non-parents so the
+// bullet column stays aligned across siblings. Tooltip surfaces the keyboard
+// shortcut.
+const ExpandChevron = ({ hasChildren, expanded, onToggle }: ExpandChevronProps) => {
+  if (!hasChildren) {
+    return <span className='shrink-0 w-4' aria-hidden />;
+  }
+  return (
+    <button
+      type='button'
+      onClick={onToggle}
+      title={expanded ? 'Collapse  ⌘↑' : 'Expand  ⌘↓'}
+      aria-label={expanded ? 'Collapse' : 'Expand'}
+      className='shrink-0 mt-1 w-4 h-4 inline-flex items-center justify-center rounded text-xs text-neutral-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer'
+    >
+      {expanded ? '▾' : '▸'}
+    </button>
   );
 };
 

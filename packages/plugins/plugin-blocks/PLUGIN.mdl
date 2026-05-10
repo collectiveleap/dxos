@@ -276,10 +276,23 @@ feat F-V1: Bullet markers and indent guide   # Future increment
 feat F-V2: Collapse / expand parents         # Increment V2 (current)
   desc: |
     A parent Block can be collapsed; its children are hidden until expanded.
-    The bullet itself is the only indicator: hollow when closed, filled when
-    open or leaf. There is NO numeric badge for hidden children — keeping the
-    glyph minimal matches Tana. Click the bullet marker to toggle. State lives
-    on Block.state.expanded so it persists across reloads and peers.
+    The bullet itself is the only state indicator: hollow when closed, filled
+    when open or leaf. There is NO numeric badge for hidden children — keeping
+    the glyph minimal matches Tana. State lives on Block.state.expanded so it
+    persists across reloads and peers.
+
+    Toggle affordances (matching Tana):
+    - Click the bullet marker to toggle.
+    - On hover over a parent's row, a chevron appears to the LEFT of the
+      bullet (▸ closed, ▾ open); clicking it also toggles. The chevron is
+      hidden by default and only revealed while the row is hovered or the
+      chevron itself is focused. Hovering the chevron shows a tooltip with
+      the keyboard shortcut.
+    - Leaves render no chevron — an empty spacer of the chevron's width
+      preserves alignment across siblings.
+    - Keyboard: Mod+ArrowUp (Cmd+Up) collapses the current parent if open;
+      Mod+ArrowDown (Cmd+Down) expands it if closed. Both are no-ops in any
+      other state and fall through to the editor's default cursor behaviour.
   req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
   req F-V2.2:
     when: Block.state.expanded === false
@@ -296,6 +309,25 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
     then: bullet renders in the same filled style as a leaf — only the
       indented child column + guide line distinguish open parents from leaves.
   req F-V2.5: collapsed state is persisted on Block.state.expanded and survives reloads.
+  req F-V2.6:
+    when: Block has children and the user hovers the bullet's row (or the chevron is focused)
+    then: a chevron button (▸ closed, ▾ open) becomes visible left of the bullet; clicking it toggles state.expanded.
+    note: the chevron is hidden (opacity 0) by default; the slot is still reserved by a spacer so layout doesn't shift on hover.
+  req F-V2.7:
+    when: Block has no children
+    then: a same-width empty spacer renders in place of the chevron so leaves align with parents.
+  req F-V2.8:
+    when: cursor is in a Block whose state.expanded is true (or undefined) and that has children, and the user presses Mod+ArrowUp
+    then: the block collapses; state.expanded becomes false.
+  req F-V2.9:
+    when: cursor is in a Block whose state.expanded is false and that has children, and the user presses Mod+ArrowDown
+    then: the block expands; state.expanded becomes true.
+  req F-V2.10:
+    when: cursor is in a Block that does not match the conditions of F-V2.8 / F-V2.9
+    then: Mod+ArrowUp / Mod+ArrowDown fall through to the editor's default cursor behaviour.
+  req F-V2.11:
+    when: user hovers the chevron
+    then: a tooltip displays "Collapse ⌘ ↑" or "Expand ⌘ ↓" matching the available action.
 ```
 
 ```mdl

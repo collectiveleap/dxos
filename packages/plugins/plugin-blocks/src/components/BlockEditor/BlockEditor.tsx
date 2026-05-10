@@ -26,21 +26,37 @@ export type BlockEditorProps = {
   onEnter?: (beforeText: string, afterText: string) => void;
   onIndent?: () => void;
   onDedent?: () => void;
+  // Cmd+Up / Cmd+Down toggle expanded state when wired (only for parents).
+  // When the corresponding callback is undefined, the key falls through.
+  onCollapseRequest?: () => void;
+  onExpandRequest?: () => void;
 };
 
 // Increment 4: editor gains an inline ref node. Typing `@` opens a picker;
 // selecting a target inserts a ref into the doc and persists a real ECHO Ref
 // into Block.content. The RefNodeView resolves the target's label live on
 // every ProseMirror update().
-export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: BlockEditorProps) => {
+export const BlockEditor = ({
+  block,
+  autoFocus,
+  onEnter,
+  onIndent,
+  onDedent,
+  onCollapseRequest,
+  onExpandRequest,
+}: BlockEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onEnterRef = useRef(onEnter);
   const onIndentRef = useRef(onIndent);
   const onDedentRef = useRef(onDedent);
+  const onCollapseRequestRef = useRef(onCollapseRequest);
+  const onExpandRequestRef = useRef(onExpandRequest);
   onEnterRef.current = onEnter;
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
+  onCollapseRequestRef.current = onCollapseRequest;
+  onExpandRequestRef.current = onExpandRequest;
 
   // Mention picker UI state, derived from the editor's mention plugin state.
   const [mention, setMention] = useState<{
@@ -120,6 +136,27 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
       return true;
     };
 
+    // F-V2 keybindings: Cmd+Up collapses the current bullet if it's an open
+    // parent; Cmd+Down expands it if it's a closed parent. When the parent
+    // hasn't wired the corresponding callback (no children, or already in
+    // the target state), the command returns false so default cursor
+    // behaviour still fires.
+    const collapseCommand: Command = () => {
+      if (!onCollapseRequestRef.current) {
+        return false;
+      }
+      onCollapseRequestRef.current();
+      return true;
+    };
+
+    const expandCommand: Command = () => {
+      if (!onExpandRequestRef.current) {
+        return false;
+      }
+      onExpandRequestRef.current();
+      return true;
+    };
+
     const escapeCommand: Command = (state) => {
       const mState = mentionKey.getState(state);
       if (mState?.active) {
@@ -139,6 +176,8 @@ export const BlockEditor = ({ block, autoFocus, onEnter, onIndent, onDedent }: B
           Enter: enterCommand,
           Tab: tabCommand,
           'Shift-Tab': shiftTabCommand,
+          'Mod-ArrowUp': collapseCommand,
+          'Mod-ArrowDown': expandCommand,
           Escape: escapeCommand,
           'Mod-z': undo,
           'Mod-y': redo,
