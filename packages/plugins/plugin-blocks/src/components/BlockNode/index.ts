@@ -3,3 +3,4 @@
 //
 
 export * from './BlockNode';
+export * from './FieldGroup';

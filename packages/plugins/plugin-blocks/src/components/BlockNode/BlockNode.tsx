@@ -11,6 +11,7 @@ import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
 import { FieldGroups } from './FieldGroup';
+import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
 
 import { Block } from '#types';
@@ -34,6 +35,15 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // Per-row hover state — drives ExpandChevron visibility. Replaces a Tailwind
   // `group-hover:` approach that was lighting up multiple chevrons at once.
   const [rowHovered, setRowHovered] = useState(false);
+
+  // F-6 Phase 3b: a Block carrying a `queryRef` marker is rendered as
+  // a live query result list instead of the standard bullet + content
+  // + children layout. The dispatch happens AFTER hooks so the rules
+  // of hooks are respected; the rest of this component's mutation
+  // handlers don't matter for query nodes since they aren't reached.
+  if ((snapshot as any).queryRef) {
+    return <QueryNodeView block={snapshot} />;
+  }
 
   const childRefs = ((snapshot.children ?? []) as readonly any[]).filter((ref) => ref?.target);
   const parentChildren = (parent.children ?? []) as readonly any[];
@@ -317,9 +327,20 @@ const moveToAdjacentVisibleBlock = (
 
 // Detects a Block whose content is exactly one ref segment with no meaningful
 // text. Such Blocks are rendered as references to their target.
+//
+// F-6 Phase 3b: a "wrapper" Block (created by `promoteToWrapper`)
+// also has content of just a Ref to an instance, but it carries a
+// non-empty `supertags` array — that's what makes it a WRAPPER, not
+// a mention. Wrappers should render with the normal bullet so the
+// FieldGroup attaches; reference-only treatment (dashed outer ring,
+// non-zoomable) is reserved for plain mentions.
 const isReferenceOnlyBlock = (block: any): boolean => {
   const content = (block?.content ?? []) as readonly any[];
   if (!Array.isArray(content) || content.length === 0) {
+    return false;
+  }
+  const supertags = (block?.supertags ?? []) as readonly any[];
+  if (supertags.length > 0) {
     return false;
   }
   let refCount = 0;

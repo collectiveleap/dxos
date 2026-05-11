@@ -1303,11 +1303,80 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         typename"). Regular bullets, sub-tags, option Blocks, and
         free-form content are NOT permitted as children of a tag
         node.
-      - Phase 3b will (1) auto-create the single query child on tag
-        Block materialization, and (2) reject Tab/Enter/etc.
-        operations that would add a non-query child. Until then,
-        this req documents the invariant but is not yet enforced
-        in the code.
+      - Phase 3b materialises the query child at tag-Block
+        creation time (see F-6.Phase3b.query-node.materialize);
+        future increments will additionally reject Tab/Enter
+        operations that would add a non-query child.
+  req F-6.Phase3b.query-node.materialize:
+    given: a tag Block is being created for typename T
+    when: `createTagBlock` runs
+    then:
+      - a single child Block is also created carrying
+        `queryRef: { typename: T }` (and no `content`).
+      - the new query Block is added to the database and its `Ref`
+        is appended to the tag Block's `children` array.
+      - subsequent renames or use of the tag DO NOT create more
+        query children; the one created at materialization stays.
+  req F-6.Phase3b.query-node.render:
+    given: a Block carries `queryRef.typename === T`
+    when: the BlockNode renderer encounters it
+    then:
+      - the standard bullet + content + children layout is REPLACED
+        with `<QueryNodeView>`.
+      - the query view lists every ECHO instance in the space whose
+        typename equals T, regardless of whether each has a
+        wrapping Block.
+      - the list subscribes to both `Block.Block` query and the
+        instance query so newly-created Blocks / instances refresh
+        the rows without remount.
+      - each row's label comes from the wrapper Block's
+        `getDisplayLabel` when one exists, falling back to the raw
+        instance's `getDisplayLabel`.
+      - rows whose instance has NO wrapper Block render a dashed
+        bullet glyph and a `no wrapper` hint badge.
+  req F-6.Phase3b.promote:
+    given: a query row whose instance has no wrapper Block
+    when: the user clicks the row
+    then:
+      - the per-space Library Block is found-or-created
+        (`systemNode: 'library'`, content: "Library"). Exactly one
+        Library Block per space.
+      - a fresh wrapper Block is created with:
+        - `content`: a single ref segment pointing at the instance
+          (so the bullet's display label tracks the instance's
+          label live).
+        - `supertags`: `[Ref(instance)]` (so the Phase-2 FieldGroup
+          attaches and renders the typed fields).
+      - the wrapper is `db.add`-ed and its `Ref` is appended to
+        `Library.children`.
+      - the current pane zooms to the new wrapper (cross-tree
+        fallback covers the case where Library isn't in the
+        current pane's outline tree).
+      - the query view re-renders; the row's `no wrapper` hint
+        disappears and the row now navigates to the wrapper on
+        subsequent clicks.
+  req F-6.Phase3b.promote.reuse:
+    given: a query row whose instance ALREADY has a wrapper Block
+      (e.g. the user previously promoted it, or the wrapper was
+      created via the apply-tag flow on some other bullet)
+    when: the user clicks the row
+    then:
+      - NO new wrapper is created.
+      - the pane zooms to the existing wrapper (the one indexed
+        in `buildWrapperIndex`).
+      - exactly one wrapper Block exists per instance in the
+        space; subsequent clicks remain idempotent.
+  req F-6.Phase3b.wrapper-not-reference-only:
+    given: a wrapper Block created by `promoteToWrapper` (content =
+      single Ref to its instance, supertags = `[Ref(instance)]`)
+    when: it renders inside an outline
+    then:
+      - `isReferenceOnlyBlock` returns false for it (presence of
+        non-empty `supertags` excludes it from the F-V6
+        reference-only treatment).
+      - the bullet renders as a normal solid dot, the Block is
+        zoomable on click, and the Phase-2 FieldGroup attaches via
+        `supertags`.
 ```
 
 ```mdl

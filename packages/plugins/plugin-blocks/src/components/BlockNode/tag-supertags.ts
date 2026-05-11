@@ -98,12 +98,29 @@ export const findTagBlock = (db: any, typename: string): Block.Block | undefined
 // on next encounter. The tag Block is appended as a child of the
 // per-space Schema Block (auto-materialized on first use) so the
 // user can navigate the full set of tag types from one place.
+//
+// F-6 Phase 3b: also auto-creates a single query child whose
+// `queryRef.typename === typename`. Per
+// `F-6.Phase3.tag-node.children-are-queries`, a tag node's only
+// allowed children are query nodes — by creating one at
+// materialization time, we both enforce that invariant and give the
+// user a working "show me all #Task instances" view the moment they
+// land on the tag page.
 export const createTagBlock = (db: any, typename: string, defaultLabel: string): Block.Block => {
   const block = Block.make({
     content: [{ kind: 'text', text: defaultLabel }] as any,
     tagTypename: typename,
   });
   db.add(block);
+
+  const queryChild = Block.make({
+    queryRef: { typename },
+  });
+  db.add(queryChild);
+  Obj.update(block, (block: any) => {
+    block.children = [Ref.make(queryChild)];
+  });
+
   const schemaBlock = findOrCreateSchemaBlock(db);
   Obj.update(schemaBlock, (schemaBlock: any) => {
     const existing = (schemaBlock.children ?? []) as readonly any[];

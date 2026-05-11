@@ -20,6 +20,7 @@ import {
   BlockContent,
   BlockEditor,
   BlockTree,
+  FieldGroups,
   OpenPaneContext,
   ZoomContext,
   getDisplayLabel,
@@ -218,6 +219,12 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
               </button>
             )}
             <PageHeader block={pageBlock} />
+            {/* F-6 Phase 3b: when the page block is itself a wrapper
+                (carries `supertags`), surface its FieldGroups at the
+                page level — they otherwise only mount as part of a
+                BlockNode child row, which never happens for a
+                zoomed-in wrapper. */}
+            <FieldGroups block={pageBlock} />
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>

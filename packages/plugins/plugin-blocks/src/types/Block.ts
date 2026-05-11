@@ -111,6 +111,19 @@ export const Block = Schema.Struct({
   // of orphan instance wrappers — Phase 3b). System nodes have a
   // read-only page header and cannot be deleted by the user.
   systemNode: Schema.optional(Schema.String),
+
+  // F-6 Phase 3b (query-node): when set, this Block is a live query
+  // result list — its outline rendering is REPLACED by a list of
+  // every ECHO instance whose typename matches `queryRef.typename`,
+  // including instances that don't have a wrapping Block yet.
+  // Materialized automatically as the sole child of a tag node at
+  // tag-Block creation time. Clicking a wrapper-less row promotes
+  // it into a wrapper Block under the per-space Library.
+  queryRef: Schema.optional(
+    Schema.Struct({
+      typename: Schema.String,
+    }),
+  ),
 }).pipe(
   Type.object({
     typename: 'org.dxos.type.block',

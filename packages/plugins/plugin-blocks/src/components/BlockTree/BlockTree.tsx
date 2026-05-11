@@ -26,7 +26,23 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
   // Migrate I1/I2 outlines: if root has content but no children, demote the
   // content into a single child Block. Also covers stale outlines lacking
   // any seeded child.
+  //
+  // F-6 Phase 3+: skip the migration for plugin-managed Blocks —
+  // wrappers (`supertags`), tag nodes (`tagTypename`), system nodes
+  // (`systemNode`), and query nodes (`queryRef`) all have an
+  // intentional structure that the legacy outline migration must not
+  // disturb. Without this guard, zooming into a wrapper wipes its
+  // `content` ref to the linked instance and seeds an empty child.
   useEffect(() => {
+    const isSpecialBlock = Boolean(
+      ((snapshot as any).supertags ?? []).length > 0 ||
+        (snapshot as any).tagTypename ||
+        (snapshot as any).systemNode ||
+        (snapshot as any).queryRef,
+    );
+    if (isSpecialBlock) {
+      return;
+    }
     const contentArr = (snapshot.content ?? []) as readonly unknown[];
     const childrenArr = (snapshot.children ?? []) as readonly unknown[];
     if (childrenArr.length === 0) {
