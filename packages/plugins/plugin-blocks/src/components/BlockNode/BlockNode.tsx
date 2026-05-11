@@ -174,9 +174,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
         onMouseLeave={() => setRowHovered(false)}
       >
         <ExpandChevron
-          hasChildren={hasChildren}
           expanded={expanded}
-          visible={rowHovered && hasChildren}
+          visible={rowHovered}
           onToggle={toggleExpanded}
         />
         <Bullet
@@ -208,8 +207,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onEnter={handleEnter}
               onIndent={handleIndent}
               onDedent={handleDedent}
-              onCollapseRequest={hasChildren && expanded ? toggleExpanded : undefined}
-              onExpandRequest={hasChildren && !expanded ? toggleExpanded : undefined}
+              onCollapseRequest={expanded ? toggleExpanded : undefined}
+              onExpandRequest={!expanded ? toggleExpanded : undefined}
               onMoveUp={handleMoveUp}
               onMoveDown={handleMoveDown}
               onShiftEnter={handleShiftEnter}
@@ -227,7 +226,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           )}
         </div>
       </div>
-      {hasChildren && expanded && (
+      {expanded && (
         <div className='ml-6 space-y-1 border-l border-neutral-200 dark:border-neutral-800 pl-2'>
           {childRefs.map((ref) => {
             const child = ref.target as Block.Block;
@@ -242,6 +241,26 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               />
             );
           })}
+          {/* F-Pending-Child: leaves with no real children render a faint
+              placeholder row at the end. First keystroke promotes it
+              to a real child Block (no persistence until typed into),
+              after which the pending row disappears (this branch only
+              fires while there are no children). Parents do NOT get a
+              pending row — per spec, only leaves. */}
+          {!hasChildren && (
+            <PendingChildRow
+              onPromote={(initialText) => {
+                const newChild = Block.make({
+                  content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
+                });
+                Obj.update(block, (mutable) => {
+                  const arr = ((mutable as any).children ?? []) as readonly any[];
+                  (mutable as any).children = [...arr, Ref.make(newChild)];
+                });
+                setFocusId(newChild.id);
+              }}
+            />
+          )}
         </div>
       )}
     </div>
@@ -316,22 +335,19 @@ const getReferenceTarget = (block: any): unknown => {
 };
 
 type ExpandChevronProps = {
-  hasChildren: boolean;
   expanded: boolean;
   visible: boolean;
   onToggle: () => void;
 };
 
-// F-V2 Expand/Collapse control: a chevron set inside a bordered, lightly
-// filled circle. Hidden by default; the parent BlockNode tracks its row's
-// hover state via React and passes `visible`. Keyboard focus also reveals
-// the control via `focus-visible`. For non-parents an empty same-width
-// spacer reserves the slot so columns stay aligned. Tooltip surfaces the
-// keyboard shortcut.
-const ExpandChevron = ({ hasChildren, expanded, visible, onToggle }: ExpandChevronProps) => {
-  if (!hasChildren) {
-    return <span className='shrink-0 w-6' aria-hidden />;
-  }
+// F-V2 Expand/Collapse control (revised in F-Pending-Child): a chevron set
+// inside a bordered, lightly filled circle. Hidden by default; the
+// parent BlockNode tracks its row's hover state via React and passes
+// `visible`. Keyboard focus also reveals the control via
+// `focus-visible`. ALWAYS rendered now — leaves get a chevron too so
+// they can be expanded to reveal the pending-child placeholder
+// (F-Pending-Child) and field groups (F-6 Phase 2).
+const ExpandChevron = ({ expanded, visible, onToggle }: ExpandChevronProps) => {
   return (
     <button
       type='button'
@@ -467,5 +483,50 @@ const TagChips = ({ block }: { block: any }) => {
         );
       })}
     </>
+  );
+};
+
+// F-Pending-Child: a faint placeholder row rendered as the only child of
+// an expanded leaf. Visual only — no Block exists until the user types
+// any character into the editable area, at which point `onPromote` is
+// called with the typed text and the parent BlockNode persists a real
+// child Block. The contentEditable is purely for capturing the first
+// keystroke; once promoted, focus transfers to the new real Block via
+// `setFocusId` and the pending branch unmounts (because hasChildren is
+// now true).
+const PendingChildRow = ({ onPromote }: { onPromote: (initialText: string) => void }) => {
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Click anywhere on the row focuses the editable so typing lands.
+    const editable = event.currentTarget.querySelector<HTMLElement>('[contenteditable]');
+    editable?.focus();
+  };
+  const handleInput = (event: React.FormEvent<HTMLDivElement>) => {
+    const text = event.currentTarget.textContent ?? '';
+    if (text.length === 0) {
+      return;
+    }
+    // Clear before promoting so a fast double-call doesn't double-up;
+    // unmount happens in the next render.
+    event.currentTarget.textContent = '';
+    onPromote(text);
+  };
+  return (
+    <div className='flex items-baseline gap-1 cursor-text' onClick={handleClick}>
+      <span className='shrink-0 w-6' aria-hidden />
+      <span className='shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center'>
+        <span className='inline-block w-2 h-2 rounded-full bg-neutral-300 dark:bg-neutral-700' />
+      </span>
+      {/* F-Pending-Child.cursor-alignment: inline-block with explicit
+          line-height matches `.ProseMirror`'s `<p>` line-box so the
+          caret sits on the same baseline as a real bullet's editor
+          (default block-level empty contenteditable starts the caret
+          at the line-box top, which renders above the bullet). */}
+      <div
+        className='block-pending-child-editable inline-block min-w-[1rem] outline-none text-neutral-400 dark:text-neutral-600 leading-6'
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+      />
+    </div>
   );
 };

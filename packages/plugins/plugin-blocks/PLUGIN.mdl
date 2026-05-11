@@ -332,8 +332,13 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       - the indented child column + guide line below the row distinguish the open parent from a leaf
   req F-V2.5: collapsed state is persisted on Block.state.expanded and survives reloads.
   req F-V2.6:
-    when: Block has children
+    when: Block has children OR has any supertags (F-6) OR is a leaf (so the
+      pending child can be revealed via F-Pending-Child)
     then: an Expand/Collapse control (chevron in a bordered circle) is mounted to the immediate left of the Block Bullet; the control's slot is reserved at all times so layout does not shift on hover.
+    Note (revised in F-Pending-Child): the prior version of this req only
+    fired when the Block had children. Leaves now also show the chevron
+    so they can be expanded to reveal the pending-child placeholder
+    (F-Pending-Child) and, when tagged, the field group(s) (F-6 Phase 2).
   req F-V2.6a:
     when: the user's pointer is over any part of THIS Block's row only (other Blocks' rows are unaffected)
     then: this Block's Expand/Collapse control becomes fully visible (opacity 1).
@@ -345,7 +350,8 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
     when: the user clicks the Expand/Collapse control
     then: state.expanded toggles, identical to clicking the Block Bullet.
   req F-V2.7:
-    when: Block has no children
+    when: a Block does not satisfy F-V2.6 (extremely rare given the
+      revised condition — currently no such case)
     then: a same-width empty spacer renders in place of the chevron so leaves align with parents.
   req F-V2.8:
     when: cursor is in a Block whose state.expanded is true (or undefined) and that has children, and the user presses Mod+ArrowUp
@@ -359,6 +365,81 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
   req F-V2.11:
     when: user hovers the chevron
     then: a tooltip displays "Collapse ⌘ ↑" or "Expand ⌘ ↓" matching the available action.
+```
+
+```mdl
+feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pending-Child (current)
+  desc: |
+    Tana-style: leaf bullets (no real children) get an Expand/Collapse
+    chevron just like parents (per the revised F-V2.6). When the user
+    expands a leaf, a "pending child" placeholder row renders below it
+    in the same column its real children would occupy. The pending child
+    is a faint bullet + an empty editable area; it is visual only and
+    has no persisted Block. As soon as the user types into the ghost
+    row, a real Block is created and appended to the leaf's children;
+    focus transfers to the new Block and any typed characters land
+    there.
+
+    Parents (Blocks that already have at least one child) do NOT get
+    a pending child row — their expanded view continues to show only
+    their real children. (Per user spec: "only leaf shows the ghost
+    child at the end".)
+
+    F-6 Phase 2 reuses the same chevron-on-leaves mechanic to expose
+    field groups for tagged bullets; the pending row and field groups
+    can co-exist when a tagged leaf is expanded.
+  req F-Pending-Child.hover:
+    given: a Block has no children
+    when: the user's pointer hovers anywhere on the Block's row
+    then: the Expand/Collapse control becomes visible (chevron in
+      collapsed orientation if state.expanded is undefined / false).
+  req F-Pending-Child.expand:
+    given: a Block has no children
+    when: the user clicks the Expand control (chevron) on the row
+    then:
+      - state.expanded is set to true (persisted on the Block)
+      - a pending child row renders in the indented children column
+        (same indent and guide-line column as real children would
+        use); the pending row consists of a faint bullet (lighter shade
+        than a real bullet) and an empty editable area.
+      - the pending row's interactive surface — clicking, focus,
+        cursor placement, typing — behaves IDENTICALLY to an empty
+        real bullet (same baseline alignment per
+        F-Pending-Child.cursor-alignment, same click-anywhere-to-focus,
+        same key handling). The only visible differences are the
+        lighter bullet shade and the lack of persistence until first
+        input.
+  req F-Pending-Child.type:
+    given: a leaf Block is expanded showing the pending child row
+    when: the user clicks anywhere on the pending row and types any
+      character
+    then:
+      - a new Block is created with the typed text as its content
+      - the new Block's Ref is appended to the leaf's `children`
+      - focus moves to the new (now-real) Block; further typing
+        continues there as if the user had typed into a normal child
+        bullet
+      - the pending row visually disappears (the new real child
+        replaces it). Subsequent edits to the new child do NOT
+        re-create another ghost.
+  req F-Pending-Child.empty-collapse:
+    given: a leaf Block was expanded (pending row showing) but the user
+      did not type anything
+    when: the user collapses the Block (chevron click or Cmd+Up)
+    then: state.expanded becomes false; no Block was created. No
+      cleanup is required because no Block was persisted.
+  req F-Pending-Child.cursor-alignment:
+    given: a leaf Block is expanded showing the pending child row
+    when: the user clicks on the row and the editable area receives focus
+    then: the caret renders at the SAME vertical baseline as a real
+      bullet's editor (i.e. the pending row's caret sits where a
+      typed character's first letter would sit, not above it).
+    Note: empty `<div contentEditable>` line-boxes default to a
+    different vertical metric than `.ProseMirror`'s `<p>`; the
+    pending editable matches by being inline-block with a minimum
+    width and the same line-height as the editor's text, so
+    `items-baseline` on the row's flex container aligns the caret
+    to the bullet baseline.
 ```
 
 ```mdl
