@@ -95,6 +95,22 @@ export const Block = Schema.Struct({
       literal: Schema.String,
     }),
   ),
+
+  // F-6 Phase 3 (tag-node): per-space wrapper for a tag-ready
+  // typename (e.g. `org.dxos.type.task`). When a Block carries this
+  // marker, clicking any `#Task` chip elsewhere in the space zooms
+  // into this Block. The Block's `content` is the renameable label
+  // shown on every chip for that typename (so renaming "Task" → "Job"
+  // updates every chip live). Lookups go by `tagTypename`; see
+  // `tag-supertags.ts`.
+  tagTypename: Schema.optional(Schema.String),
+
+  // F-6 Phase 3 (system-node): per-space permanent placeholder
+  // Block created by the outliner itself. The marker value names the
+  // role: 'schema' (parent of tag-typename Blocks), 'library' (parent
+  // of orphan instance wrappers — Phase 3b). System nodes have a
+  // read-only page header and cannot be deleted by the user.
+  systemNode: Schema.optional(Schema.String),
 }).pipe(
   Type.object({
     typename: 'org.dxos.type.block',

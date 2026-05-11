@@ -449,6 +449,7 @@ export const BlockEditor = ({
         <TagPicker
           query={tag.state.query}
           cursor={tag.cursor}
+          db={db}
           onSelect={handleSelectTag}
           onClose={handleCloseTagPicker}
         />

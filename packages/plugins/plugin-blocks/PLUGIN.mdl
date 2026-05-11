@@ -994,9 +994,23 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       Arrays and nested-struct fields are rendered as
       count-or-placeholder for now and deferred to a later sub-phase.
 
-    - Phase 3 (planned): clicking a tag chip opens the linked
-      instance in a popover or a new pane (via F-Open-Pane).
-      Allowlist becomes user-editable instead of hardcoded.
+    - Phase 3 (in progress): tag chips become NAVIGABLE, not just
+      labels. Each typename in the allowlist gets a per-space "tag
+      Block" — clicking the chip zooms into that Block (shift-click
+      opens it in a new pane), and the chip's displayed label comes
+      from the tag Block's renameable `content` so renames propagate
+      live to every chip in the space. Sub-phases:
+
+        - Phase 3a (current): tag-node materialization + chip click
+          navigation (this section's `F-6.Phase3.tag-node.*` reqs).
+        - Phase 3b (next): query node — a child Block of the tag
+          node that lists every ECHO instance of the typename
+          (wrapper Block or not) and lets the user click an entry
+          to promote a wrapper Block into the per-space Library
+          (parallels Tana's Library node).
+        - Phase 3c (later): user-editable allowlist of tag-ready
+          typenames (currently hardcoded as `[Task, Person,
+          Organization]` in `tag-types.ts`).
 
     Implementation note: `Block.supertags` is already declared as
     `Ref<Obj.Unknown>[]` so no schema migration is needed for
@@ -1147,6 +1161,153 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         "—") to the typed instance and closes the picker; clicking
         outside or pressing Escape dismisses without changing the
         value.
+  req F-6.Phase1.create-instance:
+    given: I am editing a node and select a tag from the picker
+    when: the tag is applied
+    then:
+      - a new instance of the corresponding ECHO type is created
+        via `Obj.make` (with `initialPropsForTag` filling any
+        required fields) and added to the same database as the
+        Block.
+      - `Block.supertags` is updated to append `Ref(instance)`.
+      - any subsequent edits to the rendered field group are
+        persisted on the linked instance (Phase 2 wiring); the
+        Block itself is not mutated for field-value writes.
+    Note: this req formalises behaviour that's been in place since
+    Phase 1 (`F-6.Phase1.apply`) and Phase 2 (the `.persistence`
+    req) — captured here as a single user-visible scenario.
+  req F-6.Phase3.tag-node.materialize:
+    given: a Block has one or more entries in `supertags`
+    when: a chip first renders for typename T in this space
+    then:
+      - the plugin queries for a Block whose `tagTypename === T`.
+      - if none exists, the plugin creates exactly ONE such Block,
+        seeded with the schema-declared title for T as its `content`
+        and `tagTypename: T` as the stable identity, and `db.add`s it.
+      - subsequent chip renders for the same typename in the same
+        space resolve to the SAME Block — there is never more than
+        one tag Block per typename per space.
+      - no ECHO schema is edited; the linked typed instance is
+        unchanged; `Block.supertags` continues to point at the
+        instance, not at the tag Block (per rule R-No-Echo-Changes).
+  req F-6.Phase3.tag-node.label:
+    given: a chip is rendering for typename T and the matching tag
+      Block exists in the space
+    when: the chip renders
+    then:
+      - the chip's displayed label is the tag Block's `content`
+        (NOT the schema-declared title), prefixed with `#`.
+      - if the user renames the tag Block's content from "Task" to
+        "Job", every chip with typename T reflects the new label
+        live without remount (subscribes via `useObject`).
+      - until the tag Block has materialized, the chip falls back to
+        the schema-declared title so the chip never renders blank.
+  req F-6.Phase3.tag-node.click:
+    given: a chip is rendering and the matching tag Block exists
+    when: the user clicks the chip
+    then:
+      - the current outline pane's page block changes to the tag
+        Block (zoom), mirroring bullet F-Zoom semantics.
+      - the BlockArticle's `pageBlock` lookup falls back to a
+        whole-DB lookup so a tag Block outside the current pane's
+        outline tree is still reachable.
+      - the H1 / page header renders the tag Block's content; the
+        BlockTree renders the tag Block's children (initially
+        empty; Phase 3b will seed the query node here).
+      - the parent-breadcrumb is hidden when there is no in-tree
+        parent.
+  req F-6.Phase3.tag-node.shift-click:
+    given: a chip is rendering and the matching tag Block exists
+    when: the user shift-clicks the chip
+    then:
+      - the tag Block is opened in a new pane via the
+        `LayoutOperation.Open` pipeline (same path as F-Open-Pane
+        for bullets), with the current pane's `attendableId` as the
+        pivot so the new plank lands as a right sibling.
+      - the normal click (zoom) is NOT also performed.
+      - the deck-disabled fallback in `BlockArticle` applies as
+        usual (toast + zoom-in-place when deck mode is off).
+  req F-6.Phase3.tag-node.schema-parent:
+    given: a tag Block is being materialized for the first time
+    when: `createTagBlock` runs
+    then:
+      - a per-space Schema Block is found-or-created. It carries
+        `systemNode: 'schema'` and `content: [{text: 'Schema'}]`.
+      - the newly-created tag Block is appended as a child of that
+        Schema Block (`Ref.make(tagBlock)` pushed onto
+        `schemaBlock.children`).
+      - subsequent tag-Block creates for other typenames reuse the
+        same Schema Block — exactly one Schema Block exists per
+        space.
+      - zooming to (or otherwise navigating to) the Schema Block
+        renders all tag Blocks for the space as bullet children.
+  req F-6.Phase3.tag-node.header:
+    given: I am zoomed into a tag node (page block has `tagTypename`)
+    when: the page renders
+    then:
+      - the H1 row shows a decorative amber-tinted `#` glyph on the
+        left, followed by the tag Block's editable name.
+      - the `#` glyph is purely visual: not part of the Block's
+        `content`, not editable, not selectable.
+      - editing the name (via the inline BlockEditor) updates the
+        tag Block's content; every `#`-prefixed chip referencing
+        this typename reflects the new label live.
+  req F-6.Phase3.system-node.readonly:
+    given: I am zoomed into a system node (page block has
+      `systemNode` set — e.g. Schema, Library)
+    when: the page renders
+    then:
+      - the H1 displays the Block's content (e.g. "Schema") as
+        plain non-editable text, styled muted to signal its
+        special role.
+      - no inline BlockEditor is mounted for the header (so it
+        can't be typed into).
+      - the children list and bullet-level interactions are
+        otherwise unchanged.
+  req F-6.Phase3.regular-node.header-editable:
+    given: I am zoomed into any non-system Block (regular bullet,
+      tag node, option Block from Phase 2)
+    when: I edit the H1
+    then:
+      - the Block's `content` is updated in place via the inline
+        BlockEditor (current F-Page-Header behaviour).
+      - tag Blocks: the displayed name changes; chips elsewhere
+        update live.
+      - option Blocks (Phase 2): the displayed label changes;
+        every typed instance whose literal matches reflects the
+        new label live.
+  req F-6.Phase3.picker.uses-renamed-label:
+    given: in this space a tag has been renamed (e.g. the user
+      changed the `#Task` tag Block's `content` from "Task" to
+      "Job")
+    when: I type `#` in any bullet and the TagPicker opens
+    then:
+      - each row in the picker displays the per-space tag Block's
+        `content` as the label (e.g. "Job"), NOT the schema-declared
+        title ("Task").
+      - for typenames whose tag Block hasn't been materialized yet
+        in this space, the picker falls back to the schema-declared
+        title so the row still renders.
+      - the in-picker substring filter matches against the displayed
+        label (so typing "Jo" matches the row labelled "Job").
+      - the underlying selection still creates a `Ref` to a new
+        instance of the schema-declared typename — the picker only
+        affects what the user sees, never the stored identity.
+  req F-6.Phase3.tag-node.children-are-queries:
+    given: a Block carries the `tagTypename` marker (it is a tag
+      node)
+    when: examining its outline children
+    then:
+      - the only Block kind allowed as a child of a tag node is a
+        query node (a Block whose payload is "all instances of this
+        typename"). Regular bullets, sub-tags, option Blocks, and
+        free-form content are NOT permitted as children of a tag
+        node.
+      - Phase 3b will (1) auto-create the single query child on tag
+        Block materialization, and (2) reject Tab/Enter/etc.
+        operations that would add a non-query child. Until then,
+        this req documents the invariant but is not yet enforced
+        in the code.
 ```
 
 ```mdl

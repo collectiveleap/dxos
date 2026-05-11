@@ -4,6 +4,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { findTagBlock, tagLabelOf } from '../BlockNode/tag-supertags';
 import { TAG_TYPES, type TagTypeEntry } from '../BlockEditor/tag-types';
 
 export type TagPickerProps = {
@@ -11,6 +12,10 @@ export type TagPickerProps = {
   query: string;
   // Viewport-relative bounding box of the `#` cursor position.
   cursor: { left: number; top: number; bottom: number };
+  // Database the picker is being shown in. Used to look up per-space
+  // tag Blocks so the picker shows the user's renamed labels (e.g.
+  // "Job" instead of the schema-declared "Task").
+  db?: any;
   onSelect: (entry: TagTypeEntry) => void;
   onClose: () => void;
 };
@@ -18,20 +23,34 @@ export type TagPickerProps = {
 const POPOVER_GAP = 4;
 const VIEWPORT_PADDING = 8;
 
-// F-6 Phase 1: minimal tag-picker popover. Mirrors `MentionPicker`'s
-// positioning + click-outside logic but reads from the static
-// `TAG_TYPES` allowlist instead of querying the database.
-export const TagPicker = ({ query, cursor, onSelect, onClose }: TagPickerProps) => {
+type DisplayItem = {
+  entry: TagTypeEntry;
+  // Live label — comes from the per-space tag Block's `content` when
+  // it's materialized, falling back to the schema-declared title
+  // when the tag hasn't been used in this space yet.
+  label: string;
+};
+
+// F-6 Phase 1 + Phase 3 clarification: minimal tag-picker popover.
+// Reads from the static `TAG_TYPES` allowlist for the set of typename
+// options, but every displayed label is resolved against the
+// per-space tag Block — so renaming `#Task` to `#Job` in this space
+// is reflected when the user re-opens the picker.
+export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerProps) => {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [placement, setPlacement] = useState<{ left: number; top: number }>({
     left: cursor.left,
     top: cursor.bottom + POPOVER_GAP,
   });
 
-  const items = useMemo<TagTypeEntry[]>(() => {
+  const items = useMemo<DisplayItem[]>(() => {
     const lowercaseQuery = query.toLowerCase();
-    return TAG_TYPES.filter((entry) => entry.title.toLowerCase().includes(lowercaseQuery));
-  }, [query]);
+    return TAG_TYPES.map((entry) => {
+      const tagBlock = db ? findTagBlock(db, entry.typename) : undefined;
+      const label = tagLabelOf(tagBlock) ?? entry.title;
+      return { entry, label };
+    }).filter((item) => item.label.toLowerCase().includes(lowercaseQuery));
+  }, [query, db]);
 
   useLayoutEffect(() => {
     const node = popoverRef.current;
@@ -76,7 +95,7 @@ export const TagPicker = ({ query, cursor, onSelect, onClose }: TagPickerProps) 
         <div className='p-2 text-sm opacity-60'>No matching tag types</div>
       ) : (
         <ul className='max-h-64 overflow-y-auto'>
-          {items.map((entry) => (
+          {items.map(({ entry, label }) => (
             <li key={entry.typename}>
               <button
                 type='button'
@@ -89,7 +108,7 @@ export const TagPicker = ({ query, cursor, onSelect, onClose }: TagPickerProps) 
                 }}
               >
                 <span className='text-neutral-400'>#</span>
-                <span>{entry.title}</span>
+                <span>{label}</span>
               </button>
             </li>
           ))}

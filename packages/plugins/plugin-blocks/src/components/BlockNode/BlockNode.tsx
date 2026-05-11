@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
@@ -11,6 +11,7 @@ import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
 import { FieldGroups } from './FieldGroup';
+import { tagLabelOf, useTagBlock } from './tag-supertags';
 
 import { Block } from '#types';
 
@@ -462,12 +463,13 @@ const Bullet = ({ hasChildren, expanded, referenceOnly, onClick, onShiftClick }:
   );
 };
 
-// F-6 Phase 1: render one chip per entry in `block.supertags`. Each
-// chip shows the type's title from the `TAG_TYPES` allowlist (looked
-// up by typename of the linked instance) prefixed with `#`. No click
-// handler yet — Phase 3 will route clicks to F-Open-Pane on the
-// linked instance. Field editing for the linked instance lands in
-// Phase 2.
+// F-6 Phase 1+3: render one chip per entry in `block.supertags`.
+// Each chip routes through the per-space "tag Block" (materialized
+// lazily on first encounter via `useTagBlock`), so the chip's
+// displayed label comes from the tag Block's renameable `content`
+// (with `#` prefix). Clicking the chip zooms into the tag Block;
+// shift-clicking opens it in a new pane. Field editing of the linked
+// typed instance lives in the FieldGroup (Phase 2).
 const TagChips = ({ block }: { block: any }) => {
   const supertags = ((block?.supertags ?? []) as readonly any[]).filter((ref) => ref?.target);
   if (supertags.length === 0) {
@@ -478,20 +480,54 @@ const TagChips = ({ block }: { block: any }) => {
       {supertags.map((ref, index) => {
         const target = ref.target as any;
         const typename = Obj.getTypename(target);
-        const allowlistEntry = TAG_TYPES.find((entry) => entry.typename === typename);
-        const title = allowlistEntry?.title ?? typename ?? 'tag';
-        return (
-          <span
-            key={target?.id ?? index}
-            className='inline-flex items-baseline gap-0.5 text-xs leading-none px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 shrink-0'
-            title={typename ?? undefined}
-          >
-            <span className='opacity-60'>#</span>
-            <span>{title}</span>
-          </span>
-        );
+        return <TagChip key={target?.id ?? index} typename={typename} db={Obj.getDatabase(target)} />;
       })}
     </>
+  );
+};
+
+// One chip. Subscribes to the per-space tag Block so renaming its
+// `content` (e.g. "Task" → "Job") updates every chip with that
+// typename live. Materializes the tag Block on first encounter via
+// `useTagBlock`. Click → zoom into the tag Block; shift-click → open
+// it in a new pane. Mirrors the bullet's click/shift-click pattern.
+const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) => {
+  // Schema-declared title as the initial label for the tag Block
+  // (and the fallback when the tag Block hasn't materialized yet).
+  const schemaTitle = useMemo(() => {
+    const entry = TAG_TYPES.find((tag) => tag.typename === typename);
+    return entry?.title ?? typename ?? 'tag';
+  }, [typename]);
+  const tagBlock = useTagBlock(db, typename, schemaTitle);
+  const [snapshot] = useObject(tagBlock as any);
+  const label = tagLabelOf(snapshot as any) ?? schemaTitle;
+
+  const zoom = useZoom();
+  const openPane = useOpenPane();
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!tagBlock) {
+      return;
+    }
+    if (event.shiftKey) {
+      event.preventDefault();
+      openPane(tagBlock as Block.Block);
+      return;
+    }
+    zoom(tagBlock.id);
+  };
+
+  return (
+    <button
+      type='button'
+      onClick={handleClick}
+      disabled={!tagBlock}
+      className='inline-flex items-baseline gap-0.5 text-xs leading-none px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 shrink-0 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40'
+      title={`${typename ?? 'tag'} — click to zoom, shift+click to open in pane`}
+    >
+      <span className='opacity-60'>#</span>
+      <span>{label}</span>
+    </button>
   );
 };
 

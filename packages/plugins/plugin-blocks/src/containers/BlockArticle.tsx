@@ -82,7 +82,18 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
     if (!pageBlockId) {
       return paneRootBlock;
     }
-    return findBlockById(paneRootBlock, pageBlockId) ?? paneRootBlock;
+    const inTree = findBlockById(paneRootBlock, pageBlockId);
+    if (inTree) {
+      return inTree;
+    }
+    // F-6.Phase3.tag-node: a chip click can target a top-level Block
+    // outside this pane's outline (e.g. the per-space `#Task` tag
+    // Block). Fall back to a whole-DB lookup so cross-tree zoom
+    // works. Falls all the way back to `paneRootBlock` when the id
+    // isn't anywhere in the space.
+    const db = Obj.getDatabase(paneRootBlock);
+    const foreign = db?.getObjectById?.(pageBlockId) as Block.Block | undefined;
+    return foreign ?? paneRootBlock;
   }, [paneRootBlock, pageBlockId]);
 
   // Parent of the page block within the pane's tree (null when page block
@@ -206,9 +217,7 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
                 </span>
               </button>
             )}
-            <h1 className='mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
-              <BlockEditor block={pageBlock} headlineMode />
-            </h1>
+            <PageHeader block={pageBlock} />
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>
@@ -223,6 +232,54 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
         )}
       </Panel.Content>
     </Panel.Root>
+  );
+};
+
+// Page-level header for the current `pageBlock`. Branches by the
+// Block's plugin-internal role:
+// - tag node (`tagTypename` set): decorative amber `#` chip on the
+//   left + editable Block content on the right. The `#` is UI
+//   decoration only; it's NOT part of the Block's content (so the
+//   stored label is "Task", not "#Task").
+// - system node (`systemNode` set): read-only header — Schema /
+//   Library aren't user-renameable.
+// - any other Block: standard inline-editable H1 (current behaviour).
+const PageHeader = ({ block }: { block: Block.Block }) => {
+  const tagTypename = (block as any).tagTypename as string | undefined;
+  const systemNode = (block as any).systemNode as string | undefined;
+
+  if (systemNode) {
+    return (
+      <h1
+        className='mt-2 mb-4 text-2xl font-bold text-neutral-500 dark:text-neutral-500 select-none'
+        title={`System node (${systemNode})`}
+      >
+        {getDisplayLabel(block) || systemNode}
+      </h1>
+    );
+  }
+
+  if (tagTypename) {
+    return (
+      <h1 className='mt-2 mb-4 flex items-center gap-3 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
+        <span
+          aria-hidden
+          className='shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-md bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-3xl leading-none select-none'
+          title={tagTypename}
+        >
+          #
+        </span>
+        <span className='flex-1 min-w-0'>
+          <BlockEditor block={block} headlineMode />
+        </span>
+      </h1>
+    );
+  }
+
+  return (
+    <h1 className='mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
+      <BlockEditor block={block} headlineMode />
+    </h1>
   );
 };
 
