@@ -9,6 +9,38 @@ A block-based outliner where every bullet is a first-class ECHO object. Designed
 ## Rules
 
 ```mdl
+rule R-Edges-First-Class:
+  desc: |
+    Structural parent/child links between Blocks are modelled as
+    first-class ECHO `Relation` entities (the `ChildEdge` schema in
+    `types/ChildEdge.ts`) — NOT as opaque entries in
+    `Block.children: Ref<Block>[]`. The relation carries `source`,
+    `target`, `order`, and reserves room for per-occurrence
+    `expanded` and a future `kind` taxonomy.
+
+    Why: a tree where `Block.children` is the only parent/child
+    representation forces single-parent-per-Block and offers
+    nowhere to attach per-edge data (ordering across multiple
+    parents, per-occurrence collapse, provenance, edge labels for
+    'structural' vs 'embed' vs 'linked'). Materialising the edge as
+    an entity unlocks a property-graph model on top of ECHO without
+    touching `@dxos/echo` (per rule R-No-Echo-Changes).
+
+    How to apply: new structural-children writers MUST go through
+    `createChildEdge(db, parent, child)` from
+    `components/BlockNode/child-edges.ts`. Readers MUST use
+    `useStructuralChildren(parent)` (or its sync sibling
+    `getStructuralChildren`) which merges `Block.children` (legacy,
+    still authoritative for outline bullets that haven't been
+    ported) with ChildEdges fanning out of the parent. Direct reads
+    of `block.children` are deprecated and survive only until each
+    call-site is migrated. New domain relationships beyond
+    parent/child (e.g. WorksAt, AssignedTo, Wraps) follow the same
+    pattern: define a `Type.relation(...)` schema in `types/`,
+    register it in `BlocksPlugin`, write helpers + a hook.
+```
+
+```mdl
 rule R-No-Echo-Changes:
   desc: |
     plugin-blocks is a strict consumer of `@dxos/echo` and its sibling
@@ -1377,6 +1409,97 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - the bullet renders as a normal solid dot, the Block is
         zoomable on click, and the Phase-2 FieldGroup attaches via
         `supertags`.
+```
+
+```mdl
+feat F-DAG: parent/child as first-class edges     # Increment DAG
+  desc: |
+    Move the outliner's structural parent/child relationship off
+    `Block.children: Ref<Block>[]` (an opaque adjacency list) and
+    onto an explicit `ChildEdge` relation entity. Multi-parent
+    Blocks become possible, per-occurrence data (ordering, collapse
+    state) attaches to the edge, and the same relation pattern
+    generalises to arbitrary domain relationships (WorksAt,
+    AssignedTo, …) without further plugin or ECHO changes.
+
+    Migration is incremental — per `R-Edges-First-Class`, writers
+    convert call-site by call-site and readers go through
+    `useStructuralChildren`, which MERGES legacy `Block.children`
+    entries with new ChildEdges. `Block.children` is retained as a
+    deprecated readable field until every writer is ported.
+
+    Phases:
+
+    - Phase 1 (current): foundation only — `ChildEdge` schema
+      defined, registered, helpers shipped, BlockTree merges both
+      representations. The F-6 Phase 3b `promoteToWrapper` flow
+      under Library is migrated as a first proof; everything else
+      still uses `Block.children`.
+    - Phase 2 (next): convert `Schema.children` (parent of tag
+      Blocks) and the createTagBlock auto-created query child to
+      ChildEdges. Mirrors Phase 1's shape; locks in the pattern
+      against a second concrete consumer.
+    - Phase 3 (later): the main outline. BlockNode writers
+      (`insertSiblingAfter`, indent/dedent, Enter / Shift+Enter,
+      F-Pending-Child promote) write ChildEdges; existing
+      `Block.children` for live outlines gets a one-time migration
+      job; the field is reserved-but-empty after that. Multi-
+      parent UX surfaces (indicator on bullets, breadcrumb
+      dropdown).
+    - Phase 4 (later): move `Block.state.expanded` off the Block
+      onto `ChildEdge.expanded`. Per-occurrence collapse state
+      falls out.
+    - Phase 5 (later): explicit edge kind ('embed' / 'linked' /
+      'mirror') and cycle prevention on link.
+  req F-DAG.Phase1.schema:
+    given: the plugin loads
+    when: it registers its schema module
+    then:
+      - `ChildEdge` (a `Type.relation` schema with `source: Block`,
+        `target: Block`, `order: number`, optional `expanded` /
+        `kind`) is included in the registered schemas alongside
+        `Block` and `BlockOutline`.
+      - the relation typename is
+        `org.dxos.plugin.blocks.type.child-edge`.
+  req F-DAG.Phase1.helpers:
+    given: code wants to read or write structural children
+    when: it consults `components/BlockNode/child-edges.ts`
+    then:
+      - `createChildEdge(db, parent, child, {order?, kind?})`
+        creates a `ChildEdge` via `Relation.make` (passing
+        `Relation.Source` / `Relation.Target`), `db.add`s it, and
+        defaults `order` to one past the current max among the
+        parent's outgoing edges.
+      - `getStructuralChildren(db, parent)` returns the merged list
+        of structural children — `Block.children` entries first (in
+        their array order), then ChildEdges sorted by `order` —
+        each as a plain `Ref` matching the legacy shape.
+      - `useStructuralChildren(parent)` is the React-hook variant;
+        subscribes to ChildEdge queries so new edges trigger a
+        re-render.
+  req F-DAG.Phase1.promote-via-edge:
+    given: the user clicks a wrapper-less query result (F-6
+      Phase 3b.promote)
+    when: `promoteToWrapper` runs
+    then:
+      - the wrapper Block is created and `db.add`-ed as before.
+      - the wrapper's attachment to the per-space Library Block is
+        recorded as a new `ChildEdge` with `source: library`,
+        `target: wrapper`, `order: nextOrderFor(library)` — NOT by
+        appending to `library.children`.
+      - `library.children` stays empty across the promote flow.
+  req F-DAG.Phase1.tree-reads-via-merge:
+    given: the BlockTree renders an outline rooted at any Block
+    when: it enumerates that Block's structural children
+    then:
+      - it uses `useStructuralChildren(rootBlock)`, which merges
+        `Block.children` and incident ChildEdges per
+        F-DAG.Phase1.helpers.
+      - for legacy outlines (no edges authored), the result is
+        identical to the prior `snapshot.children` read.
+      - for Library (post-promote), the result is the wrapper
+        Blocks resolved from ChildEdges; no regression to outline
+        navigation in either case.
 ```
 
 ```mdl

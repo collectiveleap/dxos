@@ -4,3 +4,4 @@
 
 export * as Block from './Block';
 export * as BlockOutline from './BlockOutline';
+export * as ChildEdge from './ChildEdge';

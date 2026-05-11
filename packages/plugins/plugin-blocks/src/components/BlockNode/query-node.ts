@@ -2,7 +2,9 @@
 // Copyright 2025 DXOS.org
 //
 
-import { Filter, Obj, Ref } from '@dxos/echo';
+import { Filter, Obj } from '@dxos/echo';
+
+import { createChildEdge } from './child-edges';
 
 import { Block } from '#types';
 
@@ -77,9 +79,14 @@ export const queryInstancesByTypename = (db: any, typename: string): any[] => {
 
 // Promote a wrapper-less instance: create a fresh Block, link it to
 // the instance via `supertags` and `content` (the content carries a
-// Ref so the bullet displays the instance's live label), and append
-// the wrapper to the per-space Library Block's children. Returns
-// the newly-created wrapper.
+// Ref so the bullet displays the instance's live label), and attach
+// the wrapper to the per-space Library Block via a `ChildEdge`
+// relation. Returns the newly-created wrapper.
+//
+// F-DAG: parent/child for system Blocks (Library, Schema, …)
+// migrated to first-class edges. `Library.children` is no longer
+// written; readers merge both representations via
+// `useStructuralChildren`.
 export const promoteToWrapper = (db: any, instance: any): Block.Block => {
   const library = findOrCreateLibraryBlock(db);
   const wrapper = Block.make({
@@ -87,9 +94,6 @@ export const promoteToWrapper = (db: any, instance: any): Block.Block => {
     supertags: [db.makeRef(Obj.getDXN(instance))] as any,
   });
   db.add(wrapper);
-  Obj.update(library, (library: any) => {
-    const existing = (library.children ?? []) as readonly any[];
-    library.children = [...existing, Ref.make(wrapper)];
-  });
+  createChildEdge(db, library, wrapper);
   return wrapper;
 };

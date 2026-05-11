@@ -8,6 +8,7 @@ import { Obj, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { BlockNode } from '../BlockNode';
+import { useStructuralChildren } from '../BlockNode/child-edges';
 
 import { Block } from '#types';
 
@@ -55,7 +56,13 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const childRefs = ((snapshot.children ?? []) as readonly any[]).filter((ref) => ref?.target);
+  // F-DAG: structural children come from two sources during the
+  // migration — the legacy `Block.children` array (for outline
+  // bullets that haven't been ported) and the new `ChildEdge`
+  // relations (currently used by the F-6 Phase 3b promote flow
+  // under Library). The hook merges both and stays subscribed so
+  // newly-added edges trigger a re-render.
+  const childRefs = useStructuralChildren(rootBlock).filter((ref: any) => ref?.target);
 
   // Right-click on any bullet copies its DXN to the clipboard. Walks up to the
   // closest [data-block-id] so nested bullets work too.
