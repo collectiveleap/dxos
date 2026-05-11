@@ -10,6 +10,7 @@ import { useObject } from '@dxos/react-client/echo';
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
+import { useStructuralChildren } from './child-edges';
 import { FieldGroups } from './FieldGroup';
 import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
@@ -36,6 +37,13 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // `group-hover:` approach that was lighting up multiple chevrons at once.
   const [rowHovered, setRowHovered] = useState(false);
 
+  // F-DAG Phase 2: structural children are read via the merge hook
+  // so that ChildEdges-out-of-this-Block (e.g. tag-node → query
+  // child) participate. Called BEFORE the queryRef early return to
+  // keep hooks order stable; query nodes don't read `childRefs`
+  // anyway because they hand off to `<QueryNodeView>`.
+  const mergedChildren = useStructuralChildren(block);
+
   // F-6 Phase 3b: a Block carrying a `queryRef` marker is rendered as
   // a live query result list instead of the standard bullet + content
   // + children layout. The dispatch happens AFTER hooks so the rules
@@ -45,7 +53,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     return <QueryNodeView block={snapshot} />;
   }
 
-  const childRefs = ((snapshot.children ?? []) as readonly any[]).filter((ref) => ref?.target);
+  const childRefs = mergedChildren.filter((ref: any) => ref?.target);
   const parentChildren = (parent.children ?? []) as readonly any[];
   const siblingIndex = parentChildren.findIndex((ref) => ref?.target?.id === block.id);
 

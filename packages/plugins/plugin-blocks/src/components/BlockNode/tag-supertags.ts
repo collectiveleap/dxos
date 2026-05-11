@@ -4,7 +4,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Filter, Obj, Ref } from '@dxos/echo';
+import { Filter } from '@dxos/echo';
+
+import { createChildEdge } from './child-edges';
 
 import { Block } from '#types';
 
@@ -117,15 +119,14 @@ export const createTagBlock = (db: any, typename: string, defaultLabel: string):
     queryRef: { typename },
   });
   db.add(queryChild);
-  Obj.update(block, (block: any) => {
-    block.children = [Ref.make(queryChild)];
-  });
+  // F-DAG Phase 2: tag node → query child as a ChildEdge.
+  // `tagBlock.children` stays empty; readers use the merge hook.
+  createChildEdge(db, block, queryChild);
 
+  // F-DAG Phase 2: Schema → tag node as a ChildEdge.
+  // `schemaBlock.children` stays empty across additions.
   const schemaBlock = findOrCreateSchemaBlock(db);
-  Obj.update(schemaBlock, (schemaBlock: any) => {
-    const existing = (schemaBlock.children ?? []) as readonly any[];
-    schemaBlock.children = [...existing, Ref.make(block)];
-  });
+  createChildEdge(db, schemaBlock, block);
   return block;
 };
 

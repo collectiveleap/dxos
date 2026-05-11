@@ -1430,15 +1430,18 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
 
     Phases:
 
-    - Phase 1 (current): foundation only — `ChildEdge` schema
-      defined, registered, helpers shipped, BlockTree merges both
+    - Phase 1: foundation only — `ChildEdge` schema defined,
+      registered, helpers shipped, BlockTree merges both
       representations. The F-6 Phase 3b `promoteToWrapper` flow
       under Library is migrated as a first proof; everything else
       still uses `Block.children`.
-    - Phase 2 (next): convert `Schema.children` (parent of tag
-      Blocks) and the createTagBlock auto-created query child to
-      ChildEdges. Mirrors Phase 1's shape; locks in the pattern
-      against a second concrete consumer.
+    - Phase 2 (current): `createTagBlock` migrates both of its
+      writers — Schema → tag node and tag node → query child —
+      to ChildEdges. `BlockNode` joins `BlockTree` in reading
+      structural children via the merge hook so a tag node's
+      query child still renders when the tag node appears as a
+      nested BlockNode (e.g. under Schema), not only when it's
+      the page block.
     - Phase 3 (later): the main outline. BlockNode writers
       (`insertSiblingAfter`, indent/dedent, Enter / Shift+Enter,
       F-Pending-Child promote) write ChildEdges; existing
@@ -1500,6 +1503,35 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - for Library (post-promote), the result is the wrapper
         Blocks resolved from ChildEdges; no regression to outline
         navigation in either case.
+  req F-DAG.Phase2.tag-block-edges:
+    given: `createTagBlock` is invoked for a new typename
+    when: it materialises the tag node and its query child
+    then:
+      - the tag node is added to `Schema.children` via a NEW
+        `ChildEdge` with `source: schemaBlock`, `target: tagBlock`.
+        `schemaBlock.children` is NOT written to.
+      - the auto-created query child is attached to the tag node
+        via a `ChildEdge` with `source: tagBlock`,
+        `target: queryChild`. `tagBlock.children` stays empty.
+      - subsequent `createTagBlock` calls for different typenames
+        add additional ChildEdges off the same Schema Block; the
+        Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase2.blocknode-merge:
+    given: BlockNode renders a non-system Block whose children may
+      come from `Block.children`, ChildEdges, or both
+    when: it computes `childRefs`
+    then:
+      - it uses `useStructuralChildren(block)`, the same merge hook
+        BlockTree uses.
+      - a tag node rendered as a nested BlockNode (e.g. when the
+        user expands a tag's bullet inside the Schema page) still
+        shows its query child, sourced from the ChildEdge.
+      - legacy outline reads are unaffected — when no ChildEdges
+        fan out of `block`, the merged result is exactly the
+        `snapshot.children` array, in the same order.
+      - the hook is called BEFORE the `queryRef` early return so
+        the rules-of-hooks order stays stable across all branches
+        of BlockNode rendering.
 ```
 
 ```mdl
