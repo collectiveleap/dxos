@@ -10,6 +10,7 @@ import { useObject } from '@dxos/react-client/echo';
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
+import { FieldGroups } from './FieldGroup';
 
 import { Block } from '#types';
 
@@ -228,6 +229,14 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
       </div>
       {expanded && (
         <div className='ml-6 space-y-1 border-l border-neutral-200 dark:border-neutral-800 pl-2'>
+          {/* F-6 Phase 2: typed-field rows for each applied supertag,
+              rendered above the children. Sits inside the same
+              indented column so the field group visually belongs to
+              the tagged bullet without taking a bullet of its own.
+              Pass the LIVE block (not the snapshot) so the FieldGroup
+              can mutate ref-target instances via Obj.update — snapshots
+              are frozen. */}
+          <FieldGroups block={block} />
           {childRefs.map((ref) => {
             const child = ref.target as Block.Block;
             return (

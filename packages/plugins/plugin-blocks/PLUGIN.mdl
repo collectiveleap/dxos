@@ -6,6 +6,32 @@ version: 0.1.0
 
 A block-based outliner where every bullet is a first-class ECHO object. Designed to losslessly absorb Tana Paste imports.
 
+## Rules
+
+```mdl
+rule R-No-Echo-Changes:
+  desc: |
+    plugin-blocks is a strict consumer of `@dxos/echo` and its sibling
+    packages (`@dxos/types`, `@dxos/schema`, etc.). It MUST NOT depend
+    on edits to those packages, schema additions there, or any new
+    ECHO API. Everything plugin-blocks needs — including Tana-style
+    behaviours such as materializing enum choices as Blocks — must be
+    implemented as a layer ABOVE the ECHO surface that ships today.
+
+    Why: keeps the plugin shippable independently of core ECHO
+    release cycles, prevents the outliner from accidentally
+    co-evolving with the substrate, and forces design choices that
+    respect ECHO's stable API as the contract.
+
+    How to apply: when an F-* increment seems to need a schema field,
+    annotation, or helper that doesn't exist in `@dxos/echo` today,
+    re-shape the feature so it lives inside plugin-blocks (e.g.,
+    extra Blocks acting as registries, plugin-private metadata on the
+    Block's `content`, lookups keyed by typename+fieldName+value).
+    Never reach for a `@dxos/types` schema edit, a new ECHO
+    annotation, or a new core helper as the path of least resistance.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -14,6 +40,7 @@ A block-based outliner where every bullet is a first-class ECHO object. Designed
 | `feat`      | `org.dxos.mdl.feat@1.0`       |
 | `test`      | `org.dxos.mdl.test@1.0`       |
 | `component` | `org.dxos.mdl.component@1.0`  |
+| `rule`      | `org.dxos.mdl.rule@1.0`       |
 
 ## Types
 
@@ -924,7 +951,7 @@ feat F-5: Backlinks panel       # Increment 5 (current)
 ```
 
 ```mdl
-feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 1 current)
+feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2 current)
   desc: |
     Tana-style supertags, but leveraging DXOS ECHO types directly
     instead of inventing a parallel TagDef structure. Each "tag" IS
@@ -944,11 +971,28 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 1
       `Block.supertags`. The applied tag renders as a chip inline
       at the end of the bullet text. NO field editing yet.
 
-    - Phase 2 (planned): when a tagged bullet is expanded, render
-      a field-editor row between the bullet's content row and its
-      children, mirroring the screenshot layout. Field types are
-      derived from the linked instance's schema (text, ref, date,
-      etc.).
+    - Phase 2 (current): when a tagged bullet is expanded, render
+      a field-editor group between the bullet's content row and its
+      children. The group lists the linked instance's schema-derived
+      fields (text, number, enum, ref) with inline editors; edits
+      flow into the linked instance via `Obj.update`, NOT into the
+      Block itself.
+
+      Enum-style fields (Schema.Literal unions or `singleSelect`
+      PropertyMeta — e.g. `Task.priority`, `Task.status`) are
+      MATERIALIZED as Blocks per the project's `R-No-Echo-Changes`
+      rule: each declared literal value gets one per-space wrapper
+      Block whose `tagOption: {typename, fieldName, literal}` marker
+      pins its identity, and whose `content` is the user-visible
+      (renameable) label. The typed instance still stores the
+      schema-declared literal string (`task.priority === 'high'`);
+      the FieldGroup renders that value as an inline pill whose label
+      comes from the live option Block — so a rename of "high" → "Top"
+      in the user's space propagates to every Task with that value
+      without any schema edit.
+
+      Arrays and nested-struct fields are rendered as
+      count-or-placeholder for now and deferred to a later sub-phase.
 
     - Phase 3 (planned): clicking a tag chip opens the linked
       instance in a popover or a new pane (via F-Open-Pane).
@@ -1008,6 +1052,101 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 1
         "Person", "Organization") prefixed with `#`.
       - chip styling: link-blue background tint, rounded, small text.
         Different colour per typename (deterministic hash) optional.
+  req F-6.Phase2.group:
+    given: a Block has one or more entries in `supertags`
+    when: the Block's row is expanded (state.expanded undefined or true)
+    then:
+      - one field group renders per supertag, inside the same indented
+        column as the Block's children, BEFORE any child Block rows
+        and before the pending-child row.
+      - each group is headed by the supertag's typename title (small,
+        amber, uppercase) so multiple tags on the same Block can be
+        told apart visually.
+      - field groups render only when the Block is expanded; they
+        hide when the Block is collapsed.
+  req F-6.Phase2.fields:
+    given: a field group is rendering for a linked typed instance
+    when: the group enumerates the schema's property signatures
+    then:
+      - each property surfaces as a labeled row (label : editor) with
+        the label sourced from the property's title annotation (or
+        the property name as fallback).
+      - the auto-injected `id` property is hidden.
+      - kinds rendered: `string` (text input), `number` (number
+        input), enum (`Schema.Literal` union or `singleSelect`
+        PropertyMeta — see F-6.Phase2.enum*), and `Ref` (read-only —
+        displays the target's label via `getDisplayLabel`).
+      - array and nested-struct properties show as a muted placeholder
+        ("N items" / "—") and are not editable in Phase 2.
+  req F-6.Phase2.persistence:
+    given: a field editor commits a change
+    when: the user blurs the input (text/number) or selects an
+      option (enum)
+    then:
+      - the linked typed instance is mutated via `Obj.update` and the
+        new value is written under the property name; clearing the
+        value (empty string or "—" option) deletes the property so
+        optional fields round-trip cleanly.
+      - the Block is NOT modified; field values do not live on the
+        Block.
+      - the field group reads the live ECHO instance via `useObject`
+        so concurrent mutations propagate without remount.
+  req F-6.Phase2.coexist:
+    given: a Block is a leaf (no children) AND has at least one
+      supertag
+    when: the Block is expanded
+    then:
+      - the supertag field group renders FIRST
+      - the pending-child row renders BELOW it
+      - typing into the pending-child row promotes a new child Block
+        as in F-Pending-Child (the field group remains visible).
+  req F-6.Phase2.enum.materialize:
+    given: an enum-style field on a tagged instance (Schema.Literal
+      union or `singleSelect` PropertyMeta) takes a value V
+    when: the FieldGroup renders that field for the first time in the
+      space
+    then:
+      - the plugin queries the space for a Block whose `tagOption`
+        marker equals `(typename, fieldName, V)`.
+      - if none exists, the plugin creates exactly one such Block,
+        seeded with the schema-declared option title as its `content`
+        and `tagOption: {typename, fieldName, literal: V}` as the
+        stable identity, and `db.add`s it.
+      - subsequent renders of any Task with the same value resolve to
+        the SAME Block — there is never more than one option Block
+        per (typename, fieldName, literal) tuple in a given space.
+      - the schema is NOT edited, no ECHO change is required, and
+        the typed instance still stores V as a string (per
+        rule R-No-Echo-Changes).
+  req F-6.Phase2.enum.pill:
+    given: an enum field on a tagged instance has value V and the
+      matching option Block exists in the space
+    when: the FieldGroup renders that field
+    then:
+      - the value renders as an inline pill whose label is the option
+        Block's `content` (NOT the schema-declared title).
+      - if the user renames the option Block's content from "high" to
+        "Top", every Task whose `priority === 'high'` reflects the
+        new label live without remount (subscribes to the option
+        Block via `useObject`).
+      - the pill is clickable; click opens the enum picker (see
+        F-6.Phase2.enum.picker).
+  req F-6.Phase2.enum.picker:
+    given: an enum field on a tagged instance is being edited
+    when: the user clicks the pill (or the "—" placeholder when
+      unset)
+    then:
+      - a dropdown picker opens listing every schema-declared literal
+        for that field, plus a leading "—" row for clearing the
+        value.
+      - each row's displayed label is the matching option Block's
+        `content` when materialized, else the schema-declared option
+        title.
+      - the currently-selected row is highlighted.
+      - selecting a row commits the chosen literal (or undefined for
+        "—") to the typed instance and closes the picker; clicking
+        outside or pressing Escape dismisses without changing the
+        value.
 ```
 
 ```mdl
@@ -1206,8 +1345,15 @@ Branch:         `claude/agitated-nash-bd0b0f`
 
 ### Future increments (not started)
 
-- F-6 Tags and fields — apply `#Task` etc. to a bullet; render typed fields inline below the bullet via the existing TagDef + Effect-Schema substrate. Smallest first cut: single-tag-per-Block, pre-defined TagDefs.
-- F-7 Tana Paste import — parse a payload starting with `%%tana%%` into Blocks + TagDefs, preserving structure, supertags, fields, refs, and dates via a stable-id translation table. Schema is already a faithful import target; what's missing is the parser.
+- F-6 Phase 3 — clicking a supertag chip opens the linked instance in
+  a popover (or new pane via F-Open-Pane); allowlist becomes user-
+  editable instead of the hardcoded `[Task, Person, Organization]`.
+  Also: array and nested-struct field editing inside the Phase 2 group
+  (currently rendered as muted placeholders).
+- F-7 Tana Paste import — parse a payload starting with `%%tana%%` into
+  Blocks + TagDefs, preserving structure, supertags, fields, refs, and
+  dates via a stable-id translation table. Schema is already a faithful
+  import target; what's missing is the parser.
 
 ### Pieces flagged but not yet spec'd
 
@@ -1238,4 +1384,9 @@ ext test
 ```mdl
 ext component
   uri: org.dxos.mdl.component@1.0
+```
+
+```mdl
+ext rule
+  uri: org.dxos.mdl.rule@1.0
 ```

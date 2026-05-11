@@ -3,6 +3,7 @@
 //
 
 import type * as Schema from 'effect/Schema';
+import * as SchemaAST from 'effect/SchemaAST';
 
 import { Annotation, Type } from '@dxos/echo';
 import { Organization, Person, Task } from '@dxos/types';
@@ -36,6 +37,38 @@ const iconOf = (schema: Schema.Schema.Any): string | undefined => {
   // Effect Option .pipe is heavy; just unwrap defensively.
   const value = (icon as any)?._tag === 'Some' ? (icon as any).value : undefined;
   return value?.icon;
+};
+
+// Build a minimal valid props object for a tag-ready schema by
+// providing empty defaults for any non-optional fields. Required for
+// schemas like `Task` whose `title` field is non-optional — without a
+// default `Obj.make` throws a ParseError. Skips the auto-injected
+// `id` property (ECHO supplies it during the make call).
+//
+// Optional fields are intentionally NOT pre-seeded: `Obj.make` filters
+// out undefined values from props before constructing the proxy
+// target, so seeding with `undefined` would be a no-op. Setting a
+// previously-unset optional field is supported by Obj.update directly
+// because the proxy's target is plain and extensible — earlier reports
+// to the contrary were a snapshot-vs-live confusion.
+export const initialPropsForTag = (schema: Schema.Schema.Any): Record<string, unknown> => {
+  const defaults: Record<string, unknown> = {};
+  for (const property of SchemaAST.getPropertySignatures(schema.ast)) {
+    if (property.isOptional) {
+      continue;
+    }
+    const name = typeof property.name === 'string' ? property.name : String(property.name);
+    if (name === 'id') {
+      continue;
+    }
+    const type = property.type as SchemaAST.AST;
+    if (type._tag === 'StringKeyword') {
+      defaults[name] = '';
+    }
+    // Other required kinds get no default; if a future seed schema
+    // requires a non-string field, add a branch here.
+  }
+  return defaults;
 };
 
 // Note: `Task`, `Person`, and `Organization` from `@dxos/types` are

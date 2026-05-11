@@ -24,7 +24,7 @@ import { type MentionState, mentionKey, mentionPlugin } from './mention-plugin';
 import { RefNodeView } from './RefNodeView';
 import { schema } from './schema';
 import { fromDoc, toDoc } from './serialize';
-import { type TagTypeEntry } from './tag-types';
+import { initialPropsForTag, type TagTypeEntry } from './tag-types';
 
 export type BlockEditorProps = {
   block: Block.Block;
@@ -410,7 +410,7 @@ export const BlockEditor = ({
       if (!view || !tag || !db) {
         return;
       }
-      const instance = Obj.make(entry.schema as any, {} as any);
+      const instance = Obj.make(entry.schema as any, initialPropsForTag(entry.schema) as any);
       db.add(instance);
       Obj.update(block, (mutable) => {
         const previous = ((mutable as any).supertags ?? []) as readonly any[];

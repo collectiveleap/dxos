@@ -80,6 +80,21 @@ export const Block = Schema.Struct({
   attachment: Schema.optional(
     Schema.Struct({ kind: Schema.Literal('image', 'file'), url: Schema.String }),
   ),
+
+  // F-6 Phase 2: tag-option marker. When present, this Block is the
+  // per-space wrapper for one literal choice of a tagged-typename's
+  // enum-style field (e.g. the "high" option for `Task.priority`).
+  // `literal` is the schema-declared identity that stays stable across
+  // renames; the Block's `content` is the user-visible (renameable)
+  // label. Lookups go by (typename, fieldName, literal); see
+  // `tag-options.ts`.
+  tagOption: Schema.optional(
+    Schema.Struct({
+      typename: Schema.String,
+      fieldName: Schema.String,
+      literal: Schema.String,
+    }),
+  ),
 }).pipe(
   Type.object({
     typename: 'org.dxos.type.block',
