@@ -8,7 +8,7 @@ import * as SchemaAST from 'effect/SchemaAST';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Annotation, Type } from '@dxos/echo';
-import { EntityKind, SystemTypeAnnotation, getTypeAnnotation } from '@dxos/echo/internal';
+import { EntityKind, getTypeAnnotation } from '@dxos/echo/internal';
 
 import { Block, BlockOutline } from '#types';
 
@@ -107,12 +107,24 @@ const entryFromSchema = (schema: any): TagTypeEntry | undefined => {
 };
 
 // F-Supertag.types-shown: filter every schema in the space's registry
-// down to the ones that should appear as supertag options. Same
-// non-Relation + non-System filter `MentionPicker` uses, plus an
-// identity check that excludes plugin-blocks's own scaffolding
-// (`Block`, `BlockOutline`) — those types ARE registered with the
-// space's registry but tagging a bullet with `#Block` would be
-// recursive nonsense.
+// down to the ones that should appear as supertag options. Excludes:
+//
+// - Relations (`Type.relation`-flavoured schemas — `ChildEdge` and
+//   friends). Relations are edges between entities, not entities you
+//   can instantiate as nodes; tagging a bullet `#ChildEdge` is
+//   mechanically incoherent.
+// - Plugin-blocks's own scaffolding (`Block`, `BlockOutline`). They
+//   ARE registered with the space's registry but tagging a bullet
+//   `#Block` would be recursive nonsense.
+//
+// `SystemTypeAnnotation` is INTENTIONALLY NOT consulted. The user's
+// stated F-Supertag intent is "every ECHO type except the ones
+// internal to the block outliner" — sub-types that other plugins
+// have marked as `SystemType` (e.g. `JournalEntry`) DO appear in
+// the picker. The `Filter.location: ['database', 'runtime']` argument
+// already excludes truly-internal-ECHO types (Identity, Space, etc.)
+// at the registry level, so the loop body only sees plugin-supplied
+// schemas the user might want to tag with.
 export const collectTagTypes = (db: any): TagTypeEntry[] => {
   if (!db?.schemaRegistry?.query) {
     return [];
@@ -121,9 +133,6 @@ export const collectTagTypes = (db: any): TagTypeEntry[] => {
   const entries: TagTypeEntry[] = [];
   for (const schema of schemas) {
     if (getTypeAnnotation(schema)?.kind === EntityKind.Relation) {
-      continue;
-    }
-    if (SystemTypeAnnotation.get(schema).pipe(Option.getOrElse(() => false))) {
       continue;
     }
     if (schema === Block.Block || schema === BlockOutline.BlockOutline) {

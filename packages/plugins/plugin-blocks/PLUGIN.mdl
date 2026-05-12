@@ -1483,12 +1483,23 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
       it's open
     then:
       - the picker lists every ECHO type registered with
-        `db.schemaRegistry`, MINUS Relations (`Type.relation`-
-        flavoured schemas — `ChildEdge` and friends), MINUS
-        System-annotated types (`SystemTypeAnnotation`), MINUS
+        `db.schemaRegistry` at `location: ['database', 'runtime']`,
+        MINUS Relations (`Type.relation`-flavoured schemas —
+        `ChildEdge` and friends, edges between entities rather
+        than entities the user can tag a bullet with), MINUS
         plugin-blocks's own scaffolding (`Block.Block`,
-        `BlockOutline.BlockOutline`). The remainder of the
-        registry is offered — no allowlist.
+        `BlockOutline.BlockOutline`). The remainder is offered —
+        no allowlist.
+      - `SystemTypeAnnotation` is INTENTIONALLY NOT a filter.
+        Plugin-author "system / don't surface" markers (e.g.
+        `JournalEntry`'s `SystemTypeAnnotation` set by
+        plugin-outliner) DO surface in the picker — F-Supertag's
+        stated intent is "every ECHO type except plugin-blocks
+        internal", and respecting third-party "hide me" markers
+        would re-introduce gates beyond that. The
+        `Filter.location: ['database', 'runtime']` already
+        excludes truly-internal-ECHO types (Identity, Space,
+        etc.) at the registry level.
       - the list resolves via `useTagTypes(db)`, which holds a
         live subscription to
         `db.schemaRegistry.query({location: ['database', 'runtime']}).subscribe(...)`.
