@@ -593,7 +593,14 @@ const TagChips = ({ block }: { block: any }) => {
       {supertags.map((ref, index) => {
         const target = ref.target as any;
         const typename = Obj.getTypename(target);
-        return <TagChip key={target?.id ?? index} typename={typename} db={Obj.getDatabase(target)} />;
+        return (
+          <TagChip
+            key={target?.id ?? index}
+            typename={typename}
+            db={Obj.getDatabase(target)}
+            instance={target}
+          />
+        );
       })}
     </>
   );
@@ -604,8 +611,16 @@ const TagChips = ({ block }: { block: any }) => {
 // typename live. Materializes the tag Block on first encounter via
 // `useTagBlock`. Click → zoom into the tag Block; shift-click → open
 // it in a new pane. Mirrors the bullet's click/shift-click pattern.
-const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) => {
-  // F-6.Phase3.all-echo-types: schema-declared title resolves from
+const TagChip = ({
+  typename,
+  db,
+  instance,
+}: {
+  typename: string | undefined;
+  db: any;
+  instance: any;
+}) => {
+  // F-Supertag.types-shown: schema-declared title resolves from
   // the live schemaRegistry by typename (no hardcoded allowlist),
   // with the typename string as the fallback when the schema isn't
   // registered in this space yet.
@@ -619,7 +634,11 @@ const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) =>
   const zoom = useZoom();
   const openPane = useOpenPane();
 
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  // F-Supertag.chip-gestures: chip click navigates to the supertag
+  // node (browse all #T in this space). Shift+click opens the
+  // supertag node in a new pane. The typed instance behind this
+  // chip is reached via the adjacent OpenInstanceControl (`↗`).
+  const handleChipClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (!tagBlock) {
       return;
     }
@@ -631,17 +650,45 @@ const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) =>
     zoom(tagBlock.id);
   };
 
+  // F-Supertag.open-instance-control: shift+click opens the typed
+  // instance behind this chip in a new pane (F-Open-Pane). Regular
+  // click would ideally swap the current pane to the typed
+  // instance's article surface, but cross-typename current-pane
+  // navigation requires a separate `LayoutOperation.Open` plumbing
+  // through the article context — both gestures route through
+  // `openPane` for v1.
+  const handleOpenInstance = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!instance) {
+      return;
+    }
+    openPane(instance as Block.Block);
+  };
+
   return (
-    <button
-      type='button'
-      onClick={handleClick}
-      disabled={!tagBlock}
-      className='inline-flex items-baseline gap-0.5 text-xs leading-none px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 shrink-0 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40'
-      title={`${typename ?? 'tag'} — click to zoom, shift+click to open in pane`}
-    >
-      <span className='opacity-60'>#</span>
-      <span>{label}</span>
-    </button>
+    <span className='inline-flex items-baseline gap-0.5 shrink-0'>
+      <button
+        type='button'
+        onClick={handleChipClick}
+        disabled={!tagBlock}
+        className='inline-flex items-baseline gap-0.5 text-xs leading-none px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40'
+        title={`${typename ?? 'tag'} — click to browse all in this space, shift+click to open in pane`}
+      >
+        <span className='opacity-60'>#</span>
+        <span>{label}</span>
+      </button>
+      <button
+        type='button'
+        onClick={handleOpenInstance}
+        disabled={!instance}
+        className='inline-flex items-baseline text-xs leading-none px-1 py-0.5 rounded text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
+        title={`Open ${label} — opens the typed instance in a new pane`}
+        aria-label={`Open ${label}`}
+      >
+        ↗
+      </button>
+    </span>
   );
 };
 
