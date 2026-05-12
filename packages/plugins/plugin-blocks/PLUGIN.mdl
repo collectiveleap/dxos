@@ -1527,6 +1527,23 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase3c.indent-dedent-as-edge-move:
+    given: the user presses Tab or Shift+Tab on a bullet
+    when: the indent / dedent handler fires
+    then:
+      - both endpoints (old parent and new parent) are migrated
+        on first touch (`ensureMigratedChildren`).
+      - indent: the edge `parent → block` is removed via
+        `db.remove(edge)`; a new edge `prevSibling → block` is
+        created and appended at the end (default
+        `nextOrderFor(prevSibling)`).
+      - dedent: the edge `parent → block` is removed; a new edge
+        `grandparent → block` is created with `order` placed
+        between parent's own edge in grandparent and parent's
+        next sibling (via `orderBetween`).
+      - if the expected parent edge in grandparent can't be
+        found, dedent is a no-op (avoids orphan edges).
+      - no `Block.children` array is written from either path.
   req F-DAG.Phase3b.sibling-insert-via-edge:
     given: the user presses Enter, Shift+Enter, or Cmd+Shift+Enter
       on a bullet whose parent may still hold pre-existing

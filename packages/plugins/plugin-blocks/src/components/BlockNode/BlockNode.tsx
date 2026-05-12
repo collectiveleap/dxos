@@ -14,6 +14,7 @@ import {
   childEdgesOf,
   createChildEdge,
   ensureMigratedChildren,
+  findChildEdge,
   orderBetween,
   useStructuralChildren,
 } from './child-edges';
@@ -168,15 +169,21 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     if (!prevSibling) {
       return;
     }
-    const movedRef = parentChildren[siblingIndex];
-    Obj.update(parent, (parent) => {
-      const arr = ((parent as any).children ?? []) as readonly any[];
-      (parent as any).children = arr.filter((_, i) => i !== siblingIndex);
-    });
-    Obj.update(prevSibling, (prevSibling) => {
-      const arr = ((prevSibling as any).children ?? []) as readonly any[];
-      (prevSibling as any).children = [...arr, movedRef];
-    });
+    const db = Obj.getDatabase(parent);
+    if (!db) {
+      return;
+    }
+    // F-DAG Phase 3c: indent = move the edge `parent → block` to
+    // `prevSibling → block`. Both endpoints get migrated onto
+    // ChildEdges on first touch; the new edge is appended at the
+    // end of prevSibling's children (default order = max + 1).
+    ensureMigratedChildren(db, parent);
+    ensureMigratedChildren(db, prevSibling);
+    const edge = findChildEdge(db, parent, block);
+    if (edge) {
+      db.remove(edge);
+    }
+    createChildEdge(db, prevSibling, block);
     setFocusId(block.id);
   };
 
@@ -197,20 +204,33 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     if (!grandparent || siblingIndex < 0) {
       return;
     }
-    const grandparentChildren = (grandparent.children ?? []) as readonly any[];
-    const parentIndex = grandparentChildren.findIndex((ref) => ref?.target?.id === parent.id);
-    if (parentIndex < 0) {
+    const db = Obj.getDatabase(parent);
+    if (!db) {
       return;
     }
-    const movedRef = parentChildren[siblingIndex];
-    Obj.update(parent, (parent) => {
-      const arr = ((parent as any).children ?? []) as readonly any[];
-      (parent as any).children = arr.filter((_, i) => i !== siblingIndex);
-    });
-    Obj.update(grandparent, (grandparent) => {
-      const arr = ((grandparent as any).children ?? []) as readonly any[];
-      (grandparent as any).children = [...arr.slice(0, parentIndex + 1), movedRef, ...arr.slice(parentIndex + 1)];
-    });
+    // F-DAG Phase 3c: dedent = move the edge `parent → block` to
+    // `grandparent → block`, with `order` placed between parent's
+    // edge (in grandparent) and parent's next sibling. Both
+    // endpoints get migrated first so all relevant edges have
+    // explicit orders.
+    ensureMigratedChildren(db, parent);
+    ensureMigratedChildren(db, grandparent);
+    const blockEdge = findChildEdge(db, parent, block);
+    if (blockEdge) {
+      db.remove(blockEdge);
+    }
+    const parentEdge = findChildEdge(db, grandparent, parent);
+    if (!parentEdge) {
+      // grandparent no longer parents this parent — bail out
+      // rather than create an orphan edge.
+      return;
+    }
+    const grandparentEdges = childEdgesOf(db, grandparent);
+    const parentIndex = grandparentEdges.findIndex(
+      (edge: any) => (Relation.getTarget(edge) as any)?.id === parent.id,
+    );
+    const nextEdge = parentIndex >= 0 ? grandparentEdges[parentIndex + 1] : undefined;
+    createChildEdge(db, grandparent, block, { order: orderBetween(parentEdge, nextEdge) });
     setFocusId(block.id);
   };
 
