@@ -2093,15 +2093,6 @@ Branch:         `claude/agitated-nash-bd0b0f`
 
 ### Future increments (not started)
 
-- F-DAG.Phase3e.predecessor-nav-* — page-top predecessor-navigation
-  control that lists every predecessor (structural in-edge source)
-  of the current page block. Click on a row zooms the current pane
-  to that predecessor; Shift+click opens the predecessor in a new
-  pane. Generalises (and replaces) the F-Page-Header.2 / .3
-  single-`← parent` breadcrumb, which assumed at most one parent and
-  read via the legacy `Block.children` walk in `findParent`. The new
-  control reads predecessors via `parentEdgesOf(child)` from
-  `child-edges.ts` and filters by `isStructuralEdge`.
 - F-6 Phase 3 — clicking a supertag chip opens the linked instance in
   a popover (or new pane via F-Open-Pane); allowlist becomes user-
   editable instead of the hardcoded `[Task, Person, Organization]`.
