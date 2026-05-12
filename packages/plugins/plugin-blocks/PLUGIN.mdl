@@ -1551,6 +1551,11 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - a `ChildEdge(parent, X)` is created via `createChildEdge`.
       - `X` now renders as a regular structural child of `parent`,
         with its NORMAL solid bullet.
+      - the added node renders VISUALLY THE SAME as a node that
+        was just typed inline — same bullet, same text colour,
+        NO blue-link styling. The F-V3 blue ref treatment is for
+        `@`-mentions inside a Block's TEXT, not for whole-node
+        picks from the pending-child placeholder.
       - if `X` was already a child of another parent, it now has
         two structural parents; the multi-parent badge from
         F-DAG.Phase3e appears on both occurrences.

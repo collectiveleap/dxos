@@ -40,3 +40,31 @@
   content: '\200B';
   pointer-events: none;
 }
+
+/*
+ * F-DAG.Phase3a.add-existing-via-picker: a Block whose entire content
+ * is a single Ref (e.g. a wrapper Block materialised for a typed
+ * instance) renders the ref as PLAIN bullet text, not a blue inline
+ * link. The F-V3 blue ref treatment is reserved for `@`-mentions
+ * INSIDE a Block's text — a bullet that IS a reference (rather than
+ * containing one) should look identical to a freshly-typed bullet so
+ * `add-existing-via-picker` and `type-in-fresh-text` produce visually
+ * equivalent outline rows.
+ *
+ * The `data-naked-ref` marker is set by `BlockNode` based on
+ * `block.content` (see `isNakedRefContent`). A pure-CSS `:only-child`
+ * check would also match inline `@`-mention spans whose siblings are
+ * text nodes (`:only-child` ignores text nodes), so the
+ * classification has to happen in JS.
+ *
+ * Selector specificity (0,3,0 with the attribute selector) beats
+ * Tailwind's `.text-blue-600` / `.text-blue-400` (0,1,0) so the
+ * override wins in both light and dark modes without `!important`.
+ */
+[data-naked-ref='true'] .block-ref {
+  color: inherit;
+  cursor: text;
+}
+[data-naked-ref='true'] .block-ref:hover {
+  text-decoration: none;
+}

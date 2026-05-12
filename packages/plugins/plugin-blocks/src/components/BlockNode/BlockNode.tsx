@@ -317,7 +317,19 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               carets (one per line). Keeping `<p>` block-level inside
               the inline-block `.ProseMirror` constrains the empty
               paragraph to a single line height and yields one caret. */}
-          <div className='min-w-0 max-w-full [&_.ProseMirror]:inline-block'>
+          {/* F-DAG.Phase3a.add-existing-via-picker: when a Block's
+              content is a single Ref (e.g. a wrapper Block produced
+              by `promoteToWrapper`), the editor wrapper carries
+              `data-naked-ref` so the in-editor RefNode renders as
+              plain bullet text rather than the F-V3 blue inline link.
+              CSS-only check via `:only-child` would also match inline
+              refs with trailing whitespace as siblings (text nodes
+              don't satisfy `:only-child`), so the classification is
+              done here in JS off the live content array. */}
+          <div
+            className='min-w-0 max-w-full [&_.ProseMirror]:inline-block'
+            data-naked-ref={isNakedRefContent((snapshot as any)?.content) ? 'true' : undefined}
+          >
             <BlockEditor
               block={block}
               autoFocus={focusId === block.id}
@@ -450,6 +462,20 @@ const moveToAdjacentVisibleBlock = (
   setFocusId(targetId);
   targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   return true;
+};
+
+// True when a Block's content is exactly one Ref segment with no
+// adjacent text — i.e. the bullet IS a reference to a target, rather
+// than a bullet that CONTAINS a reference inside its text. Wrapper
+// Blocks materialised via `promoteToWrapper` are the canonical case.
+// The PendingChildRow `@`-picker can also surface such Blocks when
+// the user selects an existing wrapper as a structural child.
+const isNakedRefContent = (content: unknown): boolean => {
+  if (!Array.isArray(content) || content.length !== 1) {
+    return false;
+  }
+  const segment = content[0] as any;
+  return segment?.kind === 'ref';
 };
 
 type ExpandChevronProps = {
