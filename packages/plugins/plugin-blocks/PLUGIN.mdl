@@ -740,6 +740,49 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
 ```
 
 ```mdl
+feat F-Scroll: article surface scrolls when content overflows   # Increment Scroll
+  desc: |
+    The article surface (the pane region rendered by
+    `BlockArticle`) establishes its OWN vertical scroll region
+    when the rendered page header + field group + outline tree +
+    backlinks panel together exceed the pane's visible height.
+
+    Before this increment the inner `<div className='p-4'>`
+    wrapper inside `<Panel.Content>` had no overflow handling,
+    while the outer `dx-container` (the panel chrome) sets
+    `overflow: hidden`. Net effect: any content past the bottom
+    of the visible region was silently CLIPPED — no scroll bar
+    appeared and the user had no way to see or reach the rest.
+
+    Fix: the inner article wrapper gets `h-full overflow-y-auto`
+    so it fills the panel height and scrolls vertically as
+    content overflows. The outer panel chrome stays
+    `overflow: hidden` (its role is to scope the scroll region
+    to the inner wrapper).
+  req F-Scroll.1:
+    given: the rendered article surface is TALLER than the pane's
+      visible height (long outlines, tall typed-instance field
+      groups, large backlinks panel, etc.)
+    when: I view the page
+    then:
+      - a vertical scroll bar appears on the inner article
+        wrapper.
+      - I can scroll the wrapper to reveal content past the
+        bottom of the visible area.
+      - implementation: the wrapper carries `h-full overflow-y-auto`.
+        The outer `Panel.Content` (`dx-container`) keeps
+        `overflow: hidden` so the scroll region is the inner
+        wrapper, not the pane chrome.
+  req F-Scroll.2:
+    given: the rendered article surface FITS within the pane's
+      visible height
+    when: I view the page
+    then: no scroll bar is rendered (the `auto` track reserves no
+      space when content height is less than or equal to the
+      visible area).
+```
+
+```mdl
 feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-Pane (current)
   desc: |
     Shift-clicking any bullet opens that bullet's Block in a NEW pane
@@ -1736,6 +1779,37 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         predecessor set (which may be empty, one, or many).
       - no pane is opened or closed — the swap stays inside the
         current pane.
+  req F-DAG.Phase3e.multi-occurrence-edit-sync:
+    given: Block X is rendered in two or more places in the
+      currently visible view — e.g. a multi-predecessor Block
+      via `F-DAG.Phase3e.link-via-cmd-tab`, or any Block reachable
+      from more than one structural edge — so two or more
+      `BlockEditor` instances are mounted against the same live
+      `block` ref
+    when: I type a character (or otherwise mutate `block.content`)
+      inside ONE of those editor instances
+    then:
+      - every OTHER `BlockEditor` instance bound to the same `block`
+        re-syncs its ProseMirror doc from the new `block.content`
+        within one ECHO subscription tick. The user sees their
+        edit reflected in every visible rendering immediately
+        — no manual refresh, no remount.
+      - the editor the user typed into keeps its caret where the
+        PM transaction left it; PM's own dispatch handles that.
+      - destination editors that weren't focused don't acquire
+        focus or scroll into view; they simply update content.
+      - reactivity is rooted in `Obj.subscribe(block, …)`.
+      - an idempotency guard (a content-equality check between
+        the freshly computed PM doc and the editor's current doc
+        via `Node.eq`) prevents the source editor's own write
+        from being looped back as a redundant transaction.
+    Note: this scenario was previously broken because the
+    BlockEditor mount effect's dependency array (`[block,
+    makeRef, resolveRef]`) is stable across content changes —
+    the editor only read `block.content` once at mount and never
+    again. Multi-predecessor F-DAG outlines made the divergence
+    immediately visible (typing in one occurrence left every
+    other occurrence stale).
   req F-DAG.Phase3e.predecessor-nav-open-pane:
     given: the predecessor-navigation control is open and listing
       the page block's predecessors

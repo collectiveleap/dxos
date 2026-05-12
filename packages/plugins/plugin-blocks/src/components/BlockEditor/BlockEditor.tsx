@@ -333,7 +333,12 @@ export const BlockEditor = ({
       dispatchTransaction: (transaction) => {
         const next = view.state.apply(transaction);
         view.updateState(next);
-        if (transaction.docChanged) {
+        // F-DAG.Phase3e.multi-occurrence-edit-sync: external-sync
+        // transactions reapply `block.content` from ECHO after
+        // another BlockEditor instance wrote to the same Block.
+        // Skip the write-back so the sync doesn't loop or trample
+        // the content we just received.
+        if (transaction.docChanged && !transaction.getMeta('externalSync')) {
           const content = fromDoc(next.doc, makeRef);
           Obj.update(block, (block) => {
             block.content = content;
@@ -395,6 +400,41 @@ export const BlockEditor = ({
     view.dispatch(tr);
     view.focus();
   }, [autoFocus]);
+
+  // F-DAG.Phase3e.multi-occurrence-edit-sync: in a DAG-shaped outline
+  // the same Block can be rendered by two or more BlockEditor
+  // instances at once (multi-predecessor Blocks, side-by-side panes,
+  // the same Block reachable via more than one structural edge).
+  // When the user types into ONE of those editors, the local PM
+  // transaction round-trips through `Obj.update(block, ...)`; every
+  // OTHER editor bound to the same Block needs to re-sync its PM doc
+  // from the new `block.content`.
+  //
+  // Approach: subscribe to the Block via `Obj.subscribe`. On each
+  // callback, compute the expected PM doc from `block.content` and
+  // compare against the editor's current doc with `Node.eq`. If they
+  // already match (the source editor's own write just round-tripped)
+  // no-op. Otherwise dispatch a `replaceWith` transaction tagged with
+  // a `externalSync` meta flag — `dispatchTransaction` above checks
+  // that flag and SKIPS the write-back, otherwise the sync would loop.
+  useEffect(() => {
+    const unsubscribe = Obj.subscribe(block, () => {
+      const view = viewRef.current;
+      if (!view) {
+        return;
+      }
+      const expected = toDoc((block as any).content as any);
+      if (expected.eq(view.state.doc)) {
+        return;
+      }
+      const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, expected.content);
+      tr.setMeta('externalSync', true);
+      view.dispatch(tr);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [block]);
 
   const handleSelectTarget = useCallback(
     (target: Obj.Any) => {

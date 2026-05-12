@@ -203,7 +203,11 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
     <Panel.Root role={role}>
       <Panel.Content>
         {pageBlock ? (
-          <div className='p-4'>
+          // F-Scroll: outer Panel.Content has `overflow: hidden` —
+          // the inner wrapper must establish its own scroll region
+          // so long outlines / tall field groups / large backlink
+          // panels are reachable, not silently clipped.
+          <div className='p-4 h-full overflow-y-auto'>
             <PredecessorNav
               pageBlock={pageBlock}
               onSelect={handleSelectPredecessor}
