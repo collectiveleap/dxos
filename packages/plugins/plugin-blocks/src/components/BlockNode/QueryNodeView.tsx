@@ -38,13 +38,50 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
   const zoom = useZoom();
   const [tick, setTick] = useState(0);
 
-  // Re-query both Blocks (for the wrapper index) and instances
-  // whenever a relevant subscription fires.
+  // Re-render the query rows when either:
+  //  (a) the result-SET changes (instances or wrapper Blocks added or
+  //      removed), OR
+  //  (b) any rendered instance / wrapper Block's FIELDS change (e.g. a
+  //      Journal is renamed via `Obj.setLabel` elsewhere) — the row's
+  //      label is derived from `getDisplayLabel`, which reads
+  //      `instance.title` / `wrapper.content` directly.
+  //
+  // The bare result-set subscription handles (a) but not (b) — DXOS
+  // query subscriptions only fire on add/remove. So we additionally
+  // bind a per-row `Obj.subscribe` whose callback bumps `tick`, and
+  // rebind those whenever the set changes. Same pattern as
+  // `useEdgeExpanded` in `child-edges.ts`.
   useEffect(() => {
     if (!db) {
       return;
     }
-    const bump = () => setTick((value) => value + 1);
+    let rowSubs: Array<() => void> = [];
+    const rebindRowSubs = () => {
+      for (const unsub of rowSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+      rowSubs = [];
+      if (!typename) {
+        return;
+      }
+      const instances = queryInstancesByTypename(db, typename);
+      for (const instance of instances) {
+        rowSubs.push(Obj.subscribe(instance, () => setTick((value) => value + 1)));
+      }
+      const wrapperIndex = buildWrapperIndex(db);
+      for (const wrapper of wrapperIndex.values()) {
+        rowSubs.push(Obj.subscribe(wrapper, () => setTick((value) => value + 1)));
+      }
+    };
+    rebindRowSubs();
+    const bump = () => {
+      rebindRowSubs();
+      setTick((value) => value + 1);
+    };
     const blockQuery: any = db.query(Filter.typename(Block.Block.typename));
     const instanceQuery: any = typename ? db.query(Filter.typename(typename)) : null;
     const blockSub = blockQuery?.subscribe?.(bump);
@@ -60,6 +97,13 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
       } catch {
         /* noop */
       }
+      for (const unsub of rowSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
     };
   }, [db, typename]);
 
@@ -71,7 +115,15 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
     const wrapperIndex = buildWrapperIndex(db);
     return instances.map((instance: any) => {
       const wrapper = wrapperIndex.get(instance.id);
-      const label = wrapper ? getDisplayLabel(wrapper) : getDisplayLabel(instance);
+      // F-Supertag.title-sync makes the typed instance's label the
+      // canonical source: when a wrapper exists, its content is kept
+      // in step with `Obj.getLabel(instance)` by the BlockEditor-
+      // resident subscriber. But that subscriber only runs while the
+      // wrapper's editor is mounted — which it isn't from inside the
+      // query view. Reading the instance directly avoids the stale-
+      // wrapper-content problem and stays live via the per-instance
+      // `Obj.subscribe` in this component's effect.
+      const label = getDisplayLabel(instance);
       return { instance, wrapper, label: label || '(unnamed)' };
     });
     // `tick` participates so subscription bumps recompute.
