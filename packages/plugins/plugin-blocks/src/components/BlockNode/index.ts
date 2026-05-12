@@ -4,3 +4,4 @@
 
 export * from './BlockNode';
 export * from './FieldGroup';
+export * from './PredecessorNav';

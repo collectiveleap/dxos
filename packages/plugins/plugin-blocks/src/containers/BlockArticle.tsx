@@ -17,11 +17,11 @@ import { meta } from '#meta';
 import {
   BacklinkCountContext,
   BacklinksPanel,
-  BlockContent,
   BlockEditor,
   BlockTree,
   FieldGroups,
   OpenPaneContext,
+  PredecessorNav,
   ZoomContext,
   getDisplayLabel,
   useBacklinks,
@@ -97,25 +97,23 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
     return foreign ?? paneRootBlock;
   }, [paneRootBlock, pageBlockId]);
 
-  // Parent of the page block within the pane's tree (null when page block
-  // === pane root).
-  const parentBlock = useMemo(() => {
-    if (!paneRootBlock || !pageBlock || pageBlock.id === paneRootBlock.id) {
-      return null;
-    }
-    return findParent(paneRootBlock, pageBlock.id);
-  }, [paneRootBlock, pageBlock]);
-
   const handleZoom = useCallback((blockId: string) => {
     setPageBlockId(blockId);
   }, []);
 
-  const handleZoomToParent = useCallback(() => {
-    if (!paneRootBlock || !parentBlock) {
-      return;
-    }
-    setPageBlockId(parentBlock.id === paneRootBlock.id ? null : parentBlock.id);
-  }, [paneRootBlock, parentBlock]);
+  // F-DAG.Phase3e.predecessor-nav-switch: select a predecessor from
+  // the page-top control. The current pane swaps its page block to
+  // the chosen predecessor; if that predecessor IS the pane root,
+  // clear `pageBlockId` so the pane renders its natural root view.
+  const handleSelectPredecessor = useCallback(
+    (target: Block.Block) => {
+      if (!paneRootBlock) {
+        return;
+      }
+      setPageBlockId(target.id === paneRootBlock.id ? null : target.id);
+    },
+    [paneRootBlock],
+  );
 
   // F-Open-Pane: invoke `LayoutOperation.Open` with the pane's
   // `attendableId` as `pivotId` so the new pane lands as a sibling
@@ -206,18 +204,11 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
       <Panel.Content>
         {pageBlock ? (
           <div className='p-4'>
-            {parentBlock && (
-              <button
-                type='button'
-                onClick={handleZoomToParent}
-                className='inline-flex items-baseline gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
-              >
-                <span>←</span>
-                <span>
-                  {hasContent(parentBlock) ? <BlockContent block={parentBlock} /> : '(unnamed)'}
-                </span>
-              </button>
-            )}
+            <PredecessorNav
+              pageBlock={pageBlock}
+              onSelect={handleSelectPredecessor}
+              onShiftSelect={handleOpenPane}
+            />
             <PageHeader block={pageBlock} />
             {/* F-6 Phase 3b: when the page block is itself a wrapper
                 (carries `supertags`), surface its FieldGroups at the
@@ -304,27 +295,6 @@ const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
     const childRefs = (current.children ?? []) as readonly any[];
     for (const ref of childRefs) {
       const child = ref?.target;
-      if (child) {
-        stack.push(child);
-      }
-    }
-  }
-  return null;
-};
-
-// Walks the outline tree to find the Block whose `children` includes a
-// child whose id matches `id`. Returns null if no parent is found (e.g.
-// when `id` IS the pane root, or `id` is not present in the tree).
-const findParent = (root: Block.Block, id: string): Block.Block | null => {
-  const stack: Block.Block[] = [root];
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    const childRefs = (current.children ?? []) as readonly any[];
-    for (const ref of childRefs) {
-      const child = ref?.target;
-      if (child?.id === id) {
-        return current;
-      }
       if (child) {
         stack.push(child);
       }

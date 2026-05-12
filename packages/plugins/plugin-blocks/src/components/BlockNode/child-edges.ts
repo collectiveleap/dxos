@@ -339,6 +339,56 @@ export const wouldCreateCycle = (db: any, parent: Block.Block, child: Block.Bloc
   return false;
 };
 
+// React hook: returns the live SET of structural predecessors of
+// `child` — i.e. one entry per distinct Block that owns a
+// `ChildEdge` whose `target` is `child`. Subscribes to the
+// ChildEdge query so the list updates when a predecessor edge is
+// added or removed.
+//
+// The returned array is UNSORTED — callers that render the list
+// for users (e.g. F-DAG.Phase3e.predecessor-nav-list) apply the
+// spec's sort (alphabetical case-insensitive by display label,
+// `Block.id` tiebreaker, `(unnamed)` last) themselves so this hook
+// stays a pure-data reader.
+export const usePredecessors = (child: Block.Block | undefined): Block.Block[] => {
+  const db = child ? Obj.getDatabase(child) : undefined;
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!db) {
+      return;
+    }
+    const query: any = db.query(Filter.typename(ChildEdge.ChildEdge.typename));
+    const sub = query?.subscribe?.(() => setTick((value) => value + 1));
+    return () => {
+      try {
+        sub?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [db]);
+
+  return useMemo(() => {
+    if (!db || !child) {
+      return [];
+    }
+    const edges = parentEdgesOf(db, child);
+    const seen = new Set<string>();
+    const predecessors: Block.Block[] = [];
+    for (const edge of edges) {
+      const source = Relation.getSource(edge) as Block.Block | undefined;
+      const id = (source as any)?.id as string | undefined;
+      if (source && id && !seen.has(id)) {
+        seen.add(id);
+        predecessors.push(source);
+      }
+    }
+    return predecessors;
+    // `tick` participates so edge add/remove refreshes the list.
+  }, [db, child, tick]);
+};
+
 // React hook: returns the live count of structural parents (edges
 // fanning IN to `child`). Subscribes to the ChildEdge query so the
 // count updates when a Block becomes multi-parent (or stops).
