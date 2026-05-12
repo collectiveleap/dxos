@@ -32,6 +32,12 @@ export type BlockEditorProps = {
   onEnter?: (beforeText: string, afterText: string) => void;
   onIndent?: () => void;
   onDedent?: () => void;
+  // F-DAG Phase 3e: Cmd+Tab = "link" — same prev-sibling target as
+  // indent, but the OLD parent edge is preserved (Block becomes
+  // multi-parent). Tab still means MOVE (single edge). When this
+  // callback is undefined, Cmd+Tab falls through to the default
+  // (no-op for ProseMirror in our config).
+  onLink?: () => void;
   // Cmd+Up / Cmd+Down toggle expanded state when wired (only for parents).
   // When the corresponding callback is undefined, the key falls through.
   onCollapseRequest?: () => void;
@@ -66,6 +72,7 @@ export const BlockEditor = ({
   onEnter,
   onIndent,
   onDedent,
+  onLink,
   onCollapseRequest,
   onExpandRequest,
   onMoveUp,
@@ -79,6 +86,7 @@ export const BlockEditor = ({
   const onEnterRef = useRef(onEnter);
   const onIndentRef = useRef(onIndent);
   const onDedentRef = useRef(onDedent);
+  const onLinkRef = useRef(onLink);
   const onCollapseRequestRef = useRef(onCollapseRequest);
   const onExpandRequestRef = useRef(onExpandRequest);
   const onMoveUpRef = useRef(onMoveUp);
@@ -89,6 +97,7 @@ export const BlockEditor = ({
   onEnterRef.current = onEnter;
   onIndentRef.current = onIndent;
   onDedentRef.current = onDedent;
+  onLinkRef.current = onLink;
   onCollapseRequestRef.current = onCollapseRequest;
   onExpandRequestRef.current = onExpandRequest;
   onMoveUpRef.current = onMoveUp;
@@ -198,6 +207,18 @@ export const BlockEditor = ({
       return true;
     };
 
+    // F-DAG Phase 3e: Cmd+Tab = LINK. Same target as indent (the
+    // previous sibling) but the OLD parent edge is preserved, so
+    // the Block becomes multi-parent. Consumed even when no
+    // handler is wired so the browser doesn't trap focus.
+    const linkCommand: Command = () => {
+      if (headlineModeRef.current) {
+        return true;
+      }
+      onLinkRef.current?.();
+      return true;
+    };
+
     // F-V2 keybindings: Cmd+Up collapses the current bullet if it's an open
     // parent; Cmd+Down expands it if it's a closed parent. When the parent
     // hasn't wired the corresponding callback (no children, or already in
@@ -290,6 +311,7 @@ export const BlockEditor = ({
           'Mod-Shift-Enter': shiftEnterAboveCommand,
           Tab: tabCommand,
           'Shift-Tab': shiftTabCommand,
+          'Mod-Tab': linkCommand,
           'Mod-ArrowUp': collapseCommand,
           'Mod-ArrowDown': expandCommand,
           ArrowUp: arrowUpCommand,

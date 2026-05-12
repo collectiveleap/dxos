@@ -16,6 +16,7 @@ import {
   ensureMigratedChildren,
   findChildEdge,
   orderBetween,
+  useParentEdgeCount,
   useStructuralChildren,
 } from './child-edges';
 import { FieldGroups } from './FieldGroup';
@@ -50,6 +51,11 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   // keep hooks order stable; query nodes don't read `childRefs`
   // anyway because they hand off to `<QueryNodeView>`.
   const mergedChildren = useStructuralChildren(block);
+
+  // F-DAG Phase 3e: parent count — how many structural parents
+  // (ChildEdges fanning IN) point at this Block. >1 means the Block
+  // is multi-parent and renders with a badge near the bullet.
+  const parentEdgeCount = useParentEdgeCount(block);
 
   // F-6 Phase 3b: a Block carrying a `queryRef` marker is rendered as
   // a live query result list instead of the standard bullet + content
@@ -187,6 +193,37 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     setFocusId(block.id);
   };
 
+  // F-DAG Phase 3e: LINK (Cmd+Tab) — same target as indent (prev
+  // sibling becomes a new parent), but the existing `parent → block`
+  // edge is PRESERVED. Block becomes multi-parent: it renders both
+  // under `parent` and under `prevSibling`, with the multi-parent
+  // badge surfacing on every occurrence.
+  const handleLink = () => {
+    if (siblingIndex <= 0) {
+      return;
+    }
+    const prevSibling = parentChildren[siblingIndex - 1]?.target as Block.Block | undefined;
+    if (!prevSibling) {
+      return;
+    }
+    const db = Obj.getDatabase(parent);
+    if (!db) {
+      return;
+    }
+    // Migrate both endpoints so all edges are explicit.
+    ensureMigratedChildren(db, parent);
+    ensureMigratedChildren(db, prevSibling);
+    // If an edge prevSibling → block already exists, no-op (link
+    // is idempotent — pressing Cmd+Tab twice doesn't pile up
+    // duplicate edges).
+    if (findChildEdge(db, prevSibling, block)) {
+      return;
+    }
+    createChildEdge(db, prevSibling, block);
+    // Note: we do NOT remove the existing parent → block edge.
+    setFocusId(block.id);
+  };
+
   // F-Nav: arrow-key navigation between visible Blocks. Walks the rendered
   // DOM (which by construction matches the visible-tree order, since
   // collapsed children aren't mounted) to find the prev/next [data-block-id]
@@ -253,6 +290,14 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           onClick={referenceOnly ? undefined : () => zoom(block.id)}
           onShiftClick={() => openPane((refTarget as Block.Block | undefined) ?? block)}
         />
+        {parentEdgeCount > 1 && (
+          <span
+            className='shrink-0 self-baseline text-[10px] leading-none px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
+            title={`Appears in ${parentEdgeCount} places`}
+          >
+            {parentEdgeCount}
+          </span>
+        )}
         <div className='flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2'>
           {/* Editor wrapper sized to its content so the badge sits right
               next to the text rather than at the row's far edge. The
@@ -275,6 +320,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               onEnter={handleEnter}
               onIndent={handleIndent}
               onDedent={handleDedent}
+              onLink={handleLink}
               onCollapseRequest={expanded ? toggleExpanded : undefined}
               onExpandRequest={!expanded ? toggleExpanded : undefined}
               onMoveUp={handleMoveUp}

@@ -1527,6 +1527,34 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase3e.multi-parent-badge:
+    given: a Block has more than one structural parent — i.e. more
+      than one `ChildEdge` whose `target` is this Block
+    when: the BlockNode renders the bullet row
+    then:
+      - a small numeric badge appears immediately after the
+        bullet showing the parent count.
+      - the badge carries a tooltip ("Appears in N places").
+      - the badge is suppressed when parent-edge-count <= 1.
+      - the badge appears on EVERY occurrence of the Block (it
+        renders inside BlockNode, so each rendered instance
+        shows it independently).
+  req F-DAG.Phase3e.link-via-cmd-tab:
+    given: the user holds Cmd (Mod) and presses Tab on a bullet
+      whose previous sibling exists in the merged-children view
+    when: the keymap fires `linkCommand`
+    then:
+      - both `parent` (current) and `prevSibling` (new) are
+        migrated via `ensureMigratedChildren`.
+      - a new ChildEdge `prevSibling → block` is created and
+        appended at the end of prevSibling's children.
+      - the existing `parent → block` edge is PRESERVED — Block
+        becomes a structural child of BOTH parents.
+      - the operation is idempotent: if an edge from prevSibling
+        to block already exists, Cmd+Tab is a no-op (no duplicate
+        edges).
+      - the multi-parent badge (F-DAG.Phase3e.multi-parent-badge)
+        appears on the bullet row after the link is created.
   req F-DAG.Phase3c.indent-dedent-as-edge-move:
     given: the user presses Tab or Shift+Tab on a bullet
     when: the indent / dedent handler fires

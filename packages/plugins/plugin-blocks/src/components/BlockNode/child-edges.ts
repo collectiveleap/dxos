@@ -198,6 +198,58 @@ export const ensureMigratedChildren = (db: any, parent: Block.Block): void => {
   }
 };
 
+// Sync reader: returns every ChildEdge whose target is `child` —
+// i.e. every structural parent of `child`. Used by the multi-parent
+// indicator and (eventually) the breadcrumb-with-N-parents UX.
+export const parentEdgesOf = (db: any, child: Block.Block): any[] => {
+  if (!db) {
+    return [];
+  }
+  const all = (db.query(Filter.typename(ChildEdge.ChildEdge.typename)).runSync() ?? []) as Array<{
+    object: any;
+  }>;
+  return all
+    .map((item) => (item as any).object ?? item)
+    .filter((edge: any) => (Relation.getTarget(edge) as any)?.id === (child as any)?.id);
+};
+
+// React hook: returns the live count of structural parents (edges
+// fanning IN to `child`). Subscribes to the ChildEdge query so the
+// count updates when a Block becomes multi-parent (or stops).
+//
+// NOTE: legacy `Block.children` entries that haven't migrated are
+// NOT counted here — only ChildEdges. For Phase 3e this is the right
+// behavior: the multi-parent badge surfaces NEW behaviour enabled by
+// edges, and a Block that still lives only under a legacy parent
+// stays single-parent until that parent gets written-to.
+export const useParentEdgeCount = (child: Block.Block | undefined): number => {
+  const db = child ? Obj.getDatabase(child) : undefined;
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!db) {
+      return;
+    }
+    const query: any = db.query(Filter.typename(ChildEdge.ChildEdge.typename));
+    const sub = query?.subscribe?.(() => setTick((value) => value + 1));
+    return () => {
+      try {
+        sub?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [db]);
+
+  return useMemo(() => {
+    if (!db || !child) {
+      return 0;
+    }
+    return parentEdgesOf(db, child).length;
+    // `tick` participates so subscription bumps recompute.
+  }, [db, child, tick]);
+};
+
 // Compute a new `order` value that places a child between two
 // adjacent siblings under the same parent. Either neighbour may be
 // undefined (insert at start / end). Caller is responsible for
