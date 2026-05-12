@@ -4,13 +4,19 @@
 
 import React, { useMemo, useState } from 'react';
 
-import { Obj, Ref } from '@dxos/echo';
+import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
-import { createChildEdge, useStructuralChildren } from './child-edges';
+import {
+  childEdgesOf,
+  createChildEdge,
+  ensureMigratedChildren,
+  orderBetween,
+  useStructuralChildren,
+} from './child-edges';
 import { FieldGroups } from './FieldGroup';
 import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
@@ -54,8 +60,13 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   }
 
   const childRefs = mergedChildren.filter((ref: any) => ref?.target);
-  const parentChildren = (parent.children ?? []) as readonly any[];
-  const siblingIndex = parentChildren.findIndex((ref) => ref?.target?.id === block.id);
+  // F-DAG Phase 3b: sibling reads also go through the merge so
+  // `siblingIndex` reflects the post-migration position of this
+  // Block among its siblings (legacy `parent.children` entries
+  // first, then ChildEdges sorted by `order`). Insert/indent/dedent
+  // writers use this index to find adjacent siblings for ordering.
+  const parentChildren = useStructuralChildren(parent);
+  const siblingIndex = parentChildren.findIndex((ref: any) => ref?.target?.id === block.id);
 
   // F-V2: collapsed when state.expanded === false; default (undefined) is open.
   const expanded = (snapshot.state as any)?.expanded !== false;
@@ -90,28 +101,45 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     if (siblingIndex < 0) {
       return;
     }
+    // F-DAG Phase 3b: migrate the parent's legacy `Block.children`
+    // (if any) onto ChildEdges with sequential `order`s, then
+    // attach the new sibling via a fractional `order` placed
+    // between this Block's edge and the next one. After this
+    // first edit, the parent is edge-only forever.
+    const db = Obj.getDatabase(parent);
+    if (!db) {
+      return;
+    }
+    ensureMigratedChildren(db, parent);
     const newBlock = Block.make({ content: initialContent });
-    const before = parentChildren.slice(0, siblingIndex + 1);
-    const after = parentChildren.slice(siblingIndex + 1);
-    Obj.update(parent, (parent) => {
-      (parent as any).children = [...before, Ref.make(newBlock), ...after];
-    });
+    db.add(newBlock);
+    const edgesNow = childEdgesOf(db, parent);
+    const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
+    const beforeEdge = currentIndex >= 0 ? edgesNow[currentIndex] : undefined;
+    const afterEdge = currentIndex >= 0 ? edgesNow[currentIndex + 1] : undefined;
+    createChildEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
     setFocusId(newBlock.id);
   };
 
   // F-Cmd-Shift-Enter: insert a new empty sibling BEFORE this one
-  // (visually above). Mirror of insertSiblingAfter; splice at the
-  // current sibling's index rather than index + 1.
+  // (visually above). Mirror of insertSiblingAfter; chooses the
+  // adjacent-sibling pair on the OTHER side of `block`'s edge.
   const insertSiblingBefore = (initialContent: any[]) => {
     if (siblingIndex < 0) {
       return;
     }
+    const db = Obj.getDatabase(parent);
+    if (!db) {
+      return;
+    }
+    ensureMigratedChildren(db, parent);
     const newBlock = Block.make({ content: initialContent });
-    const before = parentChildren.slice(0, siblingIndex);
-    const after = parentChildren.slice(siblingIndex);
-    Obj.update(parent, (parent) => {
-      (parent as any).children = [...before, Ref.make(newBlock), ...after];
-    });
+    db.add(newBlock);
+    const edgesNow = childEdgesOf(db, parent);
+    const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
+    const beforeEdge = currentIndex > 0 ? edgesNow[currentIndex - 1] : undefined;
+    const afterEdge = currentIndex >= 0 ? edgesNow[currentIndex] : undefined;
+    createChildEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
     setFocusId(newBlock.id);
   };
 

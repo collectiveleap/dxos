@@ -131,3 +131,89 @@ export const createChildEdge = (
   db.add(edge as any);
   return edge as any;
 };
+
+// Return every ChildEdge fanning out of `parent`, sorted by `order`.
+// Used by writers that need to compute fractional orders for new
+// sibling inserts.
+export const childEdgesOf = (db: any, parent: Block.Block): any[] => {
+  if (!db) {
+    return [];
+  }
+  const all = (db.query(Filter.typename(ChildEdge.ChildEdge.typename)).runSync() ?? []) as Array<{
+    object: any;
+  }>;
+  const incident = all
+    .map((item) => (item as any).object ?? item)
+    .filter((edge: any) => (Relation.getSource(edge) as any)?.id === (parent as any)?.id);
+  incident.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+  return incident;
+};
+
+// Find the edge connecting `parent` to `child`, if any.
+export const findChildEdge = (db: any, parent: Block.Block, child: Block.Block): any | undefined => {
+  const edges = childEdgesOf(db, parent);
+  for (const edge of edges) {
+    if ((Relation.getTarget(edge) as any)?.id === (child as any)?.id) {
+      return edge;
+    }
+  }
+  return undefined;
+};
+
+// Delete every ChildEdge fanning out of `parent`. Used by the
+// `ensureMigratedChildren` helper when porting a parent's legacy
+// `Block.children` list onto edges with re-sequenced orders.
+export const removeAllChildEdges = (db: any, parent: Block.Block): void => {
+  const edges = childEdgesOf(db, parent);
+  for (const edge of edges) {
+    db.remove(edge);
+  }
+};
+
+// One-time migration: if `parent.children` (legacy array) is
+// non-empty, convert each entry to a `ChildEdge` with sequential
+// `order` matching the merged view, then clear the array. Any
+// already-existing edges are recreated in the same operation so the
+// post-migration order matches the pre-migration merged order
+// (legacy first, then existing edges by `order`).
+//
+// No-op when the parent has nothing in `Block.children` — its
+// children are already edge-only.
+export const ensureMigratedChildren = (db: any, parent: Block.Block): void => {
+  const legacy = ((parent as any).children ?? []) as readonly any[];
+  if (legacy.length === 0) {
+    return;
+  }
+  // Snapshot the merged view BEFORE we tear anything down.
+  const merged = getStructuralChildren(db, parent).filter((ref: any) => ref?.target);
+  removeAllChildEdges(db, parent);
+  Obj.update(parent, (parent: any) => {
+    parent.children = [];
+  });
+  for (let i = 0; i < merged.length; i++) {
+    const target = (merged[i] as any).target as Block.Block;
+    if (target) {
+      createChildEdge(db, parent, target, { order: i });
+    }
+  }
+};
+
+// Compute a new `order` value that places a child between two
+// adjacent siblings under the same parent. Either neighbour may be
+// undefined (insert at start / end). Caller is responsible for
+// migrating the parent first (`ensureMigratedChildren`) so that all
+// existing siblings carry explicit `order`s.
+export const orderBetween = (before: any | undefined, after: any | undefined): number => {
+  const beforeOrder = before ? (before.order ?? 0) : undefined;
+  const afterOrder = after ? (after.order ?? 0) : undefined;
+  if (beforeOrder === undefined && afterOrder === undefined) {
+    return 0;
+  }
+  if (beforeOrder === undefined) {
+    return (afterOrder as number) - 1;
+  }
+  if (afterOrder === undefined) {
+    return beforeOrder + 1;
+  }
+  return (beforeOrder + (afterOrder as number)) / 2;
+};

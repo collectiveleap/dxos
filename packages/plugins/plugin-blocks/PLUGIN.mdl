@@ -1527,6 +1527,27 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase3b.sibling-insert-via-edge:
+    given: the user presses Enter, Shift+Enter, or Cmd+Shift+Enter
+      on a bullet whose parent may still hold pre-existing
+      `Block.children` entries
+    when: the insert handler fires
+    then:
+      - `ensureMigratedChildren(db, parent)` runs first: every
+        legacy `Block.children` entry is converted to a
+        `ChildEdge` with sequential `order` (0, 1, 2, …) matching
+        the merged view, and `parent.children` is cleared.
+      - the new bullet is `db.add`-ed.
+      - a new ChildEdge is created with `order` placed BETWEEN
+        the current bullet's edge and the appropriate neighbour
+        (the next edge for `insertSiblingAfter`, the previous
+        edge for `insertSiblingBefore`) via `orderBetween`.
+        Edge-of-array inserts get `prev.order + 1` or
+        `next.order - 1` so the resulting sort matches user
+        intent.
+      - after this write, the parent's `Block.children` is empty
+        forever; every subsequent sibling-insert uses fractional
+        orders without further migration.
   req F-DAG.Phase3a.append-via-edge:
     given: a writer needs to append exactly one new child to a
       Block that has no existing children (legacy or edges)
