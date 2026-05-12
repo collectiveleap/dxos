@@ -343,6 +343,30 @@ export const BlockEditor = ({
           Obj.update(block, (block) => {
             block.content = content;
           });
+          // F-Supertag.title-sync (steady-state, write path):
+          // propagate the node's plain text into each supertag's
+          // typed instance via `Obj.setLabel`. ECHO requires writes
+          // to flow through `Obj.update`, so the setLabel call is
+          // wrapped accordingly. Wrapped in try/catch per the spec
+          // — schemas with no usable `LabelAnnotation` degrade to
+          // no-op rather than throwing.
+          const plainText = next.doc.textContent;
+          const supertags = ((block as any).supertags ?? []) as readonly any[];
+          for (const ref of supertags) {
+            const instance = ref?.target;
+            if (!instance) {
+              continue;
+            }
+            try {
+              if (Obj.getLabel(instance) !== plainText) {
+                Obj.update(instance, (instance) => {
+                  Obj.setLabel(instance, plainText);
+                });
+              }
+            } catch {
+              /* schema declares no usable LabelAnnotation — no-op */
+            }
+          }
         }
 
         // Drive the picker UI from plugin state. Mention (`@`) and tag
@@ -433,6 +457,76 @@ export const BlockEditor = ({
     });
     return () => {
       unsubscribe?.();
+    };
+  }, [block]);
+
+  // F-Supertag.title-sync (steady-state, read path): when ANY
+  // supertag's typed instance has its label changed by an external
+  // writer (FieldGroup form input, a dedicated Composer surface,
+  // another plugin, an import), propagate the new label back into
+  // `block.content` as a single text segment. The multi-occurrence-
+  // edit-sync subscriber above then handles the PM-level update.
+  //
+  // Re-binds instance subscribers whenever the supertags array
+  // changes (subscribed via the block itself), so adding/removing a
+  // `#`-tag swaps the active set of instance-watchers without a
+  // remount.
+  useEffect(() => {
+    let instanceSubs: Array<() => void> = [];
+    const bindInstanceSubs = () => {
+      for (const unsub of instanceSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+      instanceSubs = [];
+      const supertags = ((block as any).supertags ?? []) as readonly any[];
+      for (const ref of supertags) {
+        const instance = ref?.target;
+        if (!instance) {
+          continue;
+        }
+        const unsub = Obj.subscribe(instance, () => {
+          let label: string;
+          try {
+            const got = Obj.getLabel(instance);
+            if (typeof got !== 'string') {
+              return;
+            }
+            label = got;
+          } catch {
+            return;
+          }
+          const currentText = (((block as any).content ?? []) as readonly any[])
+            .map((segment: any) => (segment?.kind === 'text' ? (segment.text ?? '') : ''))
+            .join('');
+          if (currentText === label) {
+            return;
+          }
+          Obj.update(block, (block: any) => {
+            block.content = [{ kind: 'text', text: label }];
+          });
+        });
+        instanceSubs.push(unsub);
+      }
+    };
+    bindInstanceSubs();
+    const blockSub = Obj.subscribe(block, () => bindInstanceSubs());
+    return () => {
+      try {
+        blockSub?.();
+      } catch {
+        /* noop */
+      }
+      for (const unsub of instanceSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
     };
   }, [block]);
 

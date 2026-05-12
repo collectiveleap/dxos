@@ -7,6 +7,7 @@ import * as SchemaAST from 'effect/SchemaAST';
 import React, { useMemo, useState } from 'react';
 
 import { Annotation, Obj } from '@dxos/echo';
+import { LabelAnnotation } from '@dxos/echo/internal';
 import { useObject } from '@dxos/react-client/echo';
 
 import { getDisplayLabel } from '../labels';
@@ -253,12 +254,26 @@ const unwrapOptionalAst = (property: SchemaAST.PropertySignature): SchemaAST.AST
 
 // Walk a Schema's properties and produce field descriptors for the
 // kinds we render. Anything we don't know how to handle is dropped.
+//
+// F-Supertag.title-hidden-in-fields: properties listed in the
+// schema's `LabelAnnotation` are suppressed from the rendered field
+// rows — the bullet text above the FieldGroup already shows that
+// value via `F-Supertag.title-sync`, so rendering it again here
+// would give the user two editable inputs for the same data. The
+// default fallback `['name']` mirrors `Obj.getLabel`'s convention so
+// types without an explicit annotation still hide their `name`
+// field when one is present.
 const listFields = (schema: any): FieldInfo[] => {
+  const labelFields = LabelAnnotation.get(schema).pipe(Option.getOrElse(() => ['name'] as string[]));
+  const labelFieldSet = new Set(labelFields);
   const properties = SchemaAST.getPropertySignatures(schema.ast);
   const fields: FieldInfo[] = [];
   for (const property of properties) {
     const name = property.name;
     if (typeof name === 'string' && HIDDEN_FIELDS.has(name)) {
+      continue;
+    }
+    if (typeof name === 'string' && labelFieldSet.has(name)) {
       continue;
     }
     const typeAst = unwrapOptionalAst(property);
