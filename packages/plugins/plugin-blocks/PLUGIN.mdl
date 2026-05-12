@@ -1460,11 +1460,15 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
           stays consistent across edits to legacy outlines.
         - 3e: multi-parent UX (per-bullet indicator, breadcrumb
           dropdown, Cmd+Tab to LINK vs Tab to MOVE).
-    - Phase 4 (later): move `Block.state.expanded` off the Block
-      onto `ChildEdge.expanded`. Per-occurrence collapse state
-      falls out.
-    - Phase 5 (later): explicit edge kind ('embed' / 'linked' /
-      'mirror') and cycle prevention on link.
+    - Phase 4 (current): collapse state moves off the Block and
+      onto the edge. Reads go through `useEdgeExpanded(parent,
+      block)`; writes go through `setEdgeExpanded`. Multi-parent
+      Blocks (Phase 3e) get independent per-occurrence collapse —
+      collapse a Block in one place and it stays open in the
+      other.
+    - Phase 5 (current): explicit edge `kind` (default
+      'structural'); cycle prevention on writers so a Block can't
+      be linked under one of its own descendants.
   req F-DAG.Phase1.schema:
     given: the plugin loads
     when: it registers its schema module
@@ -1527,6 +1531,23 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase4.per-occurrence-collapse:
+    given: a BlockNode rendering for `block` under `parent`
+    when: it computes its collapse state OR toggles it
+    then:
+      - the read path uses `useEdgeExpanded(parent, block)`:
+        - if the edge `parent → block` has `expanded` set, that
+          value wins (per-occurrence semantics).
+        - otherwise, the legacy `block.state.expanded` is read
+          for backward compatibility.
+        - default is `true` (expanded).
+      - the write path uses `setEdgeExpanded(db, parent, block,
+        value)`: persists on the edge if one exists, else falls
+        back to `block.state.expanded` (defensive).
+      - for a Block with multiple structural parents (Phase 3e
+        link), each occurrence carries its own `expanded` on its
+        own edge — collapsing the Block in one place does not
+        affect the other rendering.
   req F-DAG.Phase3d.read-side-migration-backstop:
     given: a Block whose legacy `Block.children` array is
       non-empty (e.g. an outline created before Phase 3a / 3b)

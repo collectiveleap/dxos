@@ -16,6 +16,8 @@ import {
   ensureMigratedChildren,
   findChildEdge,
   orderBetween,
+  setEdgeExpanded,
+  useEdgeExpanded,
   useParentEdgeCount,
   useStructuralChildren,
 } from './child-edges';
@@ -75,8 +77,12 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   const parentChildren = useStructuralChildren(parent);
   const siblingIndex = parentChildren.findIndex((ref: any) => ref?.target?.id === block.id);
 
-  // F-V2: collapsed when state.expanded === false; default (undefined) is open.
-  const expanded = (snapshot.state as any)?.expanded !== false;
+  // F-DAG Phase 4: per-occurrence collapse. `expanded` lives ON the
+  // edge `parent → block`, so a Block that's been Cmd+Tab-linked
+  // into a second parent has independent collapse state in each
+  // place. The hook falls back to the legacy `block.state.expanded`
+  // when no edge exists yet (pre-Phase-3a outlines).
+  const expanded = useEdgeExpanded(parent, block);
   const hasChildren = childRefs.length > 0;
 
   // F-V6: a Block whose content is exactly one ref segment (no meaningful
@@ -98,10 +104,16 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   const openPane = useOpenPane();
 
   const toggleExpanded = () => {
-    Obj.update(block, (block) => {
-      const mutable = block as any;
-      mutable.state = { ...(mutable.state ?? {}), expanded: !expanded };
-    });
+    // F-DAG Phase 4: persist collapse on the edge `parent → block`
+    // so the toggle affects ONLY this occurrence of the Block. The
+    // helper falls back to `block.state.expanded` if no edge exists
+    // (purely defensive — Phase 3d's read-side migration ensures
+    // an edge is in place by the time any user gesture reaches us).
+    const db = Obj.getDatabase(parent);
+    if (!db) {
+      return;
+    }
+    setEdgeExpanded(db, parent, block, !expanded);
   };
 
   const insertSiblingAfter = (initialContent: any[]) => {

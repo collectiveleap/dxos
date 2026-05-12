@@ -295,6 +295,111 @@ export const useParentEdgeCount = (child: Block.Block | undefined): number => {
   }, [db, child, tick]);
 };
 
+// React hook: returns the `expanded` flag for the edge `parent →
+// block`, with a fallback to the legacy `block.state.expanded`
+// when no edge has yet been created (pre-migration). Default is
+// `true` (visible / expanded).
+//
+// F-DAG Phase 4: collapse state lives PER OCCURRENCE — when a
+// Block has multiple parents (Cmd+Tab link from Phase 3e), each
+// edge tracks its own `expanded`, so the user can collapse the
+// Block in one place and leave it open in another.
+//
+// Subscribes both to the ChildEdge query (for edge add/remove) AND
+// to each edge object individually via `Obj.subscribe` (for field-
+// level changes like the `expanded` toggle). Without the per-edge
+// subscription the result-set listener never fires for an in-place
+// field write and the UI would not refresh.
+export const useEdgeExpanded = (parent: Block.Block, block: Block.Block): boolean => {
+  const db = parent ? Obj.getDatabase(parent) : undefined;
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!db) {
+      return;
+    }
+    let edgeSubs: Array<() => void> = [];
+    const resubscribe = () => {
+      for (const unsub of edgeSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+      edgeSubs = [];
+      const all = (db.query(Filter.typename(ChildEdge.ChildEdge.typename)).runSync() ?? []) as Array<{
+        object: any;
+      }>;
+      for (const item of all) {
+        const edge = (item as any).object ?? item;
+        const unsub = Obj.subscribe(edge, () => setTick((value) => value + 1));
+        edgeSubs.push(unsub);
+      }
+    };
+    resubscribe();
+    const query: any = db.query(Filter.typename(ChildEdge.ChildEdge.typename));
+    const querySub = query?.subscribe?.(() => {
+      // Set may have changed (edge created/deleted) — re-bind per-
+      // edge subscriptions and refresh.
+      resubscribe();
+      setTick((value) => value + 1);
+    });
+    return () => {
+      for (const unsub of edgeSubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+      try {
+        querySub?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [db]);
+
+  return useMemo(() => {
+    if (db && parent && block) {
+      const edge = findChildEdge(db, parent, block);
+      if (edge && typeof (edge as any).expanded === 'boolean') {
+        return (edge as any).expanded as boolean;
+      }
+    }
+    // Fall back to the legacy per-Block flag.
+    const blockState = (block as any)?.state as { expanded?: boolean } | undefined;
+    return blockState?.expanded !== false;
+    // `tick` participates so edge mutations refresh.
+  }, [db, parent, block, tick]);
+};
+
+// Writer counterpart to `useEdgeExpanded`. Persists the collapse
+// state ON the edge if one exists, falling back to the legacy
+// `Block.state.expanded` if not (which is harmless even after the
+// fallback path becomes unreachable post-3d).
+export const setEdgeExpanded = (
+  db: any,
+  parent: Block.Block,
+  block: Block.Block,
+  expanded: boolean,
+): void => {
+  if (!db) {
+    return;
+  }
+  const edge = findChildEdge(db, parent, block);
+  if (edge) {
+    Relation.update(edge as any, (edge: any) => {
+      edge.expanded = expanded;
+    });
+    return;
+  }
+  Obj.update(block, (block: any) => {
+    block.state = { ...(block.state ?? {}), expanded };
+  });
+};
+
 // Compute a new `order` value that places a child between two
 // adjacent siblings under the same parent. Either neighbour may be
 // undefined (insert at start / end). Caller is responsible for
