@@ -86,22 +86,14 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   const expanded = useEdgeExpanded(parent, block);
   const hasChildren = childRefs.length > 0;
 
-  // F-V6: a Block whose content is exactly one ref segment (no meaningful
-  // text) is a "reference-only" Block. Its bullet renders with a dashed
-  // outer ring, and its backlink count reflects the TARGET's count rather
-  // than its own — visually it stands in for the target.
-  const referenceOnly = isReferenceOnlyBlock(snapshot);
-  const refTarget = referenceOnly ? getReferenceTarget(snapshot) : undefined;
-  const backlinkLookupId = (refTarget as any)?.id ?? block.id;
-  const backlinkCount = useBacklinkCount(backlinkLookupId);
+  const backlinkCount = useBacklinkCount(block.id);
 
   // F-Zoom: clicking the bullet zooms into this Block. The handler comes
   // from BlockArticle via context; default is a no-op when no provider is
   // mounted (e.g., storybook stories).
   const zoom = useZoom();
   // F-Open-Pane: shift-clicking the bullet opens the Block in a new pane
-  // to the right. For reference-only Blocks, the TARGET is what gets
-  // opened (per F-Open-Pane.ref-only).
+  // to the right.
   const openPane = useOpenPane();
 
   const toggleExpanded = () => {
@@ -299,9 +291,8 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
         <Bullet
           hasChildren={hasChildren}
           expanded={expanded}
-          referenceOnly={referenceOnly}
-          onClick={referenceOnly ? undefined : () => zoom(block.id)}
-          onShiftClick={() => openPane((refTarget as Block.Block | undefined) ?? block)}
+          onClick={() => zoom(block.id)}
+          onShiftClick={() => openPane(block)}
         />
         {parentEdgeCount > 1 && (
           <span
@@ -461,46 +452,6 @@ const moveToAdjacentVisibleBlock = (
   return true;
 };
 
-// Detects a Block whose content is exactly one ref segment with no meaningful
-// text. Such Blocks are rendered as references to their target.
-//
-// F-6 Phase 3b: a "wrapper" Block (created by `promoteToWrapper`)
-// also has content of just a Ref to an instance, but it carries a
-// non-empty `supertags` array — that's what makes it a WRAPPER, not
-// a mention. Wrappers should render with the normal bullet so the
-// FieldGroup attaches; reference-only treatment (dashed outer ring,
-// non-zoomable) is reserved for plain mentions.
-const isReferenceOnlyBlock = (block: any): boolean => {
-  const content = (block?.content ?? []) as readonly any[];
-  if (!Array.isArray(content) || content.length === 0) {
-    return false;
-  }
-  const supertags = (block?.supertags ?? []) as readonly any[];
-  if (supertags.length > 0) {
-    return false;
-  }
-  let refCount = 0;
-  let textChars = 0;
-  for (const segment of content) {
-    if (segment?.kind === 'ref') {
-      refCount += 1;
-    } else if (segment?.kind === 'text') {
-      textChars += (segment.text ?? '').trim().length;
-    }
-  }
-  return refCount >= 1 && textChars === 0;
-};
-
-const getReferenceTarget = (block: any): unknown => {
-  const content = (block?.content ?? []) as readonly any[];
-  for (const segment of content) {
-    if (segment?.kind === 'ref') {
-      return segment.target?.target;
-    }
-  }
-  return undefined;
-};
-
 type ExpandChevronProps = {
   expanded: boolean;
   visible: boolean;
@@ -546,29 +497,23 @@ const ExpandChevron = ({ expanded, visible, onToggle }: ExpandChevronProps) => {
 type BulletProps = {
   hasChildren: boolean;
   expanded: boolean;
-  referenceOnly?: boolean;
   // F-Zoom: clicking the bullet zooms into the Block. Toggle is no longer
   // bound to bullet click — that lives on the chevron and Cmd+Up/Down.
-  // For reference-only Blocks, regular click is suppressed (the user should
-  // click the target's bullet instead).
   onClick?: () => void;
-  // F-Open-Pane: shift-click opens the Block in a new pane. Always wired,
-  // including for reference-only Blocks (the parent maps it to the target).
+  // F-Open-Pane: shift-click opens the Block in a new pane.
   onShiftClick?: () => void;
 };
 
 // Block Bullet: always renders a small dark filled dot. State indicators:
 // - Closed parent: dark dot with a shaded halo around it.
 // - Open parent or leaf: dark dot alone.
-// - Reference-only Block (F-V6): dark dot + shaded halo + dashed outer ring.
 // Click zooms into the Block (F-Zoom). Shift-click opens it in a new pane
-// (F-Open-Pane). Reference-only Blocks accept shift-click but not click.
-const Bullet = ({ hasChildren, expanded, referenceOnly, onClick, onShiftClick }: BulletProps) => {
-  const canClick = Boolean(onClick) && !referenceOnly;
+// (F-Open-Pane).
+const Bullet = ({ hasChildren, expanded, onClick, onShiftClick }: BulletProps) => {
+  const canClick = Boolean(onClick);
   const canShiftClick = Boolean(onShiftClick);
   const isInteractive = canClick || canShiftClick;
-  const showHalo = referenceOnly || (hasChildren && !expanded);
-  const showDashedRing = Boolean(referenceOnly);
+  const showHalo = hasChildren && !expanded;
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (event.shiftKey && onShiftClick) {
@@ -586,25 +531,10 @@ const Bullet = ({ hasChildren, expanded, referenceOnly, onClick, onShiftClick }:
       type='button'
       onClick={handleClick}
       disabled={!isInteractive}
-      aria-label={
-        referenceOnly
-          ? canShiftClick
-            ? 'Reference bullet (shift-click to open in pane)'
-            : 'Reference bullet'
-          : canClick
-            ? 'Zoom into block (shift-click to open in pane)'
-            : 'Bullet'
-      }
-      title={
-        canClick
-          ? 'Zoom (shift+click to open in new pane)'
-          : referenceOnly && canShiftClick
-            ? 'Shift+click to open in new pane'
-            : undefined
-      }
+      aria-label={canClick ? 'Zoom into block (shift-click to open in pane)' : 'Bullet'}
+      title={canClick ? 'Zoom (shift+click to open in new pane)' : undefined}
       className={
         'shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors ' +
-        (showDashedRing ? 'border border-dashed border-neutral-400 dark:border-neutral-500 ' : '') +
         (isInteractive ? 'cursor-pointer ' : '')
       }
     >
@@ -696,10 +626,9 @@ const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) =>
 //
 // F-DAG.Phase3a.add-existing-via-picker: typing `@` opens the
 // MentionPicker so the user can ADD AN EXISTING Block as a structural
-// child (instead of creating a wrapper Block with content =
-// `[Ref(target)]`, which would render with the F-V6 dashed bullet).
-// Picker selection routes through `onAddExisting`; the BlockNode
-// parent's handler calls `createChildEdge(parent, target)` directly.
+// child via a `ChildEdge` (no wrapper Block). Picker selection routes
+// through `onAddExisting`; the BlockNode parent's handler calls
+// `createChildEdge(parent, target)` directly.
 const PendingChildRow = ({
   parent,
   onPromote,

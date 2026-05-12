@@ -566,10 +566,6 @@ feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
     when: I click the "← Outline" link
     then: the article returns to the unzoomed view, showing the full
       outline tree from the root.
-  req F-Zoom.reference-only:
-    given: a reference-only Block (F-V6)
-    when: I click its bullet
-    then: nothing happens (zooming is disabled for reference-only Blocks).
 ```
 
 ```mdl
@@ -622,10 +618,9 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     "unzoomed" view — the default page block is the outline's root,
     so the root Block IS the title node.
 
-    F-Zoom's mechanic still applies: clicking a bullet (other than a
-    reference-only Block) makes that Block the page block, with its
-    own children rendered below. But the header is no longer hidden
-    when the page block is the root.
+    F-Zoom's mechanic still applies: clicking a bullet makes that
+    Block the page block, with its own children rendered below. But
+    the header is no longer hidden when the page block is the root.
 
     The header is a real `BlockEditor`, not a read-only display.
     Typing into it edits `pageBlock.content`. F-V3 inline ref
@@ -703,11 +698,6 @@ feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-
     open ANOTHER nested pane, recursively, as many levels deep as the
     user clicks.
 
-    Reference-only Blocks (F-V6) participate too: shift-clicking a
-    reference-only bullet opens the REF'S TARGET in the new pane
-    (the reference itself is just a stand-in for the target, so the
-    user is conceptually "opening the target").
-
     Implementation: BlockArticle provides an `OpenPaneContext` that
     invokes `LayoutOperation.Open` from `@dxos/app-toolkit` with the
     target Block id as `subject` and the current pane's `attendableId`
@@ -717,10 +707,8 @@ feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-
     `BlockArticle`, but with the Block as the pane's root rather than
     a `BlockOutline.root`).
 
-    The Bullet component now accepts both `onClick` (zoom, regular
-    click) and `onShiftClick` (open in pane). Reference-only bullets,
-    which previously suppressed all clicks, accept shift-click so the
-    "open the target" path works.
+    The Bullet component accepts both `onClick` (zoom, regular
+    click) and `onShiftClick` (open in pane).
   req F-Open-Pane.1:
     given: an outline displayed in pane P; the outline contains a Block X
       somewhere in its tree
@@ -735,12 +723,8 @@ feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-
     when: the user shift-clicks Y's bullet inside P'
     then: a further pane P'' opens to the right of P', rooted at Y. Both
       P and P' remain visible.
-  req F-Open-Pane.ref-only:
-    given: a reference-only Block R whose ref points at Block T
-    when: the user shift-clicks R's bullet
-    then: a new pane opens rooted at T (the ref's target), not at R itself.
   req F-Open-Pane.regular-click:
-    given: any bullet other than a reference-only one
+    given: any bullet
     when: the user clicks (no shift) the bullet
     then: F-Zoom behaviour fires — the block becomes the page block of the
       CURRENT pane (no new pane opened).
@@ -858,33 +842,41 @@ feat F-Caret: cursor visible after focus      # Increment Caret (current)
 ```
 
 ```mdl
-feat F-V6: Reference-only Block               # Increment V6 (current)
+feat F-V6 [DEPRECATED in F-DAG.Phase3a]: Reference-only Block
   desc: |
-    A Block whose content is exactly one inline ref segment (and no
-    meaningful text) is a "reference-only" Block. It is rendered as a
-    stand-in for its target:
-    - The Block's editor content shows the target's current label live
-      (already produced by the inline ref's NodeView).
-    - The Block Bullet gains an additional dashed outer ring on top of
-      the existing dark dot + shaded halo, signalling that this row is a
-      pure reference rather than original content.
-    - The backlink count badge on this Block reflects the TARGET's
-      backlink count, not the reference-only Block's own — visually this
-      Block IS the target.
-    - The bullet is non-interactive (reference-only Blocks are leaves;
-      they have no children to toggle).
-  req F-V6.1:
-    when: a Block's content has exactly one segment of kind 'ref' AND no text segment with non-whitespace characters
-    then: the Block is treated as reference-only.
-  req F-V6.2:
-    when: a Block is reference-only
-    then:
-      - the Block Bullet renders the dark dot, the shaded halo, AND a dashed outer ring around the halo
-      - the bullet is non-interactive (no toggle on click)
-      - the backlink count rendered to the right of the row is db.query.referencedBy(target) — i.e. the count for the ref's target Block, not this Block.
-  req F-V6.3:
-    when: a Block is not reference-only
-    then: it follows the regular Block Bullet rules from F-V2.
+    DEPRECATED. This feature existed because the pre-DAG outline could
+    only place a Block under ONE parent. To make a Block "appear in
+    another place" the user had to create a separate wrapper Block
+    whose entire `content` was a single ref segment pointing at the
+    real Block. Such a wrapper was styled with a dashed outer ring
+    and was non-interactive (no zoom) to signal "this is a stand-in,
+    not original content."
+
+    With F-DAG.Phase3a.add-existing-via-picker, the same use case is
+    served by a structural ChildEdge to an existing Block — the SAME
+    Block appears in multiple places in the outline, with its NORMAL
+    solid bullet and the multi-parent badge (F-DAG.Phase3e). No
+    wrapper is created. No dashed ring.
+
+    Consequences of the deprecation:
+    - The `isReferenceOnlyBlock` detector, the `referenceOnly` flag
+      on the Bullet component, and the dashed-ring rendering path
+      are removed.
+    - Reqs that depended on F-V6 (F-Zoom.reference-only,
+      F-Open-Pane.ref-only, F-6.Phase3b.wrapper-not-reference-only)
+      are likewise removed.
+    - Inline ref segments INSIDE content (alongside text) are not
+      affected — those are F-V3 mentions and continue to render
+      with link-blue styling. F-V6 specifically governed Blocks
+      whose content was ONLY a ref, which post-DAG is not a state
+      reachable by any user action.
+    - Legacy data: pre-DAG outlines may contain Blocks in the
+      F-V6 state. After this deprecation those Blocks render
+      with a normal bullet and show the target's label (via the
+      ref nodeview already in F-V3). The visual "this is a
+      reference" distinction is lost; the structural meaning is
+      preserved. A subsequent migration could rewrite such
+      Blocks as ChildEdges if desired.
 ```
 
 ```mdl
@@ -1398,17 +1390,6 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         in `buildWrapperIndex`).
       - exactly one wrapper Block exists per instance in the
         space; subsequent clicks remain idempotent.
-  req F-6.Phase3b.wrapper-not-reference-only:
-    given: a wrapper Block created by `promoteToWrapper` (content =
-      single Ref to its instance, supertags = `[Ref(instance)]`)
-    when: it renders inside an outline
-    then:
-      - `isReferenceOnlyBlock` returns false for it (presence of
-        non-empty `supertags` excludes it from the F-V6
-        reference-only treatment).
-      - the bullet renders as a normal solid dot, the Block is
-        zoomable on click, and the Phase-2 FieldGroup attaches via
-        `supertags`.
 ```
 
 ```mdl
@@ -1569,8 +1550,7 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - NO wrapper Block is created (no `Block.make({content: [Ref(X)]})`).
       - a `ChildEdge(parent, X)` is created via `createChildEdge`.
       - `X` now renders as a regular structural child of `parent`,
-        with its NORMAL solid bullet — not the F-V6 dashed-ring
-        "reference-only" treatment.
+        with its NORMAL solid bullet.
       - if `X` was already a child of another parent, it now has
         two structural parents; the multi-parent badge from
         F-DAG.Phase3e appears on both occurrences.
@@ -1581,10 +1561,10 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         `parent`.
     Note: this scenario is what distinguishes "add an existing
     node X" from "mention X in this Block's text". The latter
-    happens when the user invokes `@` inside an existing BlockEditor
-    (typing into a Block's content): it inserts a Ref segment into
-    the Block's `content`, which is the legitimate F-V6
-    reference-only pattern. The pending-child case is structurally
+    happens when the user invokes `@` inside an existing
+    BlockEditor (typing into a Block's content): it inserts a Ref
+    segment into the Block's `content` (an F-V3 inline mention,
+    alongside text). The pending-child case is structurally
     different: the user is asking "what's the next bullet" not
     "what does this bullet say."
   req F-DAG.Phase4.per-occurrence-collapse:
