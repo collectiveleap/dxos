@@ -75,12 +75,41 @@ export const getStructuralChildren = (db: any, parent: Block.Block): any[] => {
   return [...fromChildren, ...fromEdges];
 };
 
+// Process-global lock for the F-DAG Phase 3d backstop migration —
+// each (db, parent) pair is migrated at most once per session even
+// when many BlockNodes mount concurrently and all call
+// `useStructuralChildren(parent)` on the same parent.
+const migrationLocks = new WeakMap<object, Set<string>>();
+
+const acquireMigrationLock = (db: any, parent: Block.Block): boolean => {
+  if (!db || !parent?.id) {
+    return false;
+  }
+  let set = migrationLocks.get(db);
+  if (!set) {
+    set = new Set<string>();
+    migrationLocks.set(db, set);
+  }
+  if (set.has(parent.id)) {
+    return false;
+  }
+  set.add(parent.id);
+  return true;
+};
+
 // React hook variant of `getStructuralChildren`. Re-runs the merge
 // when the parent's `Block.children` (via useObject upstream) or any
 // ChildEdge changes. Caller passes the LIVE parent so we can
 // resolve `Obj.getDatabase` against it; the snapshot received via
 // useObject upstream supplies reactivity for the in-Block children
 // list.
+//
+// F-DAG Phase 3d: backstop migration. The first time a parent is
+// READ in this client session, if its legacy `Block.children` array
+// is non-empty, the migration runs (`ensureMigratedChildren`). After
+// that, every read returns purely from edges. Outlines that pre-date
+// the F-DAG writer migrations get drained without the user having
+// to make an explicit edit.
 export const useStructuralChildren = (parent: Block.Block): any[] => {
   const db = parent ? Obj.getDatabase(parent) : undefined;
   const [tick, setTick] = useState(0);
@@ -99,6 +128,22 @@ export const useStructuralChildren = (parent: Block.Block): any[] => {
       }
     };
   }, [db]);
+
+  useEffect(() => {
+    if (!db || !parent) {
+      return;
+    }
+    const legacy = ((parent as any).children ?? []) as readonly any[];
+    if (legacy.length === 0) {
+      return;
+    }
+    if (!acquireMigrationLock(db, parent)) {
+      return;
+    }
+    ensureMigratedChildren(db, parent);
+    // The migration writes new ChildEdges; the existing
+    // subscription bumps `tick`, so we don't need to bump it here.
+  }, [db, parent]);
 
   return useMemo(() => {
     if (!parent) {

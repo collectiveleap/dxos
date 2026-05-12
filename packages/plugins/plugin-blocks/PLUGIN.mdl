@@ -1527,6 +1527,23 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase3d.read-side-migration-backstop:
+    given: a Block whose legacy `Block.children` array is
+      non-empty (e.g. an outline created before Phase 3a / 3b)
+    when: any `useStructuralChildren(thisBlock)` mounts in the
+      current client session
+    then:
+      - a session-level lock (a `WeakMap<db, Set<parentId>>`) is
+        consulted to ensure the migration runs at most once per
+        parent, even when many BlockNodes mount concurrently and
+        all subscribe to the same parent.
+      - `ensureMigratedChildren(db, parent)` runs in a mount
+        effect: legacy children are re-created as ChildEdges with
+        sequential orders, `parent.children` is cleared.
+      - subsequent reads return purely from edges; the merge
+        becomes a one-sided union.
+      - outlines that were never edited after Phase 3a–3c land
+        get drained passively just by being viewed.
   req F-DAG.Phase3e.multi-parent-badge:
     given: a Block has more than one structural parent — i.e. more
       than one `ChildEdge` whose `target` is this Block
