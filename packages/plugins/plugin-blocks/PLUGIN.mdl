@@ -1560,6 +1560,33 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - non-structural edges (Phase-5-reserved kinds) are NOT
         cycle-checked — those are not part of the structural
         DAG.
+  req F-DAG.Phase3a.add-existing-via-picker:
+    given: my cursor is in a pending-child placeholder (the faint
+      bullet on an expanded leaf)
+    when: I type `@` and select an existing Block `X` from the
+      mention picker
+    then:
+      - NO wrapper Block is created (no `Block.make({content: [Ref(X)]})`).
+      - a `ChildEdge(parent, X)` is created via `createChildEdge`.
+      - `X` now renders as a regular structural child of `parent`,
+        with its NORMAL solid bullet — not the F-V6 dashed-ring
+        "reference-only" treatment.
+      - if `X` was already a child of another parent, it now has
+        two structural parents; the multi-parent badge from
+        F-DAG.Phase3e appears on both occurrences.
+      - the pending-child placeholder unmounts because the leaf
+        now has children.
+      - cycle prevention from F-DAG.Phase5 applies — selecting
+        `X` is silently rejected if `X` is an ancestor of
+        `parent`.
+    Note: this scenario is what distinguishes "add an existing
+    node X" from "mention X in this Block's text". The latter
+    happens when the user invokes `@` inside an existing BlockEditor
+    (typing into a Block's content): it inserts a Ref segment into
+    the Block's `content`, which is the legitimate F-V6
+    reference-only pattern. The pending-child case is structurally
+    different: the user is asking "what's the next bullet" not
+    "what does this bullet say."
   req F-DAG.Phase4.per-occurrence-collapse:
     given: a BlockNode rendering for `block` under `parent`
     when: it computes its collapse state OR toggles it

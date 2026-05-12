@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
@@ -10,6 +10,7 @@ import { useObject } from '@dxos/react-client/echo';
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
+import { MentionPicker } from '../MentionPicker';
 import {
   childEdgesOf,
   createChildEdge,
@@ -383,6 +384,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               pending row — per spec, only leaves. */}
           {!hasChildren && (
             <PendingChildRow
+              parent={block}
               onPromote={(initialText) => {
                 // F-DAG Phase 3a: the pending-child placeholder only
                 // shows on LEAVES (parent has no real children), so
@@ -399,6 +401,19 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
                 db.add(newChild);
                 createChildEdge(db, block, newChild);
                 setFocusId(newChild.id);
+              }}
+              onAddExisting={(target) => {
+                // F-DAG.Phase3a.add-existing-via-picker: when the user
+                // selects an existing Block from the @ picker, add it
+                // as a STRUCTURAL CHILD via `createChildEdge` — no
+                // wrapper Block, no content-ref. Cycle prevention from
+                // Phase 5 fires inside `createChildEdge`.
+                const db = Obj.getDatabase(block);
+                if (!db) {
+                  return;
+                }
+                createChildEdge(db, block, target as Block.Block);
+                setFocusId((target as any).id ?? null);
               }}
             />
           )}
@@ -677,26 +692,76 @@ const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) =>
 // an expanded leaf. Visual only — no Block exists until the user types
 // any character into the editable area, at which point `onPromote` is
 // called with the typed text and the parent BlockNode persists a real
-// child Block. The contentEditable is purely for capturing the first
-// keystroke; once promoted, focus transfers to the new real Block via
-// `setFocusId` and the pending branch unmounts (because hasChildren is
-// now true).
-const PendingChildRow = ({ onPromote }: { onPromote: (initialText: string) => void }) => {
+// child Block.
+//
+// F-DAG.Phase3a.add-existing-via-picker: typing `@` opens the
+// MentionPicker so the user can ADD AN EXISTING Block as a structural
+// child (instead of creating a wrapper Block with content =
+// `[Ref(target)]`, which would render with the F-V6 dashed bullet).
+// Picker selection routes through `onAddExisting`; the BlockNode
+// parent's handler calls `createChildEdge(parent, target)` directly.
+const PendingChildRow = ({
+  parent,
+  onPromote,
+  onAddExisting,
+}: {
+  parent: Block.Block;
+  onPromote: (initialText: string) => void;
+  onAddExisting: (target: any) => void;
+}) => {
+  const editableRef = useRef<HTMLDivElement | null>(null);
+  const [pickerState, setPickerState] = useState<
+    { query: string; cursor: { left: number; top: number; bottom: number } } | null
+  >(null);
+
+  const db = Obj.getDatabase(parent);
+
+  const focusEditable = () => {
+    editableRef.current?.focus();
+  };
+
+  const closePicker = () => {
+    setPickerState(null);
+    if (editableRef.current) {
+      editableRef.current.textContent = '';
+      focusEditable();
+    }
+  };
+
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    // Click anywhere on the row focuses the editable so typing lands.
     const editable = event.currentTarget.querySelector<HTMLElement>('[contenteditable]');
     editable?.focus();
   };
+
   const handleInput = (event: React.FormEvent<HTMLDivElement>) => {
     const text = event.currentTarget.textContent ?? '';
     if (text.length === 0) {
+      // Empty — close picker if open.
+      if (pickerState) {
+        setPickerState(null);
+      }
       return;
     }
-    // Clear before promoting so a fast double-call doesn't double-up;
-    // unmount happens in the next render.
+    // `@` prefix → open / refresh the picker; the typed `@` and any
+    // characters after it form the picker's query (after stripping
+    // the leading `@`).
+    if (text.startsWith('@')) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setPickerState({
+        query: text.slice(1),
+        cursor: { left: rect.left, top: rect.top, bottom: rect.bottom },
+      });
+      return;
+    }
+    // Any other input → existing F-Pending-Child promote flow:
+    // turn the placeholder into a real Block with the typed text.
+    if (pickerState) {
+      setPickerState(null);
+    }
     event.currentTarget.textContent = '';
     onPromote(text);
   };
+
   return (
     <div className='flex items-baseline gap-1 cursor-text' onClick={handleClick}>
       <span className='shrink-0 w-6' aria-hidden />
@@ -709,11 +774,28 @@ const PendingChildRow = ({ onPromote }: { onPromote: (initialText: string) => vo
           (default block-level empty contenteditable starts the caret
           at the line-box top, which renders above the bullet). */}
       <div
+        ref={editableRef}
         className='block-pending-child-editable inline-block min-w-[1rem] outline-none text-neutral-400 dark:text-neutral-600 leading-6'
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
       />
+      {pickerState && (
+        <MentionPicker
+          db={db}
+          query={pickerState.query}
+          cursor={pickerState.cursor}
+          excludeId={parent.id}
+          onSelect={(target) => {
+            setPickerState(null);
+            if (editableRef.current) {
+              editableRef.current.textContent = '';
+            }
+            onAddExisting(target);
+          }}
+          onClose={closePicker}
+        />
+      )}
     </div>
   );
 };
