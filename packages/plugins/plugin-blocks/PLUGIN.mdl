@@ -1531,6 +1531,35 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase5.structural-kind-default:
+    given: a structural ChildEdge is being created
+    when: `createChildEdge(db, parent, child, options)` runs
+    then:
+      - if `options.kind` is omitted, the edge is created with
+        `kind: 'structural'` (the constant
+        `EDGE_KIND_STRUCTURAL` exported from `child-edges.ts`).
+      - structural-children readers (`getStructuralChildren`,
+        `childEdgesOf`, `parentEdgesOf`) filter to edges whose
+        `kind` is undefined or `'structural'`. Edges with other
+        kinds coexist in the schema but don't appear as outline
+        children.
+      - callers that want every edge regardless of kind pass
+        `{ includeAllKinds: true }` to the reader.
+  req F-DAG.Phase5.cycle-prevention:
+    given: a structural ChildEdge is being created (link, indent,
+      promote, sibling-insert, …)
+    when: `createChildEdge` is asked to attach `parent → child`
+    then:
+      - `wouldCreateCycle(db, parent, child)` runs first: it
+        returns true when `parent === child` (self-loop) OR when
+        `parent` is reachable by walking outgoing structural
+        edges from `child`. The walk is bounded by a visited-set
+        so any pre-existing cycle terminates safely.
+      - if a cycle would be created, `createChildEdge` returns
+        `undefined` without writing the edge.
+      - non-structural edges (Phase-5-reserved kinds) are NOT
+        cycle-checked — those are not part of the structural
+        DAG.
   req F-DAG.Phase4.per-occurrence-collapse:
     given: a BlockNode rendering for `block` under `parent`
     when: it computes its collapse state OR toggles it

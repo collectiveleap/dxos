@@ -8,6 +8,21 @@ import { Filter, Obj, Relation } from '@dxos/echo';
 
 import { Block, ChildEdge } from '#types';
 
+// F-DAG Phase 5: edge-kind taxonomy. 'structural' is the only kind
+// that renders as an outline child today; other kinds (reserved
+// for future expansions like 'embed', 'linked', 'mirror' à la
+// Tana) coexist in the same ChildEdge schema but are filtered out
+// of the structural-children read paths.
+export const EDGE_KIND_STRUCTURAL = 'structural';
+
+// An edge counts as structural when its `kind` is unset (legacy
+// before Phase 5) or explicitly 'structural'. Future non-structural
+// kinds are excluded.
+const isStructuralEdge = (edge: any): boolean => {
+  const kind = (edge as any)?.kind;
+  return kind === undefined || kind === EDGE_KIND_STRUCTURAL;
+};
+
 // F-DAG: read + write the structural-children edges of a Block via
 // the `ChildEdge` relation entity.
 //
@@ -64,7 +79,8 @@ export const getStructuralChildren = (db: any, parent: Block.Block): any[] => {
   }>;
   const incidentEdges = allEdges
     .map((item) => (item as any).object ?? item)
-    .filter((edge: any) => (Relation.getSource(edge) as any)?.id === (parent as any)?.id);
+    .filter((edge: any) => (Relation.getSource(edge) as any)?.id === (parent as any)?.id)
+    .filter((edge: any) => isStructuralEdge(edge));
   incidentEdges.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
   const fromEdges = incidentEdges
     .map((edge: any) => {
@@ -160,27 +176,47 @@ export const useStructuralChildren = (parent: Block.Block): any[] => {
 // a change context if other mutations need to be batched alongside
 // (`Relation.make` doesn't need to be wrapped in `Obj.update` /
 // `Relation.update`; it's idempotent on creation).
+//
+// F-DAG Phase 5:
+// - Defaults `kind` to `'structural'` so the edge participates in
+//   every structural read path. Callers can pass another kind to
+//   create non-rendering edges (reserved for future expansion).
+// - For structural edges, runs cycle detection (`wouldCreateCycle`)
+//   and returns `undefined` instead of creating the edge when the
+//   write would close a loop. Callers can branch on the return
+//   value to surface a UI error or fall back to an alternative.
+//   Non-structural edges are not cycle-checked.
 export const createChildEdge = (
   db: any,
   parent: Block.Block,
   child: Block.Block,
   options: { order?: number; kind?: string } = {},
-): ChildEdge.ChildEdge => {
+): ChildEdge.ChildEdge | undefined => {
+  const kind = options.kind ?? EDGE_KIND_STRUCTURAL;
+  if (kind === EDGE_KIND_STRUCTURAL && wouldCreateCycle(db, parent, child)) {
+    return undefined;
+  }
   const order = options.order ?? nextOrderFor(db, parent);
   const edge = Relation.make(ChildEdge.ChildEdge, {
     [Relation.Source]: parent as any,
     [Relation.Target]: child as any,
     order,
-    ...(options.kind ? { kind: options.kind } : {}),
+    kind,
   });
   db.add(edge as any);
   return edge as any;
 };
 
-// Return every ChildEdge fanning out of `parent`, sorted by `order`.
-// Used by writers that need to compute fractional orders for new
-// sibling inserts.
-export const childEdgesOf = (db: any, parent: Block.Block): any[] => {
+// Return every STRUCTURAL ChildEdge fanning out of `parent`, sorted
+// by `order`. Non-structural kinds (Phase 5 reserved values) are
+// filtered out; the structural read path is the outline tree the
+// user sees. Writers that need to see every edge regardless of
+// kind can pass `{ includeAllKinds: true }`.
+export const childEdgesOf = (
+  db: any,
+  parent: Block.Block,
+  options: { includeAllKinds?: boolean } = {},
+): any[] => {
   if (!db) {
     return [];
   }
@@ -189,7 +225,8 @@ export const childEdgesOf = (db: any, parent: Block.Block): any[] => {
   }>;
   const incident = all
     .map((item) => (item as any).object ?? item)
-    .filter((edge: any) => (Relation.getSource(edge) as any)?.id === (parent as any)?.id);
+    .filter((edge: any) => (Relation.getSource(edge) as any)?.id === (parent as any)?.id)
+    .filter((edge: any) => (options.includeAllKinds ? true : isStructuralEdge(edge)));
   incident.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
   return incident;
 };
@@ -243,10 +280,16 @@ export const ensureMigratedChildren = (db: any, parent: Block.Block): void => {
   }
 };
 
-// Sync reader: returns every ChildEdge whose target is `child` —
-// i.e. every structural parent of `child`. Used by the multi-parent
-// indicator and (eventually) the breadcrumb-with-N-parents UX.
-export const parentEdgesOf = (db: any, child: Block.Block): any[] => {
+// Sync reader: returns every STRUCTURAL ChildEdge whose target is
+// `child` — i.e. every structural parent of `child`. Used by the
+// multi-parent indicator and (eventually) the breadcrumb-with-N-
+// parents UX. Pass `{ includeAllKinds: true }` to inspect every
+// incoming edge regardless of kind.
+export const parentEdgesOf = (
+  db: any,
+  child: Block.Block,
+  options: { includeAllKinds?: boolean } = {},
+): any[] => {
   if (!db) {
     return [];
   }
@@ -255,7 +298,45 @@ export const parentEdgesOf = (db: any, child: Block.Block): any[] => {
   }>;
   return all
     .map((item) => (item as any).object ?? item)
-    .filter((edge: any) => (Relation.getTarget(edge) as any)?.id === (child as any)?.id);
+    .filter((edge: any) => (Relation.getTarget(edge) as any)?.id === (child as any)?.id)
+    .filter((edge: any) => (options.includeAllKinds ? true : isStructuralEdge(edge)));
+};
+
+// F-DAG Phase 5: detect whether creating an edge `parent → child`
+// would close a cycle in the structural DAG. Returns true when
+// `parent === child` (self-loop) OR when `parent` is reachable
+// from `child` by walking outgoing structural edges. The walk is
+// bounded by a `visited` set so cycles already present in the
+// graph (shouldn't happen, but defensive) terminate cleanly.
+export const wouldCreateCycle = (db: any, parent: Block.Block, child: Block.Block): boolean => {
+  if (!db || !parent || !child) {
+    return false;
+  }
+  if ((parent as any)?.id === (child as any)?.id) {
+    return true;
+  }
+  const visited = new Set<string>();
+  const stack: Block.Block[] = [child];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const currentId = (current as any)?.id;
+    if (!currentId || visited.has(currentId)) {
+      continue;
+    }
+    visited.add(currentId);
+    const edges = childEdgesOf(db, current);
+    for (const edge of edges) {
+      const target = Relation.getTarget(edge) as any;
+      if (!target) {
+        continue;
+      }
+      if (target.id === (parent as any)?.id) {
+        return true;
+      }
+      stack.push(target);
+    }
+  }
+  return false;
 };
 
 // React hook: returns the live count of structural parents (edges
