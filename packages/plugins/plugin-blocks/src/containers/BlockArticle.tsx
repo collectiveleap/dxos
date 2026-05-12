@@ -26,6 +26,7 @@ import {
   getDisplayLabel,
   useBacklinks,
   useEnsureAllSupertagNodes,
+  useNormalizeSupertagUniqueness,
 } from '#components';
 import { Block, type BlockOutline } from '#types';
 
@@ -105,6 +106,13 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
   // also materialize live. Idempotent across panes via a shared
   // per-typename lock.
   useEnsureAllSupertagNodes(paneRootBlock ? Obj.getDatabase(paneRootBlock) : undefined);
+
+  // F-Supertag.uniqueness: one-time-per-(db, session) normalisation
+  // sweep — for every (instance, supertag) pair represented by more
+  // than one node in the space, keep the lowest-`Block.id` node as
+  // canonical and drop the supertag Ref from the rest. Idempotent
+  // (guard via WeakMap) so concurrent panes are safe.
+  useNormalizeSupertagUniqueness(paneRootBlock ? Obj.getDatabase(paneRootBlock) : undefined);
 
   const handleZoom = useCallback((blockId: string) => {
     setPageBlockId(blockId);

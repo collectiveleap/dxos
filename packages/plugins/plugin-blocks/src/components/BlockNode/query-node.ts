@@ -77,11 +77,17 @@ export const queryInstancesByTypename = (db: any, typename: string): any[] => {
   return results.map((item) => (item as any).object ?? item);
 };
 
-// Promote a wrapper-less instance: create a fresh Block, link it to
-// the instance via `supertags` and `content` (the content carries a
-// Ref so the bullet displays the instance's live label), and attach
-// the wrapper to the per-space Library Block via a `ChildEdge`
-// relation. Returns the newly-created wrapper.
+// Promote a wrapper-less instance: create a fresh node-tagged-with-
+// supertag, link it to the instance via `supertags`, and attach the
+// node to the per-space Library via a `ChildEdge` relation. Returns
+// the newly-created node.
+//
+// F-Supertag.title-sync (externally-originated seeding): the node's
+// content is seeded from `Obj.getLabel(instance)` as a single text
+// segment. The steady-state subscriber installed by `BlockEditor`
+// keeps the two in sync from there on; if a later external write
+// changes the instance's label, the subscriber reflects the change
+// into `block.content`.
 //
 // F-DAG: parent/child for system Blocks (Library, Schema, …)
 // migrated to first-class edges. `Library.children` is no longer
@@ -89,8 +95,17 @@ export const queryInstancesByTypename = (db: any, typename: string): any[] => {
 // `useStructuralChildren`.
 export const promoteToWrapper = (db: any, instance: any): Block.Block => {
   const library = findOrCreateLibraryBlock(db);
+  let initialLabel = '';
+  try {
+    const got = Obj.getLabel(instance);
+    if (typeof got === 'string') {
+      initialLabel = got;
+    }
+  } catch {
+    /* schema declares no usable LabelAnnotation — start with empty label */
+  }
   const wrapper = Block.make({
-    content: [{ kind: 'ref', target: db.makeRef(Obj.getDXN(instance)) }] as any,
+    content: [{ kind: 'text', text: initialLabel }] as any,
     supertags: [db.makeRef(Obj.getDXN(instance))] as any,
   });
   db.add(wrapper);

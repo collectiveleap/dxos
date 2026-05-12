@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Filter } from '@dxos/echo';
+import { Filter, Obj } from '@dxos/echo';
 
 import { collectTagTypes } from '../BlockEditor/tag-types';
 
@@ -206,6 +206,82 @@ export const ensureAllSupertagNodes = (db: any): void => {
     }
     createTagBlock(db, entry.typename, entry.title);
   }
+};
+
+// F-Supertag.uniqueness: one-time-per-space normalisation sweep.
+// Groups every Ref in every Block's `supertags` array by
+// `(targetId, targetTypename)`. For every group with more than one
+// distinct holding Block, the lowest-`Block.id` member is canonical
+// and the supertag Ref is removed from the rest.
+//
+// (The spec also calls for a schema-ancestry-based canonical
+// preference — "parented under Schema → supertag-node-for-T" wins
+// over lowest-Block.id. That walk is non-trivial and deferred; the
+// lowest-`Block.id` fallback satisfies the invariant on its own.)
+const uniquenessSweepLocks = new WeakMap<object, boolean>();
+
+export const normalizeSupertagUniqueness = (db: any): void => {
+  if (!db) {
+    return;
+  }
+  if (uniquenessSweepLocks.get(db)) {
+    return;
+  }
+  uniquenessSweepLocks.set(db, true);
+
+  const items = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: any }>;
+  const blocks = items.map((item) => (item as any).object ?? item);
+
+  // Map<"instanceId|typename", Block[]>.
+  const groups = new Map<string, any[]>();
+  for (const block of blocks) {
+    const supertags = ((block as any).supertags ?? []) as readonly any[];
+    for (const ref of supertags) {
+      const target = ref?.target;
+      if (!target) {
+        continue;
+      }
+      const typename = Obj.getTypename(target);
+      if (!typename) {
+        continue;
+      }
+      const key = `${target.id}|${typename}`;
+      const arr = groups.get(key) ?? [];
+      if (!arr.find((b) => b.id === block.id)) {
+        arr.push(block);
+      }
+      groups.set(key, arr);
+    }
+  }
+
+  for (const [key, members] of groups) {
+    if (members.length <= 1) {
+      continue;
+    }
+    members.sort((a, b) => a.id.localeCompare(b.id));
+    const duplicates = members.slice(1);
+    const separator = key.indexOf('|');
+    const targetId = key.slice(0, separator);
+    const targetTypename = key.slice(separator + 1);
+    for (const duplicate of duplicates) {
+      Obj.update(duplicate, (duplicate: any) => {
+        const supertags = ((duplicate as any).supertags ?? []) as any[];
+        duplicate.supertags = supertags.filter((ref: any) => {
+          const target = ref?.target;
+          return !(target && target.id === targetId && Obj.getTypename(target) === targetTypename);
+        });
+      });
+    }
+  }
+};
+
+// React hook wrapper for `normalizeSupertagUniqueness`. Runs once
+// per (db, session) on outline mount. The lock inside the helper
+// makes redundant calls from concurrent panes harmless.
+export const useNormalizeSupertagUniqueness = (db: any): void => {
+  useEffect(() => {
+    normalizeSupertagUniqueness(db);
+  }, [db]);
 };
 
 // React hook wrapper for `ensureAllSupertagNodes`. Runs on mount,
