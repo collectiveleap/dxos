@@ -41,6 +41,36 @@ rule R-Edges-First-Class:
 ```
 
 ```mdl
+rule R-Predecessor-Successor-Terms:
+  desc: |
+    New `req` / `feat` text MUST use the graph-theory terms
+    PREDECESSOR (a Block with a structural edge pointing AT this one)
+    and SUCCESSOR (a Block this one has a structural edge pointing
+    TO) when talking about ChildEdge relationships. The tree words
+    PARENT / CHILD remain valid in two narrow contexts only:
+    (a) tree-only legacy spec text written before F-DAG (e.g. the
+    F-Page-Header single-parent breadcrumb prose); (b) function and
+    variable names already in code (`createChildEdge`,
+    `parentEdgesOf`, `useStructuralChildren`) until those names are
+    refactored.
+
+    Why: in a DAG a Block has a SET of predecessors, not a single
+    parent. "Parent" misleads readers into assuming
+    single-parenthood and obscures the multi-parent UX F-DAG enables
+    (`F-DAG.Phase3e.link-via-cmd-tab`,
+    `F-DAG.Phase3e.predecessor-nav-*`). Predecessor/successor keeps
+    the spec aligned with the underlying property-graph model and
+    with the `Relation.getSource` / `Relation.getTarget` API the
+    code already speaks.
+
+    How to apply: when writing a new req or feat desc, pick the
+    graph term. When you touch an older parent/child passage for
+    an unrelated edit, you MAY rename in passing if the diff stays
+    small; otherwise leave the legacy term — don't cross-rename
+    in bulk.
+```
+
+```mdl
 rule R-No-Echo-Changes:
   desc: |
     plugin-blocks is a strict consumer of `@dxos/echo` and its sibling
@@ -660,15 +690,37 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     then:
       - Y replaces X as the page block (Y becomes the H1 header)
       - Y's children render below the header
-      - a "← {label of X}" breadcrumb renders above the H1
-  req F-Page-Header.3:
-    given: the page block is some Block X whose parent in the outline tree is P
-    when: I click the "← {label of P}" breadcrumb
-    then:
-      - P becomes the page block (P is the H1 header)
-      - P's children render below (X is now visible as a child bullet)
-      - if P is the root, the breadcrumb is hidden;
-        otherwise the breadcrumb shows "← {label of P's parent}"
+      - the predecessor-navigation control
+        (F-DAG.Phase3e.predecessor-nav-list) appears at the top
+        of the page reflecting Y's predecessor set, which
+        includes X.
+    Note: this req originally specified a single-parent
+    `← {label of X}` breadcrumb. As of F-DAG.Phase3e that
+    breadcrumb is SUPERSEDED by the predecessor-navigation
+    control, which lists EVERY predecessor (Y can have more
+    than one in a DAG). The legacy single-parent breadcrumb
+    is no longer the spec'd UI.
+  req F-Page-Header.3 [SUPERSEDED in F-DAG.Phase3e.predecessor-nav-switch]:
+    desc: |
+      Originally: clicking the single-parent `← {label of P}`
+      breadcrumb above the H1 swapped the page block to P
+      (with the breadcrumb hiding when P was the root).
+
+      Superseded because:
+      - The legacy spec assumed every page block has at most
+        one parent (a tree). F-DAG allows multi-predecessor
+        Blocks, so a single `← parent` affordance can't surface
+        the full set of "ways up".
+      - F-DAG.Phase3e.predecessor-nav-list provides the new
+        affordance (a control listing every predecessor).
+      - F-DAG.Phase3e.predecessor-nav-switch defines the
+        click-to-zoom behaviour that replaces the old single
+        breadcrumb click.
+
+      The historical implementation
+      (`BlockArticle.findParent` walking `Block.children`)
+      remains in code until the predecessor-nav control ships
+      and the call-site can be migrated to `parentEdgesOf`.
   req F-Page-Header.4:
     given: the page block X has empty content
     when: the article is rendered
@@ -1439,8 +1491,15 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         - 3d: lazy on-first-write migration of pre-existing
           `Block.children` entries to ChildEdges so the merge
           stays consistent across edits to legacy outlines.
-        - 3e: multi-parent UX (per-bullet indicator, breadcrumb
-          dropdown, Cmd+Tab to LINK vs Tab to MOVE).
+        - 3e: multi-predecessor UX — per-bullet predecessor-count
+          badge (`predecessor-nav-list`'s smaller cousin on every
+          bullet row); a predecessor-navigation control at the top
+          of the page (`predecessor-nav-list` / `-switch` /
+          `-open-pane`) that lists every predecessor of the page
+          block and lets the user zoom to one (click) or open one
+          in a new pane (shift-click); Cmd+Tab to LINK (creates a
+          new predecessor edge alongside the existing one) versus
+          Tab to MOVE (transfers the edge).
     - Phase 4 (current): collapse state moves off the Block and
       onto the edge. Reads go through `useEdgeExpanded(parent,
       block)`; writes go through `setEdgeExpanded`. Multi-parent
@@ -1634,6 +1693,65 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         edges).
       - the multi-parent badge (F-DAG.Phase3e.multi-parent-badge)
         appears on the bullet row after the link is created.
+  req F-DAG.Phase3e.predecessor-nav-list:
+    given: I am viewing a Block as the page block, AND the page
+      block has at least one predecessor (a structural in-edge —
+      i.e. at least one `ChildEdge` whose `target` is the page
+      block), AND a predecessor-navigation control is rendered at
+      the top of the page for that page block
+    when: I invoke the predecessor-navigation control
+    then:
+      - every predecessor of the page block appears as a
+        selectable option in the control.
+      - each option labels its predecessor using the same
+        `BlockContent` resolver the H1 header uses (text + refs),
+        falling back to `(unnamed)` for predecessors with empty
+        content.
+      - the options are sorted alphabetically (case-insensitive)
+        by display label, with `Block.id` as a deterministic
+        tiebreaker so identically-labelled predecessors keep a
+        stable order across re-renders. Unnamed predecessors
+        (label resolves to `(unnamed)`) sort to the end of the
+        list, then fall back to `Block.id` order among
+        themselves.
+      - non-structural edge kinds (Phase 5 reserved values) are
+        EXCLUDED — only edges where `isStructuralEdge` returns true
+        count as predecessors here. `parentEdgesOf(child)` is the
+        authoritative reader.
+      - the control replaces the single-parent `← {parent label}`
+        breadcrumb from F-Page-Header.2 / .3 (which assumed at
+        most one parent in the legacy tree model).
+  req F-DAG.Phase3e.predecessor-nav-switch:
+    given: the predecessor-navigation control is open and listing
+      the page block's predecessors
+    when: I select one of the predecessor options with a regular
+      click (no modifier keys held)
+    then:
+      - the current pane's page block switches to the selected
+        predecessor.
+      - the predecessor renders as the H1 header (per
+        F-Page-Header) with its own successors below.
+      - the predecessor-navigation control dismisses; on the new
+        page block, the control reflects THAT page block's own
+        predecessor set (which may be empty, one, or many).
+      - no pane is opened or closed — the swap stays inside the
+        current pane.
+  req F-DAG.Phase3e.predecessor-nav-open-pane:
+    given: the predecessor-navigation control is open and listing
+      the page block's predecessors
+    when: I select one of the predecessor options with the Shift
+      key held
+    then:
+      - a new pane opens to the right of the current pane (per
+        F-Open-Pane), rendering the selected predecessor as the
+        new pane's page block.
+      - the current pane is unchanged — its page block AND the
+        state of its predecessor-navigation control are both
+        preserved.
+      - the F-Open-Pane deck-disabled fallback applies when deck
+        mode is off (a toast linking to Deck settings, plus an
+        F-Zoom-style in-pane fallback), exactly as for bullet
+        shift-click.
   req F-DAG.Phase3c.indent-dedent-as-edge-move:
     given: the user presses Tab or Shift+Tab on a bullet
     when: the indent / dedent handler fires
@@ -1901,6 +2019,15 @@ Branch:         `claude/agitated-nash-bd0b0f`
 
 ### Future increments (not started)
 
+- F-DAG.Phase3e.predecessor-nav-* — page-top predecessor-navigation
+  control that lists every predecessor (structural in-edge source)
+  of the current page block. Click on a row zooms the current pane
+  to that predecessor; Shift+click opens the predecessor in a new
+  pane. Generalises (and replaces) the F-Page-Header.2 / .3
+  single-`← parent` breadcrumb, which assumed at most one parent and
+  read via the legacy `Block.children` walk in `findParent`. The new
+  control reads predecessors via `parentEdgesOf(child)` from
+  `child-edges.ts` and filters by `isStructuralEdge`.
 - F-6 Phase 3 — clicking a supertag chip opens the linked instance in
   a popover (or new pane via F-Open-Pane); allowlist becomes user-
   editable instead of the hardcoded `[Task, Person, Organization]`.
