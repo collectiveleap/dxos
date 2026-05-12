@@ -4,11 +4,11 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { Obj, Ref } from '@dxos/echo';
+import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { BlockNode } from '../BlockNode';
-import { useStructuralChildren } from '../BlockNode/child-edges';
+import { createChildEdge, getStructuralChildren, useStructuralChildren } from '../BlockNode/child-edges';
 
 import { Block } from '#types';
 
@@ -44,14 +44,26 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
     if (isSpecialBlock) {
       return;
     }
+    const db = Obj.getDatabase(rootBlock);
+    // F-DAG Phase 3a: use the merged structural view to decide
+    // whether to seed — a freshly-created outline with neither
+    // legacy `Block.children` entries nor ChildEdges should still
+    // get its seed bullet. An outline that's already been used (
+    // either representation) is left alone.
+    const existingStructuralChildren = getStructuralChildren(db, rootBlock).filter((ref: any) => ref?.target);
+    if (existingStructuralChildren.length > 0) {
+      return;
+    }
     const contentArr = (snapshot.content ?? []) as readonly unknown[];
-    const childrenArr = (snapshot.children ?? []) as readonly unknown[];
-    if (childrenArr.length === 0) {
-      const seed = Block.make(contentArr.length > 0 ? { content: [...contentArr] as any } : {});
+    const seed = Block.make(contentArr.length > 0 ? { content: [...contentArr] as any } : {});
+    if (contentArr.length > 0) {
       Obj.update(rootBlock, (rootBlock) => {
         (rootBlock as any).content = [];
-        (rootBlock as any).children = [Ref.make(seed)];
       });
+    }
+    if (db) {
+      db.add(seed);
+      createChildEdge(db, rootBlock, seed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

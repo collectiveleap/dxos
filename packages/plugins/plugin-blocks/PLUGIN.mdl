@@ -1442,13 +1442,24 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       query child still renders when the tag node appears as a
       nested BlockNode (e.g. under Schema), not only when it's
       the page block.
-    - Phase 3 (later): the main outline. BlockNode writers
-      (`insertSiblingAfter`, indent/dedent, Enter / Shift+Enter,
-      F-Pending-Child promote) write ChildEdges; existing
-      `Block.children` for live outlines gets a one-time migration
-      job; the field is reserved-but-empty after that. Multi-
-      parent UX surfaces (indicator on bullets, breadcrumb
-      dropdown).
+    - Phase 3 (current, multi-step): main-outline writers convert
+      to ChildEdges:
+        - 3a (current): the two "append exactly one child to an
+          empty children list" writers — F-Pending-Child promote
+          and BlockTree's legacy outline auto-seed — switch to
+          `createChildEdge`. No sibling-order math needed.
+        - 3b: `insertSiblingAfter` / `insertSiblingBefore`
+          (Enter, Shift+Enter, Cmd+Shift+Enter). Needs sibling
+          ordering — uses fractional `order` between adjacent
+          existing siblings.
+        - 3c: `handleIndent` / `handleDedent` (Tab / Shift+Tab).
+          Adds and removes ChildEdges to move a Block between
+          parents; no new Block created.
+        - 3d: lazy on-first-write migration of pre-existing
+          `Block.children` entries to ChildEdges so the merge
+          stays consistent across edits to legacy outlines.
+        - 3e: multi-parent UX (per-bullet indicator, breadcrumb
+          dropdown, Cmd+Tab to LINK vs Tab to MOVE).
     - Phase 4 (later): move `Block.state.expanded` off the Block
       onto `ChildEdge.expanded`. Per-occurrence collapse state
       falls out.
@@ -1516,6 +1527,21 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - subsequent `createTagBlock` calls for different typenames
         add additional ChildEdges off the same Schema Block; the
         Schema Block is still find-or-create singleton per space.
+  req F-DAG.Phase3a.append-via-edge:
+    given: a writer needs to append exactly one new child to a
+      Block that has no existing children (legacy or edges)
+    when: the writer fires
+    then:
+      - the writer calls `db.add(newChild)` then
+        `createChildEdge(db, parent, newChild)`.
+      - parent's `Block.children` array is NOT touched.
+      - the two call-sites covered by Phase 3a are
+        `PendingChildRow.onPromote` (F-Pending-Child) and
+        `BlockTree`'s legacy outline auto-seed migration.
+      - the seed-decision in `BlockTree` consults
+        `getStructuralChildren(rootBlock)`, so an outline that
+        already has either legacy children or ChildEdges is left
+        alone.
   req F-DAG.Phase2.blocknode-merge:
     given: BlockNode renders a non-system Block whose children may
       come from `Block.children`, ChildEdges, or both

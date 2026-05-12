@@ -10,7 +10,7 @@ import { useObject } from '@dxos/react-client/echo';
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
 import { TAG_TYPES } from '../BlockEditor/tag-types';
-import { useStructuralChildren } from './child-edges';
+import { createChildEdge, useStructuralChildren } from './child-edges';
 import { FieldGroups } from './FieldGroup';
 import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
@@ -278,13 +278,20 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           {!hasChildren && (
             <PendingChildRow
               onPromote={(initialText) => {
+                // F-DAG Phase 3a: the pending-child placeholder only
+                // shows on LEAVES (parent has no real children), so
+                // there are no existing siblings to consider — append
+                // exactly one new child via a fresh ChildEdge. Parent
+                // `Block.children` stays empty.
+                const db = Obj.getDatabase(block);
+                if (!db) {
+                  return;
+                }
                 const newChild = Block.make({
                   content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
                 });
-                Obj.update(block, (mutable) => {
-                  const arr = ((mutable as any).children ?? []) as readonly any[];
-                  (mutable as any).children = [...arr, Ref.make(newChild)];
-                });
+                db.add(newChild);
+                createChildEdge(db, block, newChild);
                 setFocusId(newChild.id);
               }}
             />

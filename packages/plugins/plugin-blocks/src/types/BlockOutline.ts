@@ -31,11 +31,15 @@ export const BlockOutline = Schema.Struct({
 
 export interface BlockOutline extends Schema.Schema.Type<typeof BlockOutline> {}
 
-// Creates an outline with an invisible root Block that contains one empty
-// child Block (the first visible bullet). The root itself is never rendered.
+// Creates an outline with an invisible root Block. The root starts
+// CHILDLESS — the first visible bullet is seeded on mount by
+// `BlockTree`'s auto-seed effect, which (per F-DAG Phase 3a) creates
+// the seed Block and attaches it via a `ChildEdge` rather than by
+// pushing onto `root.children`. Keeps outline creation aligned with
+// the rule R-Edges-First-Class: all new structural parent/child
+// links go through edges.
 export const make = ({ name }: { name?: string } = {}): BlockOutline => {
-  const firstBullet = Block.make();
-  const root = Block.make({ children: [Ref.make(firstBullet)] });
+  const root = Block.make();
   return Obj.make(BlockOutline, {
     name,
     root: Ref.make(root),
