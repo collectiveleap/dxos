@@ -1082,13 +1082,16 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
 
     Phase split:
 
-    - Phase 1 (current): typing `#` opens a picker showing an
-      internal allowlist of typenames considered "tag-ready"
-      (initially `[Task, Person, Organization]` from `@dxos/types`).
-      Selecting a type creates a new instance via `Obj.make`,
-      `db.add`s it, and appends `Ref(instance)` to
+    - Phase 1 (current): typing `#` opens a picker showing every
+      tag-ready ECHO type registered in the space (per
+      `F-Supertag.types-shown` — every non-Relation, non-System
+      schema from `db.schemaRegistry`, minus plugin-blocks's own
+      scaffolding). Selecting a type creates a new instance via
+      `Obj.make`, `db.add`s it, and appends `Ref(instance)` to
       `Block.supertags`. The applied tag renders as a chip inline
-      at the end of the bullet text. NO field editing yet.
+      at the end of the bullet text; the new instance's label is
+      seeded from the node's text per `F-Supertag.title-sync`. NO
+      field editing yet (that's Phase 2).
 
     - Phase 2 (current): when a tagged bullet is expanded, render
       a field-editor group between the bullet's content row and its
@@ -1113,28 +1116,23 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       Arrays and nested-struct fields are rendered as
       count-or-placeholder for now and deferred to a later sub-phase.
 
-    - Phase 3 (in progress): tag chips become NAVIGABLE, not just
-      labels. Each typename in the allowlist gets a per-space "tag
-      Block" — clicking the chip zooms into that Block (shift-click
-      opens it in a new pane), and the chip's displayed label comes
-      from the tag Block's renameable `content` so renames propagate
-      live to every chip in the space. Sub-phases:
+    - Phase 3 (current — consolidated in `feat F-Supertag` below):
+      supertag nodes are first-class outline entities under the
+      Schema system node; chip-click navigates to the supertag
+      node for the typename; a separate `↗` control on the chip
+      opens the typed instance in its dedicated Composer surface
+      (e.g. AgentArticle). The integrated supertag model — which
+      ECHO types qualify, eager + live materialization of
+      supertag nodes under Schema, per-(instance, supertag)
+      uniqueness, and bi-directional node-content ↔ instance-label
+      sync — is spec'd in `feat F-Supertag`. Sub-phases:
 
-        - Phase 3a (current): tag-node materialization + chip click
-          navigation (this section's `F-6.Phase3.tag-node.*` reqs).
-        - Phase 3b (next): query node — a child Block of the tag
-          node that lists every ECHO instance of the typename
-          (wrapper Block or not) and lets the user click an entry
-          to promote a wrapper Block into the per-space Library
-          (parallels Tana's Library node).
-        - Phase 3.all-echo-types (current): the tag-ready set
-          is no longer a hardcoded allowlist. The # picker reads
-          every non-Relation, non-System schema from the space's
-          `schemaRegistry` (same filter `MentionPicker` uses), so
-          every ECHO type known to the database is offered as a
-          supertag. The matching TagChip and FieldGroup heading
-          resolve their schema by typename via `findTagTypeByTypename`
-          rather than through a static `TAG_TYPES` array.
+        - Phase 3b (current): query node — a child Block of the
+          supertag node that lists every ECHO instance of the
+          typename (wrapper Block or not) and lets the user
+          click an entry to promote a wrapper Block into the
+          per-space Library (parallels Tana's Library node).
+          Find-or-create per `F-Supertag.uniqueness`.
 
     Implementation note: `Block.supertags` is already declared as
     `Ref<Obj.Unknown>[]` so no schema migration is needed for
@@ -1149,9 +1147,9 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         positioning rules as F-4's mention picker.
       - the picker shows one entry per tag-ready ECHO type
         registered in the space (every non-Relation, non-System
-        schema from `db.schemaRegistry`; see
-        `F-6.Phase3.all-echo-types`), each labelled by the type's
-        title annotation.
+        schema from `db.schemaRegistry`, minus plugin-blocks's
+        own scaffolding; see `F-Supertag.types-shown`), each
+        labelled by the type's title annotation.
       - typing more chars after `#` filters the picker by
         case-insensitive substring on the type title.
       - pressing Escape closes the picker; the `#` and query remain as
@@ -1181,6 +1179,10 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - a new instance of the selected type is created via `Obj.make`
         and added to the same database as the Block.
       - `Block.supertags` is updated to append `Ref(instance)`.
+      - the new instance's label is seeded from the node's
+        current text via the outliner-originated path of
+        `F-Supertag.title-sync` (`Obj.setLabel(instance, nodeText)`
+        immediately after `Obj.make`).
       - the picker closes; cursor returns to the bullet text.
   req F-6.Phase1.chip:
     given: a Block has one or more entries in `supertags`
@@ -1303,45 +1305,6 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
     Note: this req formalises behaviour that's been in place since
     Phase 1 (`F-6.Phase1.apply`) and Phase 2 (the `.persistence`
     req) — captured here as a single user-visible scenario.
-  req F-6.Phase3.all-echo-types:
-    given: I open the # picker inside a BlockEditor in a space
-    when: the picker mounts
-    then:
-      - every non-Relation, non-System ECHO type registered with
-        the database's `schemaRegistry` appears as a tag option —
-        no hardcoded allowlist gates the list. The filter matches
-        the one F-V4's `MentionPicker` uses, applied via
-        `useTagTypes(db)` in `tag-types.ts`.
-      - newly-registered schemas appear the next time the picker
-        opens (v1 reads a snapshot at mount; live subscription
-        across an open picker is a refinement for later).
-      - selecting any entry follows the existing F-6 Phase 1 flow
-        (creates a fresh instance of the chosen schema via
-        `Obj.make` + `initialPropsForTag`, appends `Ref(instance)`
-        to `Block.supertags`).
-      - the rendered chip (`TagChip` in `BlockNode`) and Phase 2
-        field group resolve their schema dynamically: `TagChip`
-        reads the title via `findTagTypeByTypename(db, typename)`,
-        and `FieldGroup` reads the title annotation off the
-        instance's own schema (via `Obj.getSchema`). Removing the
-        static map does not regress the chip / field-group
-        labels for `Task` / `Person` / `Organization`; those
-        labels are now sourced from their schemas' Title
-        annotations like every other type.
-  req F-6.Phase3.tag-node.materialize:
-    given: a Block has one or more entries in `supertags`
-    when: a chip first renders for typename T in this space
-    then:
-      - the plugin queries for a Block whose `tagTypename === T`.
-      - if none exists, the plugin creates exactly ONE such Block,
-        seeded with the schema-declared title for T as its `content`
-        and `tagTypename: T` as the stable identity, and `db.add`s it.
-      - subsequent chip renders for the same typename in the same
-        space resolve to the SAME Block — there is never more than
-        one tag Block per typename per space.
-      - no ECHO schema is edited; the linked typed instance is
-        unchanged; `Block.supertags` continues to point at the
-        instance, not at the tag Block (per rule R-No-Echo-Changes).
   req F-6.Phase3.tag-node.label:
     given: a chip is rendering for typename T and the matching tag
       Block exists in the space
@@ -1354,45 +1317,6 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         live without remount (subscribes via `useObject`).
       - until the tag Block has materialized, the chip falls back to
         the schema-declared title so the chip never renders blank.
-  req F-6.Phase3.tag-node.click:
-    given: a chip is rendering and the matching tag Block exists
-    when: the user clicks the chip
-    then:
-      - the current outline pane's page block changes to the tag
-        Block (zoom), mirroring bullet F-Zoom semantics.
-      - the BlockArticle's `pageBlock` lookup falls back to a
-        whole-DB lookup so a tag Block outside the current pane's
-        outline tree is still reachable.
-      - the H1 / page header renders the tag Block's content; the
-        BlockTree renders the tag Block's children (initially
-        empty; Phase 3b will seed the query node here).
-      - the parent-breadcrumb is hidden when there is no in-tree
-        parent.
-  req F-6.Phase3.tag-node.shift-click:
-    given: a chip is rendering and the matching tag Block exists
-    when: the user shift-clicks the chip
-    then:
-      - the tag Block is opened in a new pane via the
-        `LayoutOperation.Open` pipeline (same path as F-Open-Pane
-        for bullets), with the current pane's `attendableId` as the
-        pivot so the new plank lands as a right sibling.
-      - the normal click (zoom) is NOT also performed.
-      - the deck-disabled fallback in `BlockArticle` applies as
-        usual (toast + zoom-in-place when deck mode is off).
-  req F-6.Phase3.tag-node.schema-parent:
-    given: a tag Block is being materialized for the first time
-    when: `createTagBlock` runs
-    then:
-      - a per-space Schema Block is found-or-created. It carries
-        `systemNode: 'schema'` and `content: [{text: 'Schema'}]`.
-      - the newly-created tag Block is appended as a child of that
-        Schema Block (`Ref.make(tagBlock)` pushed onto
-        `schemaBlock.children`).
-      - subsequent tag-Block creates for other typenames reuse the
-        same Schema Block — exactly one Schema Block exists per
-        space.
-      - zooming to (or otherwise navigating to) the Schema Block
-        renders all tag Blocks for the space as bullet children.
   req F-6.Phase3.tag-node.header:
     given: I am zoomed into a tag node (page block has `tagTypename`)
     when: the page renders
@@ -1518,6 +1442,216 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         in `buildWrapperIndex`).
       - exactly one wrapper Block exists per instance in the
         space; subsequent clicks remain idempotent.
+```
+
+```mdl
+feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
+  desc: |
+    Consolidated specification of the supertag system. Earlier F-6
+    Phase 1 / 2 / 3 reqs describe the picker, FieldGroup, and per-
+    tag-node behaviours; this feat sits on top and captures the
+    integrated model: which ECHO types are surfaced, how the per-
+    typename supertag nodes materialise, the uniqueness invariant
+    between a typed instance and its associated outline node, the
+    title-sync between node text and instance label, and the
+    chip's two navigation targets (the supertag node browse view
+    vs. the typed instance's dedicated Composer surface).
+
+    Terminology (canonical — supersedes the earlier "tag Block" /
+    "wrapper Block" / "Block tagged with #X" vocabulary used in
+    older F-6 prose):
+
+    - **node** — an outline entity. What the rest of this spec
+      calls a Block.
+    - **node tagged with supertag** — a node whose `supertags`
+      array carries a Ref to a typed ECHO instance. The Ref's
+      typename IS the supertag.
+    - **supertag node** — the singleton-per-(space, typename)
+      Block carrying `tagTypename: <typename>` and a `queryRef`
+      child. Hosts the browse view (every node tagged with the
+      supertag, UNION every instance of the type that has no
+      associated node) and owns the renameable label every chip
+      with this typename displays.
+
+    The five subsumed F-6 Phase 3 sub-reqs (`tag-node.materialize`,
+    `tag-node.click`, `tag-node.shift-click`,
+    `tag-node.schema-parent`, `all-echo-types`) have been removed;
+    their behaviour is captured here.
+  req F-Supertag.types-shown:
+    given: I am editing a node in a space and open the `#` picker
+    when: the picker mounts, OR the schemaRegistry changes while
+      it's open
+    then:
+      - the picker lists every ECHO type registered with
+        `db.schemaRegistry`, MINUS Relations (`Type.relation`-
+        flavoured schemas — `ChildEdge` and friends), MINUS
+        System-annotated types (`SystemTypeAnnotation`), MINUS
+        plugin-blocks's own scaffolding (`Block.Block`,
+        `BlockOutline.BlockOutline`). The remainder of the
+        registry is offered — no allowlist.
+      - the list resolves via `useTagTypes(db)`, which holds a
+        live subscription to
+        `db.schemaRegistry.query({location: ['database', 'runtime']}).subscribe(...)`.
+        Schemas registered in the space after the picker opens
+        surface in the picker without remount; schemas removed
+        from the registry drop out within one tick.
+      - each entry's display label resolves through the per-space
+        supertag node's renameable content (the supertag node
+        exists for every qualifying type per
+        `F-Supertag.eager-materialization`), falling back to the
+        schema's `Title` annotation, then to the typename's
+        last-segment capitalised (`org.dxos.type.person` →
+        `Person`).
+  req F-Supertag.eager-materialization:
+    given: a Composer Space whose block-outliner article surface
+      is mounted
+    when: the surface mounts, AND any time the schemaRegistry
+      emits a change thereafter
+    then:
+      - the plugin subscribes to
+        `db.schemaRegistry.query({location: ['database', 'runtime']})`.
+      - on each event (the initial fire plus subsequent change
+        events), the plugin enumerates the types passing the
+        `F-Supertag.types-shown` filter.
+      - for each qualifying typename the plugin find-or-creates a
+        supertag node via the existing `createTagBlock` helper
+        (which also materialises the query-node child per
+        `F-6.Phase3b.query-node.materialize`).
+      - for each supertag node the plugin ensures a structural
+        `ChildEdge` from the per-space Schema system node (the
+        existing `systemNode: 'schema'` Block, find-or-created
+        on first use) to the supertag node. Existing edges are
+        not duplicated.
+      - operations are idempotent — re-runs against an unchanged
+        registry produce zero writes.
+      - schema removals leave the corresponding supertag nodes
+        and their structural edges in place. Cleanup policy for
+        orphaned supertag nodes is a deferred concern.
+  req F-Supertag.uniqueness:
+    given: an ECHO instance `X` of type `T` exists in a Composer
+      Space
+    when: any user gesture or migration touches a node's
+      `supertags` array (the `#`-picker apply, promote-from-
+      query, future drag-and-drop, etc.)
+    then:
+      - invariant: at most ONE node in the space has a
+        `supertags` Ref targeting `X` whose typename is `T`. Any
+        gesture that would create a second is normalised back
+        to one before the write commits.
+      - the `#`-picker apply path (`F-6.Phase1.apply`) creates a
+        fresh instance each time it fires, so a new `X` is
+        produced — the uniqueness invariant is preserved
+        trivially on this path.
+      - the promote-from-query path (`F-6.Phase3b.promote`)
+        becomes find-or-create: before creating a new node, look
+        the instance up via `buildWrapperIndex`; when a node
+        already targets it, navigate to that node instead of
+        creating a duplicate. `F-6.Phase3b.promote.reuse`
+        already captured this for the post-creation case;
+        F-Supertag.uniqueness extends the rule to every write
+        path that adds a supertag Ref.
+      - on outliner mount, a one-time-per-space normalisation
+        sweep deduplicates any pre-existing violations: when two
+        or more nodes share the same `(instance X, typename T)`
+        pair, the canonical node is the one parented
+        (transitively) under the Schema → supertag-node-for-T
+        home; failing that, the lowest-`Block.id` node wins. The
+        duplicate supertag Refs are dropped from the others.
+  req F-Supertag.title-sync:
+    given: a node tagged with supertag `#T` whose supertag target
+      is instance `X`
+    when: the node is created OR either side is edited after
+      creation
+    then:
+      - initial seeding is path-dependent:
+          a) **outliner-originated** — `#T` applied via the
+             picker to a node whose content is "foo": the node's
+             text seeds the instance's label.
+             `Obj.setLabel(X, "foo")` is invoked immediately
+             after `Obj.make`. This adds the seeding bullet to
+             `F-6.Phase1.apply`.
+          b) **externally-originated** — a node is being created
+             for an instance that has no associated node yet
+             (e.g. `F-6.Phase3b.promote` for an unwrapped
+             instance, or a future "import-from-foreign-surface"
+             gesture): the instance's label seeds the node's
+             content as `[{kind: 'text', text: Obj.getLabel(X)}]`.
+      - steady state is bi-directional:
+          - editing the node's content writes through to
+            `Obj.setLabel(X, newText)` within one tick.
+          - editing `X`'s label elsewhere (a non-label FieldGroup
+            write that updates the label field, a dedicated
+            Composer surface like AgentArticle, an external
+            mutation) propagates back to the node via
+            `Obj.subscribe`: `node.content` becomes
+            `[{kind: 'text', text: Obj.getLabel(X)}]`.
+      - loop prevention uses the `externalSync` transaction
+        meta-flag pattern from
+        `F-DAG.Phase3e.multi-occurrence-edit-sync`: a write that
+        originates as an external-sync reapplication doesn't
+        re-fire the write-through to the instance.
+      - when the schema has no useful `LabelAnnotation` (no
+        candidate fields declared, or every candidate is the
+        empty string), the sync degrades to no-op rather than
+        throwing.
+      - the SETTER side writes to the FIRST field listed in
+        `LabelAnnotation`; subsequent fallback candidates are
+        read-only by the GETTER side.
+  req F-Supertag.title-hidden-in-fields:
+    given: a FieldGroup is rendering the schema-derived fields of
+      a typed instance linked to a node via supertag
+    when: `listFields(schema)` computes the row list
+    then:
+      - any field whose name appears in the schema's
+        `LabelAnnotation` is suppressed from the rendered rows.
+        The node text in the row above the FieldGroup already
+        shows that value per `F-Supertag.title-sync`; rendering
+        it again would give the user two editable inputs for
+        the same data.
+      - non-label fields render as before.
+      - when the schema declares no `LabelAnnotation`, no field
+        is hidden (safe degradation).
+  req F-Supertag.chip-gestures:
+    given: a node tagged with supertag `#T` is rendering its
+      TagChip
+    when: I click the chip
+    then:
+      - **regular click**: the current pane zooms to the
+        supertag node for `T` (the singleton parented under
+        Schema). Mirrors Tana's "tag-page" navigation — the
+        chip is the route TO browsing the tag.
+      - **shift+click**: the supertag node opens in a NEW pane
+        via F-Open-Pane semantics, with the deck-disabled
+        fallback applying as for bullet shift-click.
+      - this req subsumes the earlier
+        `F-6.Phase3.tag-node.click` and
+        `F-6.Phase3.tag-node.shift-click` reqs verbatim.
+  req F-Supertag.open-instance-control:
+    given: a node tagged with supertag `#T` whose supertag target
+      is instance `X` is rendering its TagChip
+    when: the row renders
+    then:
+      - a small icon control (e.g. an `↗` glyph) renders
+        adjacent to the chip with an aria-label / tooltip like
+        "Open <type-label>". The control is part of every chip;
+        no per-typename gating in v1.
+      - **regular click on the control**: the current pane opens
+        `X` via `LayoutOperation.Open` with the qualified path
+        derived from `getObjectPathFromObject(X)`. Composer's
+        article-surface registry dispatches by typename:
+        `org.dxos.type.agent` → AgentArticle,
+        `org.dxos.type.document` → the markdown editor,
+        `org.dxos.type.sketch` → the canvas, etc. When no
+        article surface is registered for the typename,
+        Composer's generic object viewer renders.
+      - **shift+click on the control**: same `Open` call but
+        with `mode: 'multi'` + the current pane as pivot, so
+        the typed instance lands in a NEW pane to the right
+        (analogous to F-Open-Pane for bullet shift-click). The
+        deck-disabled fallback applies (toast + same-pane
+        open).
+      - the control is purely a navigation handle; it does NOT
+        mutate the node, the instance, or any supertag state.
 ```
 
 ```mdl
