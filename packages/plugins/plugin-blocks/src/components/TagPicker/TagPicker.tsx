@@ -5,7 +5,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { findTagBlock, tagLabelOf } from '../BlockNode/tag-supertags';
-import { TAG_TYPES, type TagTypeEntry } from '../BlockEditor/tag-types';
+import { type TagTypeEntry, useTagTypes } from '../BlockEditor/tag-types';
 
 export type TagPickerProps = {
   // Query text typed after the `#` (excluding the `#` itself).
@@ -31,11 +31,13 @@ type DisplayItem = {
   label: string;
 };
 
-// F-6 Phase 1 + Phase 3 clarification: minimal tag-picker popover.
-// Reads from the static `TAG_TYPES` allowlist for the set of typename
-// options, but every displayed label is resolved against the
-// per-space tag Block — so renaming `#Task` to `#Job` in this space
-// is reflected when the user re-opens the picker.
+// F-6.Phase3.all-echo-types: tag-picker popover. Reads its set of
+// type options directly from the database's schemaRegistry (via
+// `useTagTypes`) so every non-Relation, non-System ECHO type
+// registered in the space appears — no static allowlist. Each
+// displayed label is then resolved against the per-space tag Block
+// so renaming `#Task` to `#Job` in this space surfaces the rename
+// when the picker re-opens.
 export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerProps) => {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [placement, setPlacement] = useState<{ left: number; top: number }>({
@@ -43,14 +45,17 @@ export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerPro
     top: cursor.bottom + POPOVER_GAP,
   });
 
+  const tagTypes = useTagTypes(db);
   const items = useMemo<DisplayItem[]>(() => {
     const lowercaseQuery = query.toLowerCase();
-    return TAG_TYPES.map((entry) => {
-      const tagBlock = db ? findTagBlock(db, entry.typename) : undefined;
-      const label = tagLabelOf(tagBlock) ?? entry.title;
-      return { entry, label };
-    }).filter((item) => item.label.toLowerCase().includes(lowercaseQuery));
-  }, [query, db]);
+    return tagTypes
+      .map((entry) => {
+        const tagBlock = db ? findTagBlock(db, entry.typename) : undefined;
+        const label = tagLabelOf(tagBlock) ?? entry.title;
+        return { entry, label };
+      })
+      .filter((item) => item.label.toLowerCase().includes(lowercaseQuery));
+  }, [query, db, tagTypes]);
 
   useLayoutEffect(() => {
     const node = popoverRef.current;

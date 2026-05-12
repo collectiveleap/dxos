@@ -10,7 +10,6 @@ import { Annotation, Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { getDisplayLabel } from '../labels';
-import { TAG_TYPES } from '../BlockEditor/tag-types';
 
 import { EnumBlockPicker } from './EnumBlockPicker';
 
@@ -48,7 +47,14 @@ const FieldGroup = ({ instance }: { instance: any }) => {
   const [snapshot] = useObject(instance);
   const schema = Obj.getSchema(snapshot) as any;
   const typename = Obj.getTypename(snapshot) ?? 'unknown';
-  const tag = TAG_TYPES.find((entry) => entry.typename === typename);
+  // F-6.Phase3.all-echo-types: the group's display title comes
+  // straight off the schema's Title annotation — no static
+  // allowlist lookup. Falls back to the typename string when the
+  // schema has no Title.
+  const groupTitle = useMemo(() => {
+    const title = (schema?.ast?.annotations as Record<symbol, unknown> | undefined)?.[Symbol.for('@effect/schema/annotation/Title')];
+    return typeof title === 'string' && title.length > 0 ? title : typename;
+  }, [schema, typename]);
   const fields = useMemo(() => (schema ? listFields(schema) : []), [schema]);
 
   if (!schema || fields.length === 0) {
@@ -61,7 +67,7 @@ const FieldGroup = ({ instance }: { instance: any }) => {
       data-supertag-typename={typename}
     >
       <div className='px-2 pb-1 text-[10px] uppercase tracking-wide text-amber-700/70 dark:text-amber-400/70'>
-        {tag?.title ?? typename ?? 'Tag'}
+        {groupTitle}
       </div>
       <div className='grid grid-cols-[8rem_1fr] gap-x-2 gap-y-0.5 px-2'>
         {fields.map((field) => (

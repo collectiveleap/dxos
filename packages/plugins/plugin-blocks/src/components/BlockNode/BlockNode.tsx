@@ -9,7 +9,7 @@ import { useObject } from '@dxos/react-client/echo';
 
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { BlockEditor } from '../BlockEditor';
-import { TAG_TYPES } from '../BlockEditor/tag-types';
+import { findTagTypeByTypename } from '../BlockEditor/tag-types';
 import { MentionPicker } from '../MentionPicker';
 import {
   childEdgesOf,
@@ -605,12 +605,13 @@ const TagChips = ({ block }: { block: any }) => {
 // `useTagBlock`. Click → zoom into the tag Block; shift-click → open
 // it in a new pane. Mirrors the bullet's click/shift-click pattern.
 const TagChip = ({ typename, db }: { typename: string | undefined; db: any }) => {
-  // Schema-declared title as the initial label for the tag Block
-  // (and the fallback when the tag Block hasn't materialized yet).
+  // F-6.Phase3.all-echo-types: schema-declared title resolves from
+  // the live schemaRegistry by typename (no hardcoded allowlist),
+  // with the typename string as the fallback when the schema isn't
+  // registered in this space yet.
   const schemaTitle = useMemo(() => {
-    const entry = TAG_TYPES.find((tag) => tag.typename === typename);
-    return entry?.title ?? typename ?? 'tag';
-  }, [typename]);
+    return findTagTypeByTypename(db, typename)?.title ?? typename ?? 'tag';
+  }, [db, typename]);
   const tagBlock = useTagBlock(db, typename, schemaTitle);
   const [snapshot] = useObject(tagBlock as any);
   const label = tagLabelOf(snapshot as any) ?? schemaTitle;

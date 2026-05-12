@@ -2,21 +2,20 @@
 // Copyright 2025 DXOS.org
 //
 
+import * as Option from 'effect/Option';
 import type * as Schema from 'effect/Schema';
 import * as SchemaAST from 'effect/SchemaAST';
+import { useMemo } from 'react';
 
 import { Annotation, Type } from '@dxos/echo';
-import { Organization, Person, Task } from '@dxos/types';
+import { EntityKind, SystemTypeAnnotation, getTypeAnnotation } from '@dxos/echo/internal';
 
-// F-6 Phase 1: internal allowlist of ECHO types considered "tag-ready".
-// Each entry is what the `#` picker offers as a supertag option;
-// selecting one creates a fresh instance of that schema and links it
-// via `Block.supertags`.
-//
-// This is hardcoded for now to drive UX iteration without prematurely
-// committing to a user-editable allowlist UI. Add types here as we
-// validate the chip + field-editing flows; remove ones that don't
-// make sense as supertags.
+// F-6.Phase3.all-echo-types: every non-Relation, non-System ECHO
+// schema registered with the database can be applied as a
+// supertag. There is NO hardcoded allowlist — the # picker, the
+// rendered TagChip, and the FieldGroup header all resolve their
+// schema from `db.schemaRegistry` by typename at render time so
+// new types appear the moment they're registered.
 export type TagTypeEntry = {
   schema: Schema.Schema.Any;
   typename: string;
@@ -27,9 +26,21 @@ export type TagTypeEntry = {
   icon?: string;
 };
 
+// Resolve the human-readable schema title via the official Effect
+// `SchemaAST.getTitleAnnotation` accessor, falling back to the
+// last segment of the typename (capitalised) when no Title is set
+// — `org.dxos.type.person` → `Person` — and finally to the bare
+// fallback (the full typename) when there's no parseable typename.
 const titleOf = (schema: Schema.Schema.Any, fallback: string): string => {
-  const title = schema.ast.annotations?.[Symbol.for('@effect/schema/annotation/Title')];
-  return typeof title === 'string' ? title : fallback;
+  const annotated = Option.getOrUndefined(SchemaAST.getTitleAnnotation(schema.ast));
+  if (typeof annotated === 'string' && annotated.length > 0) {
+    return annotated;
+  }
+  const lastSegment = fallback.split('.').pop() ?? fallback;
+  if (lastSegment.length > 0 && lastSegment !== fallback) {
+    return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1);
+  }
+  return fallback;
 };
 
 const iconOf = (schema: Schema.Schema.Any): string | undefined => {
@@ -71,26 +82,87 @@ export const initialPropsForTag = (schema: Schema.Schema.Any): Record<string, un
   return defaults;
 };
 
-// Note: `Task`, `Person`, and `Organization` from `@dxos/types` are
-// re-exported as `import * as Foo` namespaces, so the actual Schema is
-// at `Foo.Foo`.
-export const TAG_TYPES: readonly TagTypeEntry[] = [
-  {
-    schema: Task.Task,
-    typename: Type.getTypename(Task.Task) ?? 'org.dxos.type.task',
-    title: titleOf(Task.Task, 'Task'),
-    icon: iconOf(Task.Task),
-  },
-  {
-    schema: Person.Person,
-    typename: Type.getTypename(Person.Person) ?? 'org.dxos.type.person',
-    title: titleOf(Person.Person, 'Person'),
-    icon: iconOf(Person.Person),
-  },
-  {
-    schema: Organization.Organization,
-    typename: Type.getTypename(Organization.Organization) ?? 'org.dxos.type.organization',
-    title: titleOf(Organization.Organization, 'Organization'),
-    icon: iconOf(Organization.Organization),
-  },
-] as const;
+// Convert a Schema into a `TagTypeEntry`. Pulls the typename, title
+// annotation (with the typename string as a fallback), and any icon
+// annotation off the Schema's AST. Shared by `useTagTypes` and the
+// per-typename lookup helpers below.
+// `schema` is typed as `any` because the schemaRegistry returns a
+// runtime-validated array whose element type
+// (`Schema.Schema.Any`, context: unknown) doesn't conform to the
+// stricter `AnyEntity` signature `Type.getTypename` expects. The
+// pattern matches `MentionPicker`'s consumption of the registry.
+const entryFromSchema = (schema: any): TagTypeEntry | undefined => {
+  const typename = Type.getTypename(schema);
+  if (!typename) {
+    return undefined;
+  }
+  return {
+    schema,
+    typename,
+    title: titleOf(schema, typename),
+    icon: iconOf(schema),
+  };
+};
+
+// F-6.Phase3.all-echo-types: filter every schema in the space's
+// registry down to the ones that should appear as supertag options.
+// Same filter as `MentionPicker` (which surfaces every Block + typed
+// instance in the space):
+//
+// - Exclude Relations: they're edges, not nodes — you can't "be" a
+//   relation. ChildEdge falls out here too.
+// - Exclude System types: these are scaffolding (e.g. Identity,
+//   Space, etc.) that shouldn't surface in a user-facing picker.
+//
+// Plugin-internal Block / BlockOutline schemas DO appear in the
+// list (they don't carry SystemTypeAnnotation today); the user can
+// pick them if they want to attach Block/Outline schema to a bullet.
+const collectTagTypes = (db: any): TagTypeEntry[] => {
+  if (!db?.schemaRegistry?.query) {
+    return [];
+  }
+  const schemas: any[] = db.schemaRegistry.query({ location: ['database', 'runtime'] }).runSync() ?? [];
+  const entries: TagTypeEntry[] = [];
+  for (const schema of schemas) {
+    if (getTypeAnnotation(schema)?.kind === EntityKind.Relation) {
+      continue;
+    }
+    if (SystemTypeAnnotation.get(schema).pipe(Option.getOrElse(() => false))) {
+      continue;
+    }
+    const entry = entryFromSchema(schema);
+    if (entry) {
+      entries.push(entry);
+    }
+  }
+  entries.sort((a, b) => a.title.localeCompare(b.title));
+  return entries;
+};
+
+// React hook: returns the live list of tag-ready ECHO types for the
+// given database. Caller is the # picker; recomputation only fires
+// when `db` changes — re-mounting the picker is cheap, so a static
+// snapshot at open time is fine for v1. Schema additions during the
+// picker's life are picked up the next time the user opens it.
+export const useTagTypes = (db: any): readonly TagTypeEntry[] => {
+  return useMemo(() => collectTagTypes(db), [db]);
+};
+
+// Synchronous lookup: get the `TagTypeEntry` for a given typename
+// from the space's schema registry, or `undefined` if the schema
+// isn't registered (e.g. an outline imported from another space
+// whose schema hasn't been replicated yet). Used by `TagChip` and
+// `FieldGroup` to resolve their per-typename display titles
+// dynamically instead of through a static map.
+export const findTagTypeByTypename = (db: any, typename: string | undefined): TagTypeEntry | undefined => {
+  if (!db?.schemaRegistry?.query || !typename) {
+    return undefined;
+  }
+  const schemas = db.schemaRegistry.query({ location: ['database', 'runtime'] }).runSync() ?? [];
+  for (const schema of schemas) {
+    if (Type.getTypename(schema) === typename) {
+      return entryFromSchema(schema);
+    }
+  }
+  return undefined;
+};

@@ -1127,9 +1127,14 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
           (wrapper Block or not) and lets the user click an entry
           to promote a wrapper Block into the per-space Library
           (parallels Tana's Library node).
-        - Phase 3c (later): user-editable allowlist of tag-ready
-          typenames (currently hardcoded as `[Task, Person,
-          Organization]` in `tag-types.ts`).
+        - Phase 3.all-echo-types (current): the tag-ready set
+          is no longer a hardcoded allowlist. The # picker reads
+          every non-Relation, non-System schema from the space's
+          `schemaRegistry` (same filter `MentionPicker` uses), so
+          every ECHO type known to the database is offered as a
+          supertag. The matching TagChip and FieldGroup heading
+          resolve their schema by typename via `findTagTypeByTypename`
+          rather than through a static `TAG_TYPES` array.
 
     Implementation note: `Block.supertags` is already declared as
     `Ref<Obj.Unknown>[]` so no schema migration is needed for
@@ -1142,8 +1147,11 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - a tag picker opens adjacent to the cursor (anchored at the `#` position),
         flipping above the line if there isn't room below — same
         positioning rules as F-4's mention picker.
-      - the picker shows the entries from the `tag-types` allowlist,
-        each labelled by the type's title annotation.
+      - the picker shows one entry per tag-ready ECHO type
+        registered in the space (every non-Relation, non-System
+        schema from `db.schemaRegistry`; see
+        `F-6.Phase3.all-echo-types`), each labelled by the type's
+        title annotation.
       - typing more chars after `#` filters the picker by
         case-insensitive substring on the type title.
       - pressing Escape closes the picker; the `#` and query remain as
@@ -1295,6 +1303,31 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
     Note: this req formalises behaviour that's been in place since
     Phase 1 (`F-6.Phase1.apply`) and Phase 2 (the `.persistence`
     req) — captured here as a single user-visible scenario.
+  req F-6.Phase3.all-echo-types:
+    given: I open the # picker inside a BlockEditor in a space
+    when: the picker mounts
+    then:
+      - every non-Relation, non-System ECHO type registered with
+        the database's `schemaRegistry` appears as a tag option —
+        no hardcoded allowlist gates the list. The filter matches
+        the one F-V4's `MentionPicker` uses, applied via
+        `useTagTypes(db)` in `tag-types.ts`.
+      - newly-registered schemas appear the next time the picker
+        opens (v1 reads a snapshot at mount; live subscription
+        across an open picker is a refinement for later).
+      - selecting any entry follows the existing F-6 Phase 1 flow
+        (creates a fresh instance of the chosen schema via
+        `Obj.make` + `initialPropsForTag`, appends `Ref(instance)`
+        to `Block.supertags`).
+      - the rendered chip (`TagChip` in `BlockNode`) and Phase 2
+        field group resolve their schema dynamically: `TagChip`
+        reads the title via `findTagTypeByTypename(db, typename)`,
+        and `FieldGroup` reads the title annotation off the
+        instance's own schema (via `Obj.getSchema`). Removing the
+        static map does not regress the chip / field-group
+        labels for `Task` / `Person` / `Organization`; those
+        labels are now sourced from their schemas' Title
+        annotations like every other type.
   req F-6.Phase3.tag-node.materialize:
     given: a Block has one or more entries in `supertags`
     when: a chip first renders for typename T in this space
@@ -2094,10 +2127,12 @@ Branch:         `claude/agitated-nash-bd0b0f`
 ### Future increments (not started)
 
 - F-6 Phase 3 — clicking a supertag chip opens the linked instance in
-  a popover (or new pane via F-Open-Pane); allowlist becomes user-
-  editable instead of the hardcoded `[Task, Person, Organization]`.
-  Also: array and nested-struct field editing inside the Phase 2 group
-  (currently rendered as muted placeholders).
+  a popover (or new pane via F-Open-Pane). Array and nested-struct
+  field editing inside the Phase 2 group (currently rendered as
+  muted placeholders).
+  Note: `F-6.Phase3.all-echo-types` shipped — the old hardcoded
+  `[Task, Person, Organization]` allowlist is gone; every ECHO
+  schema in the space is available as a supertag now.
 - F-7 Tana Paste import — parse a payload starting with `%%tana%%` into
   Blocks + TagDefs, preserving structure, supertags, fields, refs, and
   dates via a stable-id translation table. Schema is already a faithful
