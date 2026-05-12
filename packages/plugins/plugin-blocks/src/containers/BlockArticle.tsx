@@ -25,6 +25,7 @@ import {
   ZoomContext,
   getDisplayLabel,
   useBacklinks,
+  useEnsureAllSupertagNodes,
 } from '#components';
 import { Block, type BlockOutline } from '#types';
 
@@ -96,6 +97,14 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
     const foreign = db?.getObjectById?.(pageBlockId) as Block.Block | undefined;
     return foreign ?? paneRootBlock;
   }, [paneRootBlock, pageBlockId]);
+
+  // F-Supertag.eager-materialization: on each space the outliner
+  // mounts in, find-or-create one supertag-node per qualifying
+  // ECHO type (parented to the per-space Schema system node), and
+  // subscribe to the schemaRegistry so new types registered later
+  // also materialize live. Idempotent across panes via a shared
+  // per-typename lock.
+  useEnsureAllSupertagNodes(paneRootBlock ? Obj.getDatabase(paneRootBlock) : undefined);
 
   const handleZoom = useCallback((blockId: string) => {
     setPageBlockId(blockId);

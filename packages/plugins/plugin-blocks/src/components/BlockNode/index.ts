@@ -5,3 +5,4 @@
 export * from './BlockNode';
 export * from './FieldGroup';
 export * from './PredecessorNav';
+export { useEnsureAllSupertagNodes } from './tag-supertags';

@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Filter } from '@dxos/echo';
 
+import { collectTagTypes } from '../BlockEditor/tag-types';
+
 import { createChildEdge } from './child-edges';
 
 import { Block } from '#types';
@@ -176,6 +178,59 @@ export const useTagBlock = (
   }, [db, typename, existing, defaultLabel]);
 
   return existing;
+};
+
+// F-Supertag.eager-materialization: walk the qualifying-type set from
+// `collectTagTypes` and ensure a tag-node Block exists for each.
+// Re-uses `createTagBlock` for the creation path (which also wires
+// the query-node child + Schema → tag-node ChildEdge), and
+// `acquireLock` for race-free concurrent calls from multiple panes.
+//
+// Idempotent on every dimension: re-runs against the same registry
+// state produce zero writes (the `findTagBlock` short-circuit fires
+// for every already-materialized typename).
+export const ensureAllSupertagNodes = (db: any): void => {
+  if (!db) {
+    return;
+  }
+  const entries = collectTagTypes(db);
+  for (const entry of entries) {
+    if (findTagBlock(db, entry.typename)) {
+      continue;
+    }
+    if (!acquireLock(db, entry.typename)) {
+      // Another effect is mid-create for this typename; the lock
+      // holder's `db.add` will be visible on the next render and
+      // the next `ensureAllSupertagNodes` call will see it.
+      continue;
+    }
+    createTagBlock(db, entry.typename, entry.title);
+  }
+};
+
+// React hook wrapper for `ensureAllSupertagNodes`. Runs on mount,
+// then subscribes to the schemaRegistry so new types registered
+// during the article surface's lifetime materialize without a
+// remount. Cleanup unsubscribes on unmount.
+//
+// Multiple panes will each call this hook independently; the lock
+// inside `ensureAllSupertagNodes` prevents duplicate creates.
+export const useEnsureAllSupertagNodes = (db: any): void => {
+  useEffect(() => {
+    if (!db?.schemaRegistry?.query) {
+      return;
+    }
+    ensureAllSupertagNodes(db);
+    const query: any = db.schemaRegistry.query({ location: ['database', 'runtime'] });
+    const sub = query?.subscribe?.(() => ensureAllSupertagNodes(db));
+    return () => {
+      try {
+        sub?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [db]);
 };
 
 // Read the displayed label for a tag Block. Pulls plain text from

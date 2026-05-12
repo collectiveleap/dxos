@@ -5,10 +5,12 @@
 import * as Option from 'effect/Option';
 import type * as Schema from 'effect/Schema';
 import * as SchemaAST from 'effect/SchemaAST';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Annotation, Type } from '@dxos/echo';
 import { EntityKind, SystemTypeAnnotation, getTypeAnnotation } from '@dxos/echo/internal';
+
+import { Block, BlockOutline } from '#types';
 
 // F-6.Phase3.all-echo-types: every non-Relation, non-System ECHO
 // schema registered with the database can be applied as a
@@ -104,20 +106,14 @@ const entryFromSchema = (schema: any): TagTypeEntry | undefined => {
   };
 };
 
-// F-6.Phase3.all-echo-types: filter every schema in the space's
-// registry down to the ones that should appear as supertag options.
-// Same filter as `MentionPicker` (which surfaces every Block + typed
-// instance in the space):
-//
-// - Exclude Relations: they're edges, not nodes — you can't "be" a
-//   relation. ChildEdge falls out here too.
-// - Exclude System types: these are scaffolding (e.g. Identity,
-//   Space, etc.) that shouldn't surface in a user-facing picker.
-//
-// Plugin-internal Block / BlockOutline schemas DO appear in the
-// list (they don't carry SystemTypeAnnotation today); the user can
-// pick them if they want to attach Block/Outline schema to a bullet.
-const collectTagTypes = (db: any): TagTypeEntry[] => {
+// F-Supertag.types-shown: filter every schema in the space's registry
+// down to the ones that should appear as supertag options. Same
+// non-Relation + non-System filter `MentionPicker` uses, plus an
+// identity check that excludes plugin-blocks's own scaffolding
+// (`Block`, `BlockOutline`) — those types ARE registered with the
+// space's registry but tagging a bullet with `#Block` would be
+// recursive nonsense.
+export const collectTagTypes = (db: any): TagTypeEntry[] => {
   if (!db?.schemaRegistry?.query) {
     return [];
   }
@@ -130,6 +126,9 @@ const collectTagTypes = (db: any): TagTypeEntry[] => {
     if (SystemTypeAnnotation.get(schema).pipe(Option.getOrElse(() => false))) {
       continue;
     }
+    if (schema === Block.Block || schema === BlockOutline.BlockOutline) {
+      continue;
+    }
     const entry = entryFromSchema(schema);
     if (entry) {
       entries.push(entry);
@@ -139,13 +138,29 @@ const collectTagTypes = (db: any): TagTypeEntry[] => {
   return entries;
 };
 
-// React hook: returns the live list of tag-ready ECHO types for the
-// given database. Caller is the # picker; recomputation only fires
-// when `db` changes — re-mounting the picker is cheap, so a static
-// snapshot at open time is fine for v1. Schema additions during the
-// picker's life are picked up the next time the user opens it.
+// F-Supertag.types-shown: live registry subscription. Subscribes to
+// `db.schemaRegistry.query(...)` so the returned list re-derives
+// whenever a schema is registered or removed during the picker's
+// lifetime. New types surface in the picker without a remount.
 export const useTagTypes = (db: any): readonly TagTypeEntry[] => {
-  return useMemo(() => collectTagTypes(db), [db]);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!db?.schemaRegistry?.query) {
+      return;
+    }
+    const query: any = db.schemaRegistry.query({ location: ['database', 'runtime'] });
+    const sub = query?.subscribe?.(() => setTick((value) => value + 1));
+    return () => {
+      try {
+        sub?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [db]);
+
+  return useMemo(() => collectTagTypes(db), [db, tick]);
 };
 
 // Synchronous lookup: get the `TagTypeEntry` for a given typename
