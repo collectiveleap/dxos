@@ -17,7 +17,7 @@ import { meta } from '#meta';
 import { translations } from '#translations';
 import { Bramble } from '#types';
 
-export const BlocksPlugin = Plugin.define(meta).pipe(
+export const BramblePlugin = Plugin.define(meta).pipe(
   AppPlugin.addMetadataModule({
     metadata: {
       id: Bramble.Graph.typename,
@@ -45,4 +45,4 @@ export const BlocksPlugin = Plugin.define(meta).pipe(
   Plugin.make,
 );
 
-export default BlocksPlugin;
+export default BramblePlugin;
