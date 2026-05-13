@@ -95,35 +95,51 @@ rule R-No-Echo-Changes:
 ```
 
 ```mdl
-rule R-Test-Entry-Conventions:
+rule R-Spec-Entry-Conventions:
   desc: |
-    When authoring or reviewing `test T-N` entries in
-    `## Acceptance`, apply these four conventions:
+    When authoring or reviewing `feat`, `req`, or `test`
+    entries in this spec, apply these four conventions:
 
-    1. POSITIVE LANGUAGE ONLY. `then:` clauses describe what
+    1. POSITIVE LANGUAGE ONLY. Clauses describe what
        happens, not what doesn't. Defensive absence claims
-       ("we don't filter X", "no error is thrown") are a
+       ("we don't filter X", "no error is thrown",
+       "exactly N children with no others permitted") are a
        yellow flag — usually the absence is implied by a
        positive rule earlier in the entry, or by enumeration
-       of the positive set.
+       of the positive set. Two specific sub-cases worth
+       calling out:
 
-    2. ABSTRACT `#T` / type T form. Tests use abstract `#T`
-       with concrete typenames like `#Task` only as examples
-       — e.g. "a bullet N tagged with supertag `#T` (e.g.
-       `#Task`)". This keeps tests robust to schema
-       evolution.
+       1a. Don't preclude additional members of a set. Prefer
+           "for every X there is a corresponding Y among
+           Schema's children" over "Schema's children are
+           exactly Y1..Yn and nothing else". The latter
+           bakes in an exclusivity the surrounding system
+           may legitimately violate.
+
+       1b. List specific items as EXAMPLES, not as exhaustive
+           enumerations. "Examples of such fields on Task
+           today: Priority, Status, …; the exact set tracks
+           whatever the schema currently declares" beats
+           "the rendered rows are exactly Priority, Status,
+           …" — the former survives schema evolution.
+
+    2. ABSTRACT `#T` / type T form (tests especially). Tests
+       use abstract `#T` with concrete typenames like
+       `#Task` only as examples — e.g. "a bullet N tagged
+       with supertag `#T` (e.g. `#Task`)". This keeps tests
+       robust to schema evolution.
 
     3. REFER-DON'T-RESTATE. When a rule is canonically
        defined in a `req` or sibling `test`, reference it
        ("per F-Supertag.types-shown") instead of
        duplicating. Drift between copies is the failure mode.
 
-    4. DIVORCE TESTS FROM SPECIFIC RENDERINGS where possible.
+    4. DIVORCE FROM SPECIFIC RENDERINGS where possible.
        Data-level invariants ("the supertag node set matches
        the allowed type set, idempotently") beat UI-event
        reproductions ("close and reopen the outliner"). The
-       test's truth lives in the database, not in a specific
-       surface's mount lifecycle.
+       entry's truth lives in the database, not in a
+       specific surface's mount lifecycle.
 
     UX and behaviour assertions share one given/when/then
     shape — every plugin spec in DXOS uses given+then
@@ -133,15 +149,22 @@ rule R-Test-Entry-Conventions:
 
     Why: established 2026-05-13 during a 1-by-1 review of 22
     F-Supertag test entries. Drafts violating these were
-    rejected; revisions accepted. Capturing here so future
-    review sessions don't drift back to the rejected styles.
+    rejected; revisions accepted. The rule covers `feat`
+    and `req` entries as well as `test` entries — the
+    positive-language principle was applied to a req's
+    `then:` bullet during the review (dropping
+    F-Supertag.types-shown's "SystemTypeAnnotation is
+    INTENTIONALLY NOT a filter" clause), so the scope is
+    broader than tests alone.
 
-    How to apply: read each `then:` clause critically. If it
-    asserts an absence, ask whether a positive enumeration
-    would cover the same ground. If it names a specific
-    type (Task, Person), check whether `#T` with that as an
-    example would work. If it restates a rule already in a
-    req, replace with a reference.
+    How to apply: read each clause critically. If it asserts
+    an absence, ask whether a positive enumeration would
+    cover the same ground. If it names a specific type
+    (Task, Person), check whether `#T` with that as an
+    example would work. If it restates a rule already
+    declared elsewhere, replace with a reference. If a
+    field/member list is hardcoded, ask whether it should
+    be "examples; the exact set tracks the current schema".
 ```
 
 ## Extensions
@@ -2717,6 +2740,24 @@ Branch:         `claude/agitated-nash-bd0b0f`
 
 ### Pieces flagged but not yet spec'd
 
+- Concurrent-mount race in the per-space system-block
+  helpers (`findOrCreateSchemaBlock`,
+  `findOrCreateLibraryBlock`). Both currently lack the
+  per-(db, key) lock that `ensureAllSupertagNodes` /
+  `useTagBlock` already use. When two BlockArticle panes
+  mount on the same tick (or React Strict Mode double-
+  invokes one mount effect), both helpers can return
+  before either's `db.add` is observable in the
+  schemaRegistry's query cache — both check, both see
+  nothing, both create. Result: duplicate `systemNode:
+  'schema'` Blocks or `systemNode: 'library'` Blocks per
+  space. Fix: thread the same `acquireLock(db, systemNode)`
+  pattern through both helpers so concurrent calls
+  serialise. No backwards-compat / cleanup required — the
+  user's intent is to fix the race so greenfield instances
+  never accumulate duplicates; existing duplicates in test
+  spaces are historical noise and can be discarded with
+  those spaces.
 - Component blocks for the rest of the F-Supertag UI:
   `OpenInstanceControl` (the small icon button rendered
   adjacent to each TagChip; activating it opens the typed
