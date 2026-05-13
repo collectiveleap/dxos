@@ -1,8 +1,8 @@
 {
-  "name": "@dxos/plugin-blocks",
+  "name": "@dxos/plugin-bramble",
   "version": "0.8.3",
   "private": true,
-  "description": "Block-based outliner where every bullet is a first-class ECHO object",
+  "description": "Bramble — property-graph plugin where every bullet is a first-class ECHO Node and edges are typed relations",
   "homepage": "https://dxos.org",
   "bugs": "https://github.com/dxos/dxos/issues",
   "repository": {

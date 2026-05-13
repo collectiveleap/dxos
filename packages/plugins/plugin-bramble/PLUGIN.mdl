@@ -1,25 +1,28 @@
 ---
-id: org.dxos.plugin.blocks
-name: BlocksPlugin
+id: org.dxos.plugin.bramble
+name: BramblePlugin
 version: 0.1.0
 ---
 
-A block-based outliner where every bullet is a first-class ECHO object. Designed to losslessly absorb Tana Paste imports.
+Bramble — a property-graph plugin where every bullet is a first-class ECHO `Node`, structural relations are typed `Edge`s, and the user
+navigates the graph through zoom + panes + supertag-conditional rendering today, with a first-class **Lenses** surface planned (see `CONCEPTS.md` §8.2). Honours the Ackoffian mess of human thought (see `CONCEPTS.md` for the substrate stance, the DSRP-on-triples data model, and the naming rationale). Designed to losslessly absorb Tana Paste imports.
+
+**Conceptual scaffolding** — Ackoff, Snowden, DSRP, naming rationale — lives in `CONCEPTS.md` (sibling file, not bound by `R-Spec-Entry-Conventions`). Cite sections from there rather than paraphrasing.
 
 ## Rules
 
 ```mdl
 rule R-Edges-First-Class:
   desc: |
-    Structural parent/child links between Blocks are modelled as
-    first-class ECHO `Relation` entities (the `ChildEdge` schema in
-    `types/ChildEdge.ts`) — NOT as opaque entries in
-    `Block.children: Ref<Block>[]`. The relation carries `source`,
+    Structural parent/child links between Nodes are modelled as
+    first-class ECHO `Relation` entities (the `Edge` schema in
+    `types/Edge.ts`) — NOT as opaque entries in
+    `Node.children: Ref<Node>[]`. The relation carries `source`,
     `target`, `order`, and reserves room for per-occurrence
     `expanded` and a future `kind` taxonomy.
 
-    Why: a tree where `Block.children` is the only parent/child
-    representation forces single-parent-per-Block and offers
+    Why: a tree where `Node.children` is the only parent/child
+    representation forces single-parent-per-Node and offers
     nowhere to attach per-edge data (ordering across multiple
     parents, per-occurrence collapse, provenance, edge labels for
     'structural' vs 'embed' vs 'linked'). Materialising the edge as
@@ -27,34 +30,34 @@ rule R-Edges-First-Class:
     touching `@dxos/echo` (per rule R-No-Echo-Changes).
 
     How to apply: new structural-children writers MUST go through
-    `createChildEdge(db, parent, child)` from
-    `components/BlockNode/child-edges.ts`. Readers MUST use
+    `createEdge(db, parent, child)` from
+    `components/Node/child-edges.ts`. Readers MUST use
     `useStructuralChildren(parent)` (or its sync sibling
-    `getStructuralChildren`) which merges `Block.children` (legacy,
+    `getStructuralChildren`) which merges `Node.children` (legacy,
     still authoritative for outline bullets that haven't been
-    ported) with ChildEdges fanning out of the parent. Direct reads
-    of `block.children` are deprecated and survive only until each
+    ported) with Edges fanning out of the parent. Direct reads
+    of `node.children` are deprecated and survive only until each
     call-site is migrated. New domain relationships beyond
     parent/child (e.g. WorksAt, AssignedTo, Wraps) follow the same
     pattern: define a `Type.relation(...)` schema in `types/`,
-    register it in `BlocksPlugin`, write helpers + a hook.
+    register it in `BramblePlugin`, write helpers + a hook.
 ```
 
 ```mdl
 rule R-Predecessor-Successor-Terms:
   desc: |
     New `req` / `feat` text MUST use the graph-theory terms
-    PREDECESSOR (a Block with a structural edge pointing AT this one)
-    and SUCCESSOR (a Block this one has a structural edge pointing
-    TO) when talking about ChildEdge relationships. The tree words
+    PREDECESSOR (a Node with a structural edge pointing AT this one)
+    and SUCCESSOR (a Node this one has a structural edge pointing
+    TO) when talking about Edge relationships. The tree words
     PARENT / CHILD remain valid in two narrow contexts only:
     (a) tree-only legacy spec text written before F-DAG (e.g. the
     F-Page-Header single-parent breadcrumb prose); (b) function and
-    variable names already in code (`createChildEdge`,
+    variable names already in code (`createEdge`,
     `parentEdgesOf`, `useStructuralChildren`) until those names are
     refactored.
 
-    Why: in a DAG a Block has a SET of predecessors, not a single
+    Why: in a DAG a Node has a SET of predecessors, not a single
     parent. "Parent" misleads readers into assuming
     single-parenthood and obscures the multi-parent UX F-DAG enables
     (`F-DAG.Phase3e.link-via-cmd-tab`,
@@ -77,7 +80,7 @@ rule R-No-Echo-Changes:
     packages (`@dxos/types`, `@dxos/schema`, etc.). It MUST NOT depend
     on edits to those packages, schema additions there, or any new
     ECHO API. Everything plugin-blocks needs — including Tana-style
-    behaviours such as materializing enum choices as Blocks — must be
+    behaviours such as materializing enum choices as Nodes — must be
     implemented as a layer ABOVE the ECHO surface that ships today.
 
     Why: keeps the plugin shippable independently of core ECHO
@@ -88,8 +91,8 @@ rule R-No-Echo-Changes:
     How to apply: when an F-* increment seems to need a schema field,
     annotation, or helper that doesn't exist in `@dxos/echo` today,
     re-shape the feature so it lives inside plugin-blocks (e.g.,
-    extra Blocks acting as registries, plugin-private metadata on the
-    Block's `content`, lookups keyed by typename+fieldName+value).
+    extra Nodes acting as registries, plugin-private metadata on the
+    Node's `content`, lookups keyed by typename+fieldName+value).
     Never reach for a `@dxos/types` schema edit, a new ECHO
     annotation, or a new core helper as the path of least resistance.
 ```
@@ -181,7 +184,7 @@ rule R-Greenfield-Stance:
 
     Why: established 2026-05-13. The concurrent-mount race in
     `findOrCreateSchemaBlock` / `findOrCreateLibraryBlock`
-    produced duplicate Schema and Library system Blocks in the
+    produced duplicate Schema and Library system Nodes in the
     user's test space. The right fix is to make those helpers
     race-safe so a greenfield instance never produces dupes;
     the existing dupes in the user's space are accepted as
@@ -243,62 +246,62 @@ type TagDef
 ```
 
 ```mdl
-type Block
+type Node
   desc: |
     The substrate node. Most fields optional and unused in Increment 1;
     defined now to be a faithful Tana-Paste import target without later migration.
   fields:
     content?: StructuredContent
-    children?: Ref<Block>[]
+    children?: Ref<Node>[]
     kind?: 'bullet' | 'heading' | 'todo' | 'image' | 'url' | 'search' | 'view' | 'code'
     supertags?: Ref<TagDef>[]
-    fields?: Record<string, Ref<Block>[]>
+    fields?: Record<string, Ref<Node>[]>
     state?: { checked?: boolean }
     view?: { kind: 'table' | 'cards' | 'tabs' | 'calendar' }
     attachment?: { kind: 'image' | 'file', url: string }
 ```
 
 ```mdl
-type BlockOutline
-  desc: navigator-openable container for a Block tree.
+type Graph
+  desc: navigator-openable container for a Node tree.
   fields:
     name?: string
-    root: Ref<Block>
-    # F-Day-Page: per-date day-page Blocks. Each value is the
-    # Block that holds the user's bullets for that day. Keys
+    root: Ref<Node>
+    # F-Day-Page: per-date day-page Nodes. Each value is the
+    # Node that holds the user's bullets for that day. Keys
     # are ISO-format date strings (YYYY-MM-DD) in the user's
     # local timezone.
-    entries?: Record<string, Ref<Block>>
+    entries?: Record<string, Ref<Node>>
 ```
 
 ## Components
 
 ```mdl
-component BlockArticle
+component Article
   desc: |
-    Article surface for a BlockOutline. Resolves the outline's root Block
-    and mounts the BlockEditor. Falls back to a (loading...) message
+    Article surface for a Graph. Resolves the outline's root Node
+    and mounts the Editor. Falls back to a (loading...) message
     while the root ref is unresolved.
   props:
     role: string
-    subject: BlockOutline
+    subject: Graph
     attendableId: string
   layout: |
     ┌─────────────────────────┐
-    │ <BlockEditor>           │
+    │ <Editor>           │
     └─────────────────────────┘
 ```
 
 ```mdl
-component BlockEditor
+component Editor
   desc: |
-    ProseMirror editor mounted over a single Block. Reads Block.content
-    on mount, writes Block.content on every doc-changing transaction.
+    ProseMirror editor mounted over a single Node. Reads Node.content
+    on mount, writes Node.content on every doc-changing transaction.
     Plain text in one paragraph; no marks, no inline refs, no nested
     children. External mutations into the editor are not synced
     (one-way: editor -> ECHO).
   props:
-    block: Block
+    block: Node
     autoFocus?: boolean
     onEnter?: (beforeText, afterText) -> void   # parent splits into a sibling
   emits:
@@ -310,20 +313,20 @@ component BlockEditor
 ```
 
 ```mdl
-component BlockTree
+component Graph
   desc: |
-    Renders the visible bullets of a BlockOutline as a flat list of
-    BlockEditors. Holds the Enter-creates-sibling logic and a
+    Renders the visible bullets of a Graph as a flat list of
+    Editors. Holds the Enter-creates-sibling logic and a
     contextmenu listener that copies a bullet's DXN to the clipboard.
-    The rootBlock is the (invisible) container; its children are the
-    visible Blocks.
+    The rootNode is the (invisible) container; its children are the
+    visible Nodes.
   props:
-    rootBlock: Block
+    rootNode: Node
   state:
-    focusId?: string                  # block id to autofocus after Enter
+    focusId?: string                  # node id to autofocus after Enter
   actions:
-    handleEnter(currentBlock, beforeText, afterText)
-    handleContextMenu(event)          # copies Obj.getDXN(block) to clipboard
+    handleEnter(currentNode, beforeText, afterText)
+    handleContextMenu(event)          # copies Obj.getDXN(node) to clipboard
   layout: |
     ┌─────────────────────────┐
     │ • bullet 1              │
@@ -336,31 +339,31 @@ component BlockTree
 
 ```mdl
 feat F-1: Plugin scaffold
-  req F-1.1: BlockOutline appears in the navigator's Create menu (gated under isLabs).
-  req F-1.2: Creating a BlockOutline persists a BlockOutline + a single empty root Block in ECHO.
-  req F-1.3: Opening a BlockOutline renders the BlockArticle placeholder without console errors.
+  req F-1.1: Graph appears in the navigator's Create menu (gated under isLabs).
+  req F-1.2: Creating a Graph persists a Graph + a single empty root Node in ECHO.
+  req F-1.3: Opening a Graph renders the Article placeholder without console errors.
   req F-1.4: Build, lint, and tests pass for plugin-blocks and composer-app.
 ```
 
 ```mdl
 feat F-2: Editable bullet      # Increment 2 (current)
   desc: |
-    Single editable text bullet backed by a Block ECHO object. Out of
+    Single editable text bullet backed by a Node ECHO object. Out of
     scope: marks (bold/italic/highlight), inline refs (Increment 4),
     hierarchy (Increment 3), and syncing external mutations into the
     editor (deferred).
-  req F-2.1: ProseMirror editor renders the root Block's content on mount.
-  req F-2.2: Typing updates Block.content reactively; reload restores it.
+  req F-2.1: ProseMirror editor renders the root Node's content on mount.
+  req F-2.2: Typing updates Node.content reactively; reload restores it.
   req F-2.3: Doc schema is one paragraph holding text*; no marks or ref nodes.
   req F-2.4:
-    when: Block.content is empty or undefined
+    when: Node.content is empty or undefined
     then: editor mounts with an empty paragraph; cursor placeable; typing creates a single TextSpan.
 ```
 
 ```mdl
 feat F-3: Flat sibling bullets    # Increment 3 (current)
   desc: |
-    The outline's root Block is invisible; its `children` array holds
+    The outline's root Node is invisible; its `children` array holds
     the visible bullets. Enter splits the current bullet at the cursor
     and inserts a new sibling. Each bullet has a stable DXN copyable
     via right-click. Out of scope here: Tab/Shift+Tab nesting (F-3b),
@@ -368,15 +371,15 @@ feat F-3: Flat sibling bullets    # Increment 3 (current)
   req F-3.1:
     when: user presses Enter inside a bullet
     then:
-      - current Block.content trimmed to the before-cursor text
-      - new Block created with the after-cursor text as content
-      - new Block ref spliced into rootBlock.children at currentIndex + 1
+      - current Node.content trimmed to the before-cursor text
+      - new Node created with the after-cursor text as content
+      - new Node ref spliced into rootNode.children at currentIndex + 1
       - cursor lands at start of the new bullet
-  req F-3.2: Each rendered bullet has a stable DXN derived from Obj.getDXN(block).
+  req F-3.2: Each rendered bullet has a stable DXN derived from Obj.getDXN(node).
   req F-3.3:
     when: user right-clicks a bullet
     then: bullet's DXN is copied to the clipboard
-  req F-3.4: I1/I2 outlines (root Block with content, no children) auto-migrate to root with one child Block on first mount.
+  req F-3.4: I1/I2 outlines (root Node with content, no children) auto-migrate to root with one child Node on first mount.
 ```
 
 ```mdl
@@ -384,7 +387,7 @@ feat F-3b: Nested bullets         # Increment 3b (current)
   desc: |
     Bullets can be re-parented via Tab (indent under previous sibling) and
     Shift+Tab (dedent to grandparent's children). Rendering is recursive:
-    each Block's children render indented below it. The moved Block's own
+    each Node's children render indented below it. The moved Node's own
     children come along (indenting moves the whole subtree).
   req F-3b.1:
     when: user presses Tab inside a bullet that has a previous sibling
@@ -408,15 +411,15 @@ feat F-3b: Nested bullets         # Increment 3b (current)
 ```
 
 ```mdl
-component BlockNode
+component Node
   desc: |
-    Recursive renderer. One BlockEditor for this Block, then a nested column
-    of BlockNodes for its children. Tab/Shift+Tab/Enter handlers live here so
+    Recursive renderer. One Editor for this Node, then a nested column
+    of Nodes for its children. Tab/Shift+Tab/Enter handlers live here so
     they can close over the parent + grandparent context.
   props:
-    block: Block
-    parent: Block                       # who owns block via children[]
-    grandparent?: Block                 # who owns parent
+    block: Node
+    parent: Node                       # who owns node via children[]
+    grandparent?: Node                 # who owns parent
     focusId?: string
     setFocusId: (id?: string) -> void
   actions:
@@ -453,7 +456,7 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
   desc: |
     Typing @ inside a bullet opens an object picker; selecting a target
     inserts an atomic inline ref node into the editor's doc and persists
-    a real Ref<Obj.Unknown> into Block.content. The RefNodeView resolves
+    a real Ref<Obj.Unknown> into Node.content. The RefNodeView resolves
     the target by DXN at mount and on each ProseMirror update(), so a
     rename followed by any local edit refreshes the label. External
     rename without a local edit refresh propagates in I4b.
@@ -464,10 +467,10 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
       corner anchored at the @ position. The popover flips above the line
       when there isn't enough room below; otherwise it opens below. Both
       coordinates are clamped to the viewport so it never goes off-screen.
-      The picker shows matching ECHO objects. Individual Blocks (bullets)
+      The picker shows matching ECHO objects. Individual Nodes (bullets)
       are first-class candidates and appear labelled by their text content;
-      empty-labelled objects (Blocks with no text, unnamed system rows)
-      are hidden. The Block currently being edited is excluded from
+      empty-labelled objects (Nodes with no text, unnamed system rows)
+      are hidden. The Node currently being edited is excluded from
       results — a bullet cannot reference itself.
   req F-4.2:
     when: user types more letters after @
@@ -476,7 +479,7 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
     when: user clicks an item in the picker
     then:
       - the @-and-query range is replaced by an atomic ref node
-      - a real Ref is persisted into Block.content as a RefSpan segment
+      - a real Ref is persisted into Node.content as a RefSpan segment
       - the picker closes
       - a space is inserted after the ref node
   req F-4.4:
@@ -490,14 +493,14 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
 ```mdl
 feat F-V1: Bullet markers and indent guide   # Increment V1 (current — landed alongside F-V2)
   desc: |
-    Visual fidelity to the Tana outliner. Each rendered Block has a small
-    bullet glyph to its left (filled circle by default). When a Block has
+    Visual fidelity to the Tana outliner. Each rendered Node has a small
+    bullet glyph to its left (filled circle by default). When a Node has
     children visible, a thin vertical guide line runs from below its bullet
     through the nested column so the parent/child relationship is visible
     at a glance.
-  req F-V1.1: every BlockEditor renders a bullet marker (filled circle) at consistent gutter offset.
+  req F-V1.1: every Editor renders a bullet marker (filled circle) at consistent gutter offset.
   req F-V1.2:
-    when: a Block has at least one rendered child
+    when: a Node has at least one rendered child
     then: a vertical guide line is drawn from the parent's bullet down through the indented child column.
   req F-V1.3: the gutter width is consistent regardless of bullet state, so text alignment matches across siblings.
 ```
@@ -505,19 +508,19 @@ feat F-V1: Bullet markers and indent guide   # Increment V1 (current — landed 
 ```mdl
 feat F-V2: Collapse / expand parents         # Increment V2 (current)
   desc: |
-    A parent Block can be collapsed; its children are hidden until expanded.
-    State lives on Block.state.expanded so it persists across reloads and peers.
+    A parent Node can be collapsed; its children are hidden until expanded.
+    State lives on Node.state.expanded so it persists across reloads and peers.
 
     Visual vocabulary (terminology used below):
-    - "Block Bullet" — the small dark filled dot rendered for every Block.
-      When a Block has children AND is collapsed, a shaded ring (halo)
-      surrounds the dot. When a Block has children AND is expanded, or has
+    - "Node Bullet" — the small dark filled dot rendered for every Node.
+      When a Node has children AND is collapsed, a shaded ring (halo)
+      surrounds the dot. When a Node has children AND is expanded, or has
       no children, the dot is alone — no halo. The halo is the lone signal
       that hidden children exist; there is NO numeric badge.
     - "Expand/Collapse control" — a chevron (▸ closed, ▾ open) set inside a
       bordered, lightly filled circle, rendered to the IMMEDIATE LEFT of the
-      Block Bullet for parents only. It is hidden by default and revealed
-      ONLY while any part of the Block's row is hovered, or while the
+      Node Bullet for parents only. It is hidden by default and revealed
+      ONLY while any part of the Node's row is hovered, or while the
       control itself has focus. Leaves render no control — a same-width
       spacer reserves the slot so columns stay aligned.
 
@@ -529,8 +532,8 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       behaviour.
     - Hovering the Expand/Collapse control surfaces a tooltip with the
       shortcut.
-    - The Block Bullet itself does NOT toggle; clicking it zooms into the
-      Block (see F-Zoom).
+    - The Node Bullet itself does NOT toggle; clicking it zooms into the
+      Node (see F-Zoom).
 
     Visual size:
     - The chevron glyph inside the Expand/Collapse control matches the
@@ -540,52 +543,52 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
       meeting at a point), matching Tana's visual style. Filled
       triangles like ▸ / ▾ are NOT used — they read too heavy against
       the body text.
-  req F-V2.1: clicking a Block's bullet marker toggles its expanded state.
+  req F-V2.1: clicking a Node's bullet marker toggles its expanded state.
   req F-V2.2:
-    when: Block has children AND Block.state.expanded === false
+    when: Node has children AND Node.state.expanded === false
     then:
       - the children column is not rendered
-      - the Block Bullet renders the dark filled dot WITH a shaded ring (halo) surrounding it
+      - the Node Bullet renders the dark filled dot WITH a shaded ring (halo) surrounding it
       - no count badge or other annotation is added (the halo alone signals hidden children)
   req F-V2.3:
-    when: Block has no children
-    then: the Block Bullet renders the dark filled dot alone (no halo); the bullet is non-interactive.
+    when: Node has no children
+    then: the Node Bullet renders the dark filled dot alone (no halo); the bullet is non-interactive.
   req F-V2.4:
-    when: Block has children AND state.expanded is undefined or true
+    when: Node has children AND state.expanded is undefined or true
     then:
-      - the Block Bullet renders the dark filled dot alone (no halo) — visually identical to a leaf
+      - the Node Bullet renders the dark filled dot alone (no halo) — visually identical to a leaf
       - the indented child column + guide line below the row distinguish the open parent from a leaf
-  req F-V2.5: collapsed state is persisted on Block.state.expanded and survives reloads.
+  req F-V2.5: collapsed state is persisted on Node.state.expanded and survives reloads.
   req F-V2.6:
-    when: Block has children OR has any supertags (F-6) OR is a leaf (so the
+    when: Node has children OR has any supertags (F-6) OR is a leaf (so the
       pending child can be revealed via F-Pending-Child)
-    then: an Expand/Collapse control (chevron in a bordered circle) is mounted to the immediate left of the Block Bullet; the control's slot is reserved at all times so layout does not shift on hover.
+    then: an Expand/Collapse control (chevron in a bordered circle) is mounted to the immediate left of the Node Bullet; the control's slot is reserved at all times so layout does not shift on hover.
     Note (revised in F-Pending-Child): the prior version of this req only
-    fired when the Block had children. Leaves now also show the chevron
+    fired when the Node had children. Leaves now also show the chevron
     so they can be expanded to reveal the pending-child placeholder
     (F-Pending-Child) and, when tagged, the field group(s) (F-6 Phase 2).
   req F-V2.6a:
-    when: the user's pointer is over any part of THIS Block's row only (other Blocks' rows are unaffected)
-    then: this Block's Expand/Collapse control becomes fully visible (opacity 1).
+    when: the user's pointer is over any part of THIS Node's row only (other Nodes' rows are unaffected)
+    then: this Node's Expand/Collapse control becomes fully visible (opacity 1).
   req F-V2.6b:
-    when: the pointer leaves this Block's row AND the control does not have keyboard focus
-    then: this Block's control is hidden (opacity 0); the slot remains reserved; other Blocks' controls are unaffected.
-  note: hover state is tracked per-Block in React (no Tailwind group-hover) so a hover on one row does not light up controls in adjacent or nested rows.
+    when: the pointer leaves this Node's row AND the control does not have keyboard focus
+    then: this Node's control is hidden (opacity 0); the slot remains reserved; other Nodes' controls are unaffected.
+  note: hover state is tracked per-Node in React (no Tailwind group-hover) so a hover on one row does not light up controls in adjacent or nested rows.
   req F-V2.6c:
     when: the user clicks the Expand/Collapse control
-    then: state.expanded toggles, identical to clicking the Block Bullet.
+    then: state.expanded toggles, identical to clicking the Node Bullet.
   req F-V2.7:
-    when: a Block does not satisfy F-V2.6 (extremely rare given the
+    when: a Node does not satisfy F-V2.6 (extremely rare given the
       revised condition — currently no such case)
     then: a same-width empty spacer renders in place of the chevron so leaves align with parents.
   req F-V2.8:
-    when: cursor is in a Block whose state.expanded is true (or undefined) and that has children, and the user presses Mod+ArrowUp
-    then: the block collapses; state.expanded becomes false.
+    when: cursor is in a Node whose state.expanded is true (or undefined) and that has children, and the user presses Mod+ArrowUp
+    then: the node collapses; state.expanded becomes false.
   req F-V2.9:
-    when: cursor is in a Block whose state.expanded is false and that has children, and the user presses Mod+ArrowDown
-    then: the block expands; state.expanded becomes true.
+    when: cursor is in a Node whose state.expanded is false and that has children, and the user presses Mod+ArrowDown
+    then: the node expands; state.expanded becomes true.
   req F-V2.10:
-    when: cursor is in a Block that does not match the conditions of F-V2.8 / F-V2.9
+    when: cursor is in a Node that does not match the conditions of F-V2.8 / F-V2.9
     then: Mod+ArrowUp / Mod+ArrowDown fall through to the editor's default cursor behaviour.
   req F-V2.11:
     when: user hovers the chevron
@@ -600,12 +603,12 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
     expands a leaf, a "pending child" placeholder row renders below it
     in the same column its real children would occupy. The pending child
     is a faint bullet + an empty editable area; it is visual only and
-    has no persisted Block. As soon as the user types into the ghost
-    row, a real Block is created and appended to the leaf's children;
-    focus transfers to the new Block and any typed characters land
+    has no persisted Node. As soon as the user types into the ghost
+    row, a real Node is created and appended to the leaf's children;
+    focus transfers to the new Node and any typed characters land
     there.
 
-    Parents (Blocks that already have at least one child) do NOT get
+    Parents (Nodes that already have at least one child) do NOT get
     a pending child row — their expanded view continues to show only
     their real children. (Per user spec: "only leaf shows the ghost
     child at the end".)
@@ -614,15 +617,15 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
     field groups for tagged bullets; the pending row and field groups
     can co-exist when a tagged leaf is expanded.
   req F-Pending-Child.hover:
-    given: a Block has no children
-    when: the user's pointer hovers anywhere on the Block's row
+    given: a Node has no children
+    when: the user's pointer hovers anywhere on the Node's row
     then: the Expand/Collapse control becomes visible (chevron in
       collapsed orientation if state.expanded is undefined / false).
   req F-Pending-Child.expand:
-    given: a Block has no children
+    given: a Node has no children
     when: the user clicks the Expand control (chevron) on the row
     then:
-      - state.expanded is set to true (persisted on the Block)
+      - state.expanded is set to true (persisted on the Node)
       - a pending child row renders in the indented children column
         (same indent and guide-line column as real children would
         use); the pending row consists of a faint bullet (lighter shade
@@ -635,26 +638,26 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
         lighter bullet shade and the lack of persistence until first
         input.
   req F-Pending-Child.type:
-    given: a leaf Block is expanded showing the pending child row
+    given: a leaf Node is expanded showing the pending child row
     when: the user clicks anywhere on the pending row and types any
       character
     then:
-      - a new Block is created with the typed text as its content
-      - the new Block's Ref is appended to the leaf's `children`
-      - focus moves to the new (now-real) Block; further typing
+      - a new Node is created with the typed text as its content
+      - the new Node's Ref is appended to the leaf's `children`
+      - focus moves to the new (now-real) Node; further typing
         continues there as if the user had typed into a normal child
         bullet
       - the pending row visually disappears (the new real child
         replaces it). Subsequent edits to the new child do NOT
         re-create another ghost.
   req F-Pending-Child.empty-collapse:
-    given: a leaf Block was expanded (pending row showing) but the user
+    given: a leaf Node was expanded (pending row showing) but the user
       did not type anything
-    when: the user collapses the Block (chevron click or Cmd+Up)
-    then: state.expanded becomes false; no Block was created. No
-      cleanup is required because no Block was persisted.
+    when: the user collapses the Node (chevron click or Cmd+Up)
+    then: state.expanded becomes false; no Node was created. No
+      cleanup is required because no Node was persisted.
   req F-Pending-Child.cursor-alignment:
-    given: a leaf Block is expanded showing the pending child row
+    given: a leaf Node is expanded showing the pending child row
     when: the user clicks on the row and the editable area receives focus
     then: the caret renders at the SAME vertical baseline as a real
       bullet's editor (i.e. the pending row's caret sits where a
@@ -670,14 +673,14 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
 ```mdl
 feat F-Shift-Enter: empty sibling shortcut         # Increment Shift-Enter (current)
   desc: |
-    Shift+Enter creates an empty sibling Block AFTER the current Block
+    Shift+Enter creates an empty sibling Node AFTER the current Node
     without splitting the current bullet's content. Distinct from Enter
     which splits at the cursor. The cursor moves to the new empty sibling.
   req F-Shift-Enter.1:
     given: I am editing node X
     when: I press Shift+Enter
     then:
-      - a new sibling Block Y is created
+      - a new sibling Node Y is created
       - Y has the same parent as X
       - Y is empty (no content)
       - X's content is unchanged
@@ -687,15 +690,15 @@ feat F-Shift-Enter: empty sibling shortcut         # Increment Shift-Enter (curr
 ```mdl
 feat F-Cmd-Shift-Enter: empty sibling above shortcut   # Increment Cmd-Shift-Enter (current)
   desc: |
-    Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Block
-    BEFORE the current Block — i.e. visually above it — without
+    Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Node
+    BEFORE the current Node — i.e. visually above it — without
     splitting the current bullet's content. Mirrors F-Shift-Enter
     which inserts AFTER. The cursor moves to the new empty sibling.
   req F-Cmd-Shift-Enter.1:
     given: my cursor is in node X
     when: I press Cmd+Shift+Enter (Mod+Shift+Enter)
     then:
-      - a new sibling Block Y is created visually above X
+      - a new sibling Node Y is created visually above X
       - Y has the same parent as X
       - Y is empty (no content)
       - X's content is unchanged
@@ -703,24 +706,24 @@ feat F-Cmd-Shift-Enter: empty sibling above shortcut   # Increment Cmd-Shift-Ent
 ```
 
 ```mdl
-feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
+feat F-Zoom: zoom into a Node                     # Increment Zoom (current)
   desc: |
-    Clicking a Block's bullet "zooms" the article surface to show only
-    that Block and its descendants. The zoomed Block appears at the top
+    Clicking a Node's bullet "zooms" the article surface to show only
+    that Node and its descendants. The zoomed Node appears at the top
     as a large bold header; its child tree renders below. A small
     "← Outline" link returns to the unzoomed (full outline) view.
 
-    Zoom state lives in BlockArticle's local state and is propagated to
-    BlockNode via ZoomContext so any descendant bullet can be the next
+    Zoom state lives in Article's local state and is propagated to
+    Node via ZoomContext so any descendant bullet can be the next
     zoom target. Backlink counts continue to reflect the FULL outline
     tree's incoming refs (not just the zoomed subtree) so badges remain
     accurate at every zoom level.
 
-    Reference-only Blocks are not zoomable — clicking their bullet is a
+    Reference-only Nodes are not zoomable — clicking their bullet is a
     no-op (their target's bullet should be clicked instead).
   req F-Zoom.in:
-    given: there is a Block X with one or more children
-    when: I click X's Block Bullet
+    given: there is a Node X with one or more children
+    when: I click X's Node Bullet
     then:
       - X is rendered as a header at the top of the article surface in
         large bold font
@@ -728,7 +731,7 @@ feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
       - the unzoomed outline view is no longer shown
       - a "← Outline" link is visible to return to the unzoomed view
   req F-Zoom.out:
-    given: the article surface is currently zoomed into a Block
+    given: the article surface is currently zoomed into a Node
     when: I click the "← Outline" link
     then: the article returns to the unzoomed view, showing the full
       outline tree from the root.
@@ -738,28 +741,28 @@ feat F-Zoom: zoom into a Block                     # Increment Zoom (current)
 feat F-Headline: zoomed headline preserves all content   # Increment Headline (current)
   desc: |
     The zoomed-view header (large bold H1 above the child tree) renders
-    the full content of the zoomed Block — text segments AND inline
+    the full content of the zoomed Node — text segments AND inline
     refs alike. Refs render as link-blue spans (matching F-V3 inline
     ref styling) with the target's current label, kept live via the
     same `Obj.subscribe` pattern the inline RefNodeView uses.
 
     Current-behavior gap that prompted this spec:
-    - The headline used to call `getDisplayLabel(zoomedBlock)`, which
-      filters Block.content down to text segments only and joins
+    - The headline used to call `getDisplayLabel(zoomedNode)`, which
+      filters Node.content down to text segments only and joins
       them. Refs were silently dropped, leaving visible gaps in the
       headline. Example: a bullet whose content is
       `"what is in [@A] and what [@B] now"` rendered as
       `"what is in  and what  now"` when zoomed in (note the double
       spaces where the refs were).
 
-    Implementation: a new `BlockContent` React component iterates
-    `block.content` and renders each segment — text spans render as
+    Implementation: a new `Content` React component iterates
+    `node.content` and renders each segment — text spans render as
     plain text; ref spans render via a `RefLabel` child that
     subscribes to the target via `useObject` and renders a styled
-    span using `getDisplayLabel`. `BlockArticle` mounts
-    `<BlockContent block={zoomedBlock} />` inside the H1.
+    span using `getDisplayLabel`. `Article` mounts
+    `<Content block={zoomedNode} />` inside the H1.
   req F-Headline.1:
-    given: a Block X whose content includes one or more inline refs to other Blocks
+    given: a Node X whose content includes one or more inline refs to other Nodes
     when: I zoom into X
     then:
       - the headline (H1) renders X's text segments and ref segments in order
@@ -770,7 +773,7 @@ feat F-Headline: zoomed headline preserves all content   # Increment Headline (c
         within one tick (live, no reload)
       - the headline contains no missing-content gaps where refs used to be
   req F-Headline.empty:
-    given: a Block X whose content is empty (no text, no refs)
+    given: a Node X whose content is empty (no text, no refs)
     when: I zoom into X
     then: the headline renders the placeholder text "(empty)"
 ```
@@ -778,32 +781,32 @@ feat F-Headline: zoomed headline preserves all content   # Increment Headline (c
 ```mdl
 feat F-Page-Header: root as editable header with parent breadcrumb   # Increment Page-Header (current)
   desc: |
-    The article surface ALWAYS renders the current page block as an
-    editable H1 header at the top of the page, with that block's
+    The article surface ALWAYS renders the current page node as an
+    editable H1 header at the top of the page, with that node's
     children rendered as bullets below. There is no separate
-    "unzoomed" view — the default page block is the outline's root,
-    so the root Block IS the title node.
+    "unzoomed" view — the default page node is the outline's root,
+    so the root Node IS the title node.
 
     F-Zoom's mechanic still applies: clicking a bullet makes that
-    Block the page block, with its own children rendered below. But
-    the header is no longer hidden when the page block is the root.
+    Node the page node, with its own children rendered below. But
+    the header is no longer hidden when the page node is the root.
 
-    The header is a real `BlockEditor`, not a read-only display.
-    Typing into it edits `pageBlock.content`. F-V3 inline ref
+    The header is a real `Editor`, not a read-only display.
+    Typing into it edits `pageNode.content`. F-V3 inline ref
     styling and F-V4 ref-mention all work the same as in body
     bullets. A `headlineMode` prop tells the editor to apply
     H1-large styling.
 
     Parent navigation (replaces F-Zoom's "← Outline" link):
-    - When the page block is NOT the root, a "← {parent label}"
+    - When the page node is NOT the root, a "← {parent label}"
       breadcrumb renders above the H1. Clicking it makes the parent
-      the new page block. This is recursive: click after click
-      climbs up one level at a time until the page block is the
+      the new page node. This is recursive: click after click
+      climbs up one level at a time until the page node is the
       root, where the breadcrumb is hidden.
-    - The parent label is resolved via the same `BlockContent`
+    - The parent label is resolved via the same `Content`
       pipeline used for the headline (text + refs).
 
-    `BlockOutline.name` (the navigator label) is auto-synced from
+    `Graph.name` (the navigator label) is auto-synced from
     `root.content` via `useEffect` so the navigator always reflects
     the title the user sees in the header. No explicit name editing
     in the create dialog beyond the schema field default.
@@ -813,7 +816,7 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     `root.content` (one-time) so existing outlines render their
     previous name in the new header position.
   req F-Page-Header.1:
-    given: a BlockOutline whose root Block is X
+    given: a Graph whose root Node is X
     when: the outline is opened
     then:
       - X's content is rendered as the H1 header at the top of the
@@ -821,10 +824,10 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
       - X's children render below the header recursively
       - no parent breadcrumb is shown (X is the root)
   req F-Page-Header.2:
-    given: an outline currently displayed with page block X (root or child)
+    given: an outline currently displayed with page node X (root or child)
     when: I click the bullet of a child Y of X
     then:
-      - Y replaces X as the page block (Y becomes the H1 header)
+      - Y replaces X as the page node (Y becomes the H1 header)
       - Y's children render below the header
       - the predecessor-navigation control
         (F-DAG.Phase3e.predecessor-nav-list) appears at the top
@@ -839,13 +842,13 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
   req F-Page-Header.3 [SUPERSEDED in F-DAG.Phase3e.predecessor-nav-switch]:
     desc: |
       Originally: clicking the single-parent `← {label of P}`
-      breadcrumb above the H1 swapped the page block to P
+      breadcrumb above the H1 swapped the page node to P
       (with the breadcrumb hiding when P was the root).
 
       Superseded because:
-      - The legacy spec assumed every page block has at most
+      - The legacy spec assumed every page node has at most
         one parent (a tree). F-DAG allows multi-predecessor
-        Blocks, so a single `← parent` affordance can't surface
+        Nodes, so a single `← parent` affordance can't surface
         the full set of "ways up".
       - F-DAG.Phase3e.predecessor-nav-list provides the new
         affordance (a control listing every predecessor).
@@ -854,16 +857,16 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
         breadcrumb click.
 
       The historical implementation
-      (`BlockArticle.findParent` walking `Block.children`)
+      (`Article.findParent` walking `Node.children`)
       remains in code until the predecessor-nav control ships
       and the call-site can be migrated to `parentEdgesOf`.
   req F-Page-Header.4:
-    given: the page block X has empty content
+    given: the page node X has empty content
     when: the article is rendered
     then: the H1 renders an empty editable area (no "(empty)" placeholder text);
       typing into it populates `X.content`
   req F-Page-Header.5:
-    given: an outline whose root Block has empty content but `outline.name` is set
+    given: an outline whose root Node has empty content but `outline.name` is set
     when: the outline mounts for the first time after this feature ships
     then: `root.content` is populated with `outline.name` as a single text segment
       (one-time migration); after the migration `outline.name` continues to mirror
@@ -879,7 +882,7 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
 feat F-Scroll: article surface scrolls when content overflows   # Increment Scroll
   desc: |
     The article surface (the pane region rendered by
-    `BlockArticle`) establishes its OWN vertical scroll region
+    `Article`) establishes its OWN vertical scroll region
     when the rendered page header + field group + outline tree +
     backlinks panel together exceed the pane's visible height.
 
@@ -919,45 +922,45 @@ feat F-Scroll: article surface scrolls when content overflows   # Increment Scro
 ```
 
 ```mdl
-feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-Pane (current)
+feat F-Open-Pane: shift-click bullet opens node in new pane   # Increment Open-Pane (current)
   desc: |
-    Shift-clicking any bullet opens that bullet's Block in a NEW pane
+    Shift-clicking any bullet opens that bullet's Node in a NEW pane
     (sibling plank) to the right of the current pane. The new pane
-    renders the Block as the page block per F-Page-Header — H1 header
+    renders the Node as the page node per F-Page-Header — H1 header
     + child tree below + parent breadcrumb (within the pane's own
     subtree). Subsequent shift-clicks on bullets within the new pane
     open ANOTHER nested pane, recursively, as many levels deep as the
     user clicks.
 
-    Implementation: BlockArticle provides an `OpenPaneContext` that
+    Implementation: Article provides an `OpenPaneContext` that
     invokes `LayoutOperation.Open` from `@dxos/app-toolkit` with the
-    target Block id as `subject` and the current pane's `attendableId`
+    target Node id as `subject` and the current pane's `attendableId`
     as `pivotId`, so Composer's Deck plugin lands the new pane as a
     sibling to the current one. A second article surface is registered
-    for `Block.Block` so the new pane has a renderer (the same
-    `BlockArticle`, but with the Block as the pane's root rather than
-    a `BlockOutline.root`).
+    for `Bramble.Node` so the new pane has a renderer (the same
+    `Article`, but with the Node as the pane's root rather than
+    a `Graph.root`).
 
     The Bullet component accepts both `onClick` (zoom, regular
     click) and `onShiftClick` (open in pane).
   req F-Open-Pane.1:
-    given: an outline displayed in pane P; the outline contains a Block X
+    given: an outline displayed in pane P; the outline contains a Node X
       somewhere in its tree
     when: the user shift-clicks X's bullet
     then:
       - a new pane P' opens to the right of P (`pivotId` = P's
         attendableId)
-      - P' renders X as the page block (H1 header) with X's children below
+      - P' renders X as the page node (H1 header) with X's children below
       - P remains visible (not replaced)
   req F-Open-Pane.recursive:
-    given: pane P' is already open (rooted at Block X) and contains a child Block Y
+    given: pane P' is already open (rooted at Node X) and contains a child Node Y
     when: the user shift-clicks Y's bullet inside P'
     then: a further pane P'' opens to the right of P', rooted at Y. Both
       P and P' remain visible.
   req F-Open-Pane.regular-click:
     given: any bullet
     when: the user clicks (no shift) the bullet
-    then: F-Zoom behaviour fires — the block becomes the page block of the
+    then: F-Zoom behaviour fires — the node becomes the page node of the
       CURRENT pane (no new pane opened).
   req F-Open-Pane.deck-disabled-fallback:
     given: Composer's deck-mode toggle is OFF (`settings.enableDeck === false`),
@@ -966,7 +969,7 @@ feat F-Open-Pane: shift-click bullet opens block in new pane   # Increment Open-
     then:
       - no new pane opens (Composer's `DeckContent` would immediately
         revert any multi-mode transition while deck is disabled)
-      - the block becomes the page block of the CURRENT pane
+      - the node becomes the page node of the CURRENT pane
         (F-Zoom-style fallback)
       - a toast is shown: title "Multi-pane disabled", description
         "Shift-click would open a new pane. Enable Deck mode in
@@ -980,7 +983,7 @@ feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
   desc: |
     The unmodified ArrowUp / ArrowDown keys move the cursor to the
     beginning of the previous / next *visible* bullet. "Visible" means
-    the Block would be rendered given the current expand/collapse state
+    the Node would be rendered given the current expand/collapse state
     of all ancestors — independent of scroll position. If the target is
     outside the viewport, the page scrolls just enough to reveal it.
     Single-line bullets don't need within-paragraph line navigation, so
@@ -994,23 +997,23 @@ feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
     scrolls the page as a side-effect of an edge-case no-op.
 
   req F-Nav.up:
-    given: cursor is in Block X, and Block Y is the bullet immediately
+    given: cursor is in Node X, and Node Y is the bullet immediately
       above X in the rendered tree (visible, regardless of scroll position)
     when: user presses ArrowUp
     then: caret moves to the start of Y; the page scrolls to bring Y
       into view if it was off-screen.
   req F-Nav.up.edge:
-    given: cursor is in Block X, and there is no visible Block above X
+    given: cursor is in Node X, and there is no visible Node above X
     when: user presses ArrowUp
     then: caret does not move; the page does not scroll.
   req F-Nav.down:
-    given: cursor is in Block X, and Block Y is the bullet immediately
+    given: cursor is in Node X, and Node Y is the bullet immediately
       below X in the rendered tree (visible, regardless of scroll position)
     when: user presses ArrowDown
     then: caret moves to the start of Y; the page scrolls to bring Y
       into view if it was off-screen.
   req F-Nav.down.edge:
-    given: cursor is in Block X, and there is no visible Block below X
+    given: cursor is in Node X, and there is no visible Node below X
     when: user presses ArrowDown
     then: caret does not move; the page does not scroll.
 ```
@@ -1018,13 +1021,13 @@ feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
 ```mdl
 feat F-Caret: cursor visible after focus      # Increment Caret (current)
   desc: |
-    Whenever a Block's editor receives focus — by mouse click, by being
+    Whenever a Node's editor receives focus — by mouse click, by being
     the new sibling created via Enter / Shift+Enter / Cmd+Shift+Enter,
     or by ArrowUp / ArrowDown navigation (F-Nav) — a visible caret
     renders inside the editor at a paintable position.
 
     Current-behavior gaps that prompted this spec:
-    - Empty bullets render `<p><br/></p>`. The earlier BlockNode
+    - Empty bullets render `<p><br/></p>`. The earlier Node
       wrapper (`[&_p]:inline-block`) made the empty `<p>` an
       inline-block element. The trailing break inside an inline-block
       `<p>` ends up rendering as TWO line-heights (one before the BR,
@@ -1047,14 +1050,14 @@ feat F-Caret: cursor visible after focus      # Increment Caret (current)
       `<p>`. That position has no caret rect even for non-empty
       paragraphs. Fix: F-Nav now routes focus through the
       `setFocusId` / `autoFocus` mechanism used by sibling-creation;
-      the `BlockEditor` then sets PM selection at
+      the `Editor` then sets PM selection at
       `TextSelection.atStart(doc)` and calls `view.focus()`, so PM
       places the caret inside the first text node (or inside the
       empty paragraph at the start position the browser can paint).
     - Mouse-click on an empty bullet hit the same empty-paragraph
       issue as Enter family; it is fixed by the same layout change.
   req F-Caret.1:
-    given: there is a Block X
+    given: there is a Node X
     when: X's editor is selected for focus (by click, sibling creation,
       or ArrowUp/ArrowDown navigation)
     then:
@@ -1073,19 +1076,19 @@ feat F-Caret: cursor visible after focus      # Increment Caret (current)
 ```
 
 ```mdl
-feat F-V6 [DEPRECATED in F-DAG.Phase3a]: Reference-only Block
+feat F-V6 [DEPRECATED in F-DAG.Phase3a]: Reference-only Node
   desc: |
     DEPRECATED. This feature existed because the pre-DAG outline could
-    only place a Block under ONE parent. To make a Block "appear in
-    another place" the user had to create a separate wrapper Block
+    only place a Node under ONE parent. To make a Node "appear in
+    another place" the user had to create a separate wrapper Node
     whose entire `content` was a single ref segment pointing at the
-    real Block. Such a wrapper was styled with a dashed outer ring
+    real Node. Such a wrapper was styled with a dashed outer ring
     and was non-interactive (no zoom) to signal "this is a stand-in,
     not original content."
 
     With F-DAG.Phase3a.add-existing-via-picker, the same use case is
-    served by a structural ChildEdge to an existing Block — the SAME
-    Block appears in multiple places in the outline, with its NORMAL
+    served by a structural Edge to an existing Node — the SAME
+    Node appears in multiple places in the outline, with its NORMAL
     solid bullet and the multi-parent badge (F-DAG.Phase3e). No
     wrapper is created. No dashed ring.
 
@@ -1098,16 +1101,16 @@ feat F-V6 [DEPRECATED in F-DAG.Phase3a]: Reference-only Block
       are likewise removed.
     - Inline ref segments INSIDE content (alongside text) are not
       affected — those are F-V3 mentions and continue to render
-      with link-blue styling. F-V6 specifically governed Blocks
+      with link-blue styling. F-V6 specifically governed Nodes
       whose content was ONLY a ref, which post-DAG is not a state
       reachable by any user action.
-    - Legacy data: pre-DAG outlines may contain Blocks in the
-      F-V6 state. After this deprecation those Blocks render
+    - Legacy data: pre-DAG outlines may contain Nodes in the
+      F-V6 state. After this deprecation those Nodes render
       with a normal bullet and show the target's label (via the
       ref nodeview already in F-V3). The visual "this is a
       reference" distinction is lost; the structural meaning is
       preserved. A subsequent migration could rewrite such
-      Blocks as ChildEdges if desired.
+      Nodes as Edges if desired.
 ```
 
 ```mdl
@@ -1123,43 +1126,43 @@ feat F-V3: Inline ref styling                 # Increment V3 (current)
 ```mdl
 feat F-V4: Inline backlink count badge        # Increment V4 (current)
   desc: |
-    Each Block that is referenced by other Blocks displays a small inline
+    Each Node that is referenced by other Nodes displays a small inline
     count badge to the right of its row. Counts are produced by the
-    useBacklinks hook and propagated via React context to BlockNode.
+    useBacklinks hook and propagated via React context to Node.
 
     Live-update guarantee: the count must refresh as soon as the ref node
-    renders in the source Block — not after the user navigates away or
+    renders in the source Node — not after the user navigates away or
     presses Enter. Implementation note: a `db.query(...).subscribe` only
     fires on result-SET changes, not on field-level mutations to existing
-    Blocks. The hook subscribes to each Block via `Obj.subscribe` and
-    re-binds those subs whenever the Block set changes. This ensures
-    that `Obj.update(sourceBlock, m => m.content = [...with ref])`
+    Nodes. The hook subscribes to each Node via `Obj.subscribe` and
+    re-binds those subs whenever the Node set changes. This ensures
+    that `Obj.update(sourceNode, m => m.content = [...with ref])`
     triggers a recompute synchronously, and the badge re-renders on the
     next paint frame.
   req F-V4.live:
-    when: source Block X is mutated to include an inline ref to target Block Y (via @-mention picker, paste, programmatic update, or any other path)
+    when: source Node X is mutated to include an inline ref to target Node Y (via @-mention picker, paste, programmatic update, or any other path)
     then:
       - within one paint frame after X's content is committed, Y's count badge increments by one
       - the user is NOT required to leave X, press Enter, navigate away, or reload
   req F-V4.placement:
-    when: a Block has at least one incoming ref
-    then: the count badge is rendered immediately to the right of the Block's text content (not pushed to the row's far edge); when text wraps to multiple lines, the badge sits at the end of the last line on which the text fits, rather than at a fixed right margin.
+    when: a Node has at least one incoming ref
+    then: the count badge is rendered immediately to the right of the Node's text content (not pushed to the row's far edge); when text wraps to multiple lines, the badge sits at the end of the last line on which the text fits, rather than at a fixed right margin.
   desc: |
-    Each Block that is referenced by other Blocks displays a small inline
+    Each Node that is referenced by other Nodes displays a small inline
     count badge after its content showing how many bullets (or other ECHO
     objects) point at it. Powered by db.query.referencedBy(); the badge
     updates live as refs are added or removed. Clicking the badge opens
     the linked-references panel from F-5 (when that lands).
   req F-V4.1:
-    when: at least one inline ref points at a Block
+    when: at least one inline ref points at a Node
     then: a small "[N]" badge renders inline after the bullet's text content.
   req F-V4.2: the badge count reflects live state (re-runs on referencedBy changes).
   req F-V4.3:
-    when: no inline refs point at a Block
+    when: no inline refs point at a Node
     then: no badge is rendered.
   note: |
     Visual reference: in Tana, the badge appears as a small bordered "1"
-    next to the parent block. The same affordance reveals the backlinks
+    next to the parent node. The same affordance reveals the backlinks
     list on click.
 ```
 
@@ -1184,21 +1187,21 @@ feat F-4b: Live rename propagation   # Increment 4b (current)
 ```mdl
 feat F-5: Backlinks panel       # Increment 5 (current)
   desc: |
-    A "Linked references" panel renders below the BlockTree in every Block
-    Outline. It lists Blocks elsewhere in the database whose inline ref
-    segments point at any Block in this outline's tree (or the outline
+    A "Linked references" panel renders below the Graph in every Node
+    Outline. It lists Nodes elsewhere in the database whose inline ref
+    segments point at any Node in this outline's tree (or the outline
     itself). Self-references (a bullet inside the outline mentioning
     another bullet inside the same outline) are excluded — those are
     visible in the tree itself.
     Implementation note: ECHO's referencedBy() introspects typed Ref
     fields, but our refs live inside StructuredContent union segments
     which referencedBy doesn't traverse, so the panel performs a manual
-    scan across all Blocks. A typed `Block.references` sidecar can replace
+    scan across all Nodes. A typed `Node.references` sidecar can replace
     the scan in a perf increment.
-  req F-5.1: a Linked-references panel renders below the BlockTree on any BlockOutline article surface.
+  req F-5.1: a Linked-references panel renders below the Graph on any Graph article surface.
   req F-5.2:
-    when: at least one Block elsewhere has a content RefSpan whose target is in this outline's tree
-    then: that source Block is listed with its label and the target's label.
+    when: at least one Node elsewhere has a content RefSpan whose target is in this outline's tree
+    then: that source Node is listed with its label and the target's label.
   req F-5.3:
     when: no incoming refs exist
     then: the panel renders nothing (no empty header).
@@ -1211,10 +1214,10 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
     Tana-style supertags, but leveraging DXOS ECHO types directly
     instead of inventing a parallel TagDef structure. Each "tag" IS
     an existing ECHO type from the database — applying `#Task` to a
-    Block creates a new `Task` instance and links it to the Block via
-    `Block.supertags`. Field values for a tag live ON the linked
+    Node creates a new `Task` instance and links it to the Node via
+    `Node.supertags`. Field values for a tag live ON the linked
     typed instance (so editing the Task's `title` edits the Task, not
-    the Block).
+    the Node).
 
     Phase split:
 
@@ -1224,7 +1227,7 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       schema from `db.schemaRegistry`, minus plugin-blocks's own
       scaffolding). Selecting a type creates a new instance via
       `Obj.make`, `db.add`s it, and appends `Ref(instance)` to
-      `Block.supertags`. The applied tag renders as a chip inline
+      `Node.supertags`. The applied tag renders as a chip inline
       at the end of the bullet text; the new instance's label is
       seeded from the node's text per `F-Supertag.title-sync`. NO
       field editing yet (that's Phase 2).
@@ -1234,18 +1237,18 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       children. The group lists the linked instance's schema-derived
       fields (text, number, enum, ref) with inline editors; edits
       flow into the linked instance via `Obj.update`, NOT into the
-      Block itself.
+      Node itself.
 
       Enum-style fields (Schema.Literal unions or `singleSelect`
       PropertyMeta — e.g. `Task.priority`, `Task.status`) are
-      MATERIALIZED as Blocks per the project's `R-No-Echo-Changes`
+      MATERIALIZED as Nodes per the project's `R-No-Echo-Changes`
       rule: each declared literal value gets one per-space wrapper
-      Block whose `tagOption: {typename, fieldName, literal}` marker
+      Node whose `tagOption: {typename, fieldName, literal}` marker
       pins its identity, and whose `content` is the user-visible
       (renameable) label. The typed instance still stores the
       schema-declared literal string (`task.priority === 'high'`);
       the FieldGroup renders that value as an inline pill whose label
-      comes from the live option Block — so a rename of "high" → "Top"
+      comes from the live option Node — so a rename of "high" → "Top"
       in the user's space propagates to every Task with that value
       without any schema edit.
 
@@ -1263,14 +1266,14 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       uniqueness, and bi-directional node-content ↔ instance-label
       sync — is spec'd in `feat F-Supertag`. Sub-phases:
 
-        - Phase 3b (current): query node — a child Block of the
+        - Phase 3b (current): query node — a child Node of the
           supertag node that lists every ECHO instance of the
-          typename (wrapper Block or not) and lets the user
-          click an entry to promote a wrapper Block into the
+          typename (wrapper Node or not) and lets the user
+          click an entry to promote a wrapper Node into the
           per-space Library (parallels Tana's Library node).
           Find-or-create per `F-Supertag.uniqueness`.
 
-    Implementation note: `Block.supertags` is already declared as
+    Implementation note: `Node.supertags` is already declared as
     `Ref<Obj.Unknown>[]` so no schema migration is needed for
     Phase 1. The placeholder `TagDef` ECHO type that was reserved
     for an alternative design is removed in Phase 1.
@@ -1313,16 +1316,16 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - the `#`-and-query range is removed from the bullet text
         (no inline marker — the chip is rendered separately).
       - a new instance of the selected type is created via `Obj.make`
-        and added to the same database as the Block.
-      - `Block.supertags` is updated to append `Ref(instance)`.
+        and added to the same database as the Node.
+      - `Node.supertags` is updated to append `Ref(instance)`.
       - the new instance's label is seeded from the node's
         current text via the outliner-originated path of
         `F-Supertag.title-sync` (`Obj.setLabel(instance, nodeText)`
         immediately after `Obj.make`).
       - the picker closes; cursor returns to the bullet text.
   req F-6.Phase1.chip:
-    given: a Block has one or more entries in `supertags`
-    when: the Block renders
+    given: a Node has one or more entries in `supertags`
+    when: the Node renders
     then:
       - one tag chip renders for each supertag, inline at the end of
         the bullet's text content (after the editor, before the
@@ -1332,17 +1335,17 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - chip styling: link-blue background tint, rounded, small text.
         Different colour per typename (deterministic hash) optional.
   req F-6.Phase2.group:
-    given: a Block has one or more entries in `supertags`
-    when: the Block's row is expanded (state.expanded undefined or true)
+    given: a Node has one or more entries in `supertags`
+    when: the Node's row is expanded (state.expanded undefined or true)
     then:
       - one field group renders per supertag, inside the same indented
-        column as the Block's children, BEFORE any child Block rows
+        column as the Node's children, BEFORE any child Node rows
         and before the pending-child row.
       - each group is headed by the supertag's typename title (small,
-        amber, uppercase) so multiple tags on the same Block can be
+        amber, uppercase) so multiple tags on the same Node can be
         told apart visually.
-      - field groups render only when the Block is expanded; they
-        hide when the Block is collapsed.
+      - field groups render only when the Node is expanded; they
+        hide when the Node is collapsed.
   req F-6.Phase2.fields:
     given: a field group is rendering for a linked typed instance
     when: the group enumerates the schema's property signatures
@@ -1366,18 +1369,18 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         new value is written under the property name; clearing the
         value (empty string or "—" option) deletes the property so
         optional fields round-trip cleanly.
-      - the Block is NOT modified; field values do not live on the
-        Block.
+      - the Node is NOT modified; field values do not live on the
+        Node.
       - the field group reads the live ECHO instance via `useObject`
         so concurrent mutations propagate without remount.
   req F-6.Phase2.coexist:
-    given: a Block is a leaf (no children) AND has at least one
+    given: a Node is a leaf (no children) AND has at least one
       supertag
-    when: the Block is expanded
+    when: the Node is expanded
     then:
       - the supertag field group renders FIRST
       - the pending-child row renders BELOW it
-      - typing into the pending-child row promotes a new child Block
+      - typing into the pending-child row promotes a new child Node
         as in F-Pending-Child (the field group remains visible).
   req F-6.Phase2.enum.materialize:
     given: an enum-style field on a tagged instance (Schema.Literal
@@ -1385,29 +1388,29 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
     when: the FieldGroup renders that field for the first time in the
       space
     then:
-      - the plugin queries the space for a Block whose `tagOption`
+      - the plugin queries the space for a Node whose `tagOption`
         marker equals `(typename, fieldName, V)`.
-      - if none exists, the plugin creates exactly one such Block,
+      - if none exists, the plugin creates exactly one such Node,
         seeded with the schema-declared option title as its `content`
         and `tagOption: {typename, fieldName, literal: V}` as the
         stable identity, and `db.add`s it.
       - subsequent renders of any Task with the same value resolve to
-        the SAME Block — there is never more than one option Block
+        the SAME Node — there is never more than one option Node
         per (typename, fieldName, literal) tuple in a given space.
       - the schema is NOT edited, no ECHO change is required, and
         the typed instance still stores V as a string (per
         rule R-No-Echo-Changes).
   req F-6.Phase2.enum.pill:
     given: an enum field on a tagged instance has value V and the
-      matching option Block exists in the space
+      matching option Node exists in the space
     when: the FieldGroup renders that field
     then:
       - the value renders as an inline pill whose label is the option
-        Block's `content` (NOT the schema-declared title).
-      - if the user renames the option Block's content from "high" to
+        Node's `content` (NOT the schema-declared title).
+      - if the user renames the option Node's content from "high" to
         "Top", every Task whose `priority === 'high'` reflects the
         new label live without remount (subscribes to the option
-        Block via `useObject`).
+        Node via `useObject`).
       - the pill is clickable; click opens the enum picker (see
         F-6.Phase2.enum.picker).
   req F-6.Phase2.enum.picker:
@@ -1418,7 +1421,7 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - a dropdown picker opens listing every schema-declared literal
         for that field, plus a leading "—" row for clearing the
         value.
-      - each row's displayed label is the matching option Block's
+      - each row's displayed label is the matching option Node's
         `content` when materialized, else the schema-declared option
         title.
       - the currently-selected row is highlighted.
@@ -1433,71 +1436,71 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - a new instance of the corresponding ECHO type is created
         via `Obj.make` (with `initialPropsForTag` filling any
         required fields) and added to the same database as the
-        Block.
-      - `Block.supertags` is updated to append `Ref(instance)`.
+        Node.
+      - `Node.supertags` is updated to append `Ref(instance)`.
       - any subsequent edits to the rendered field group are
         persisted on the linked instance (Phase 2 wiring); the
-        Block itself is not mutated for field-value writes.
+        Node itself is not mutated for field-value writes.
     Note: this req formalises behaviour that's been in place since
     Phase 1 (`F-6.Phase1.apply`) and Phase 2 (the `.persistence`
     req) — captured here as a single user-visible scenario.
   req F-6.Phase3.tag-node.label:
     given: a chip is rendering for typename T and the matching tag
-      Block exists in the space
+      Node exists in the space
     when: the chip renders
     then:
-      - the chip's displayed label is the tag Block's `content`
+      - the chip's displayed label is the tag Node's `content`
         (NOT the schema-declared title), prefixed with `#`.
-      - if the user renames the tag Block's content from "Task" to
+      - if the user renames the tag Node's content from "Task" to
         "Job", every chip with typename T reflects the new label
         live without remount (subscribes via `useObject`).
-      - until the tag Block has materialized, the chip falls back to
+      - until the tag Node has materialized, the chip falls back to
         the schema-declared title so the chip never renders blank.
   req F-6.Phase3.tag-node.header:
-    given: I am zoomed into a tag node (page block has `tagTypename`)
+    given: I am zoomed into a tag node (page node has `tagTypename`)
     when: the page renders
     then:
       - the H1 row shows a decorative amber-tinted `#` glyph on the
-        left, followed by the tag Block's editable name.
-      - the `#` glyph is purely visual: not part of the Block's
+        left, followed by the tag Node's editable name.
+      - the `#` glyph is purely visual: not part of the Node's
         `content`, not editable, not selectable.
-      - editing the name (via the inline BlockEditor) updates the
-        tag Block's content; every `#`-prefixed chip referencing
+      - editing the name (via the inline Editor) updates the
+        tag Node's content; every `#`-prefixed chip referencing
         this typename reflects the new label live.
   req F-6.Phase3.system-node.readonly:
-    given: I am zoomed into a system node (page block has
+    given: I am zoomed into a system node (page node has
       `systemNode` set — e.g. Schema, Library)
     when: the page renders
     then:
-      - the H1 displays the Block's content (e.g. "Schema") as
+      - the H1 displays the Node's content (e.g. "Schema") as
         plain non-editable text, styled muted to signal its
         special role.
-      - no inline BlockEditor is mounted for the header (so it
+      - no inline Editor is mounted for the header (so it
         can't be typed into).
       - the children list and bullet-level interactions are
         otherwise unchanged.
   req F-6.Phase3.regular-node.header-editable:
-    given: I am zoomed into any non-system Block (regular bullet,
-      tag node, option Block from Phase 2)
+    given: I am zoomed into any non-system Node (regular bullet,
+      tag node, option Node from Phase 2)
     when: I edit the H1
     then:
-      - the Block's `content` is updated in place via the inline
-        BlockEditor (current F-Page-Header behaviour).
-      - tag Blocks: the displayed name changes; chips elsewhere
+      - the Node's `content` is updated in place via the inline
+        Editor (current F-Page-Header behaviour).
+      - tag Nodes: the displayed name changes; chips elsewhere
         update live.
-      - option Blocks (Phase 2): the displayed label changes;
+      - option Nodes (Phase 2): the displayed label changes;
         every typed instance whose literal matches reflects the
         new label live.
   req F-6.Phase3.picker.uses-renamed-label:
     given: in this space a tag has been renamed (e.g. the user
-      changed the `#Task` tag Block's `content` from "Task" to
+      changed the `#Task` tag Node's `content` from "Task" to
       "Job")
     when: I type `#` in any bullet and the TagPicker opens
     then:
-      - each row in the picker displays the per-space tag Block's
+      - each row in the picker displays the per-space tag Node's
         `content` as the label (e.g. "Job"), NOT the schema-declared
         title ("Task").
-      - for typenames whose tag Block hasn't been materialized yet
+      - for typenames whose tag Node hasn't been materialized yet
         in this space, the picker falls back to the schema-declared
         title so the row still renders.
       - the in-picker substring filter matches against the displayed
@@ -1506,54 +1509,54 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         instance of the schema-declared typename — the picker only
         affects what the user sees, never the stored identity.
   req F-6.Phase3.tag-node.children-are-queries:
-    given: a Block carries the `tagTypename` marker (it is a tag
+    given: a Node carries the `tagTypename` marker (it is a tag
       node)
     when: examining its outline children
     then:
-      - the only Block kind allowed as a child of a tag node is a
-        query node (a Block whose payload is "all instances of this
-        typename"). Regular bullets, sub-tags, option Blocks, and
+      - the only Node kind allowed as a child of a tag node is a
+        query node (a Node whose payload is "all instances of this
+        typename"). Regular bullets, sub-tags, option Nodes, and
         free-form content are NOT permitted as children of a tag
         node.
-      - Phase 3b materialises the query child at tag-Block
+      - Phase 3b materialises the query child at tag-Node
         creation time (see F-6.Phase3b.query-node.materialize);
         future increments will additionally reject Tab/Enter
         operations that would add a non-query child.
   req F-6.Phase3b.query-node.materialize:
-    given: a tag Block is being created for typename T
+    given: a tag Node is being created for typename T
     when: `createTagBlock` runs
     then:
-      - a single child Block is also created carrying
+      - a single child Node is also created carrying
         `queryRef: { typename: T }` (and no `content`).
-      - the new query Block is added to the database and its `Ref`
-        is appended to the tag Block's `children` array.
+      - the new query Node is added to the database and its `Ref`
+        is appended to the tag Node's `children` array.
       - subsequent renames or use of the tag DO NOT create more
         query children; the one created at materialization stays.
   req F-6.Phase3b.query-node.render:
-    given: a Block carries `queryRef.typename === T`
-    when: the BlockNode renderer encounters it
+    given: a Node carries `queryRef.typename === T`
+    when: the Node renderer encounters it
     then:
       - the standard bullet + content + children layout is REPLACED
         with `<QueryNodeView>`.
       - the query view lists every ECHO instance in the space whose
         typename equals T, regardless of whether each has a
-        wrapping Block.
-      - the list subscribes to both `Block.Block` query and the
-        instance query so newly-created Blocks / instances refresh
+        wrapping Node.
+      - the list subscribes to both `Bramble.Node` query and the
+        instance query so newly-created Nodes / instances refresh
         the rows without remount.
-      - each row's label comes from the wrapper Block's
+      - each row's label comes from the wrapper Node's
         `getDisplayLabel` when one exists, falling back to the raw
         instance's `getDisplayLabel`.
-      - rows whose instance has NO wrapper Block render a dashed
+      - rows whose instance has NO wrapper Node render a dashed
         bullet glyph and a `no wrapper` hint badge.
   req F-6.Phase3b.promote:
-    given: a query row whose instance has no wrapper Block
+    given: a query row whose instance has no wrapper Node
     when: the user clicks the row
     then:
-      - the per-space Library Block is found-or-created
+      - the per-space Library Node is found-or-created
         (`systemNode: 'library'`, content: "Library"). Exactly one
-        Library Block per space.
-      - a fresh wrapper Block is created with:
+        Library Node per space.
+      - a fresh wrapper Node is created with:
         - `content`: a single ref segment pointing at the instance
           (so the bullet's display label tracks the instance's
           label live).
@@ -1568,7 +1571,7 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         disappears and the row now navigates to the wrapper on
         subsequent clicks.
   req F-6.Phase3b.promote.reuse:
-    given: a query row whose instance ALREADY has a wrapper Block
+    given: a query row whose instance ALREADY has a wrapper Node
       (e.g. the user previously promoted it, or the wrapper was
       created via the apply-tag flow on some other bullet)
     when: the user clicks the row
@@ -1576,7 +1579,7 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
       - NO new wrapper is created.
       - the pane zooms to the existing wrapper (the one indexed
         in `buildWrapperIndex`).
-      - exactly one wrapper Block exists per instance in the
+      - exactly one wrapper Node exists per instance in the
         space; subsequent clicks remain idempotent.
 ```
 
@@ -1593,17 +1596,17 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
     chip's two navigation targets (the supertag node browse view
     vs. the typed instance's dedicated Composer surface).
 
-    Terminology (canonical — supersedes the earlier "tag Block" /
-    "wrapper Block" / "Block tagged with #X" vocabulary used in
+    Terminology (canonical — supersedes the earlier "tag Node" /
+    "wrapper Node" / "Node tagged with #X" vocabulary used in
     older F-6 prose):
 
     - **node** — an outline entity. What the rest of this spec
-      calls a Block.
+      calls a Node.
     - **node tagged with supertag** — a node whose `supertags`
       array carries a Ref to a typed ECHO instance. The Ref's
       typename IS the supertag.
     - **supertag node** — the singleton-per-(space, typename)
-      Block carrying `tagTypename: <typename>` and a `queryRef`
+      Node carrying `tagTypename: <typename>` and a `queryRef`
       child. Hosts the browse view (every node tagged with the
       supertag, UNION every instance of the type that has no
       associated node) and owns the renameable label every chip
@@ -1621,10 +1624,10 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
       - the picker lists every ECHO type registered with
         `db.schemaRegistry` at `location: ['database', 'runtime']`,
         MINUS Relations (`Type.relation`-flavoured schemas —
-        `ChildEdge` and friends, edges between entities rather
+        `Edge` and friends, edges between entities rather
         than entities the user can tag a bullet with), MINUS
-        plugin-blocks's own scaffolding (`Block.Block`,
-        `BlockOutline.BlockOutline`). The remainder is offered —
+        plugin-blocks's own scaffolding (`Bramble.Node`,
+        `Bramble.Graph`). The remainder is offered —
         no allowlist.
       - the list resolves via `useTagTypes(db)`, which holds a
         live subscription to
@@ -1655,8 +1658,8 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
         (which also materialises the query-node child per
         `F-6.Phase3b.query-node.materialize`).
       - for each supertag node the plugin ensures a structural
-        `ChildEdge` from the per-space Schema system node (the
-        existing `systemNode: 'schema'` Block, find-or-created
+        `Edge` from the per-space Schema system node (the
+        existing `systemNode: 'schema'` Node, find-or-created
         on first use) to the supertag node. Existing edges are
         not duplicated.
       - operations are idempotent — re-runs against an unchanged
@@ -1692,7 +1695,7 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
         or more nodes share the same `(instance X, typename T)`
         pair, the canonical node is the one parented
         (transitively) under the Schema → supertag-node-for-T
-        home; failing that, the lowest-`Block.id` node wins. The
+        home; failing that, the lowest-`Node.id` node wins. The
         duplicate supertag Refs are dropped from the others.
   req F-Supertag.title-sync:
     given: a node tagged with supertag `#T` whose supertag target
@@ -1795,48 +1798,48 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
 feat F-DAG: parent/child as first-class edges     # Increment DAG
   desc: |
     Move the outliner's structural parent/child relationship off
-    `Block.children: Ref<Block>[]` (an opaque adjacency list) and
-    onto an explicit `ChildEdge` relation entity. Multi-parent
-    Blocks become possible, per-occurrence data (ordering, collapse
+    `Node.children: Ref<Node>[]` (an opaque adjacency list) and
+    onto an explicit `Edge` relation entity. Multi-parent
+    Nodes become possible, per-occurrence data (ordering, collapse
     state) attaches to the edge, and the same relation pattern
     generalises to arbitrary domain relationships (WorksAt,
     AssignedTo, …) without further plugin or ECHO changes.
 
     Migration is incremental — per `R-Edges-First-Class`, writers
     convert call-site by call-site and readers go through
-    `useStructuralChildren`, which MERGES legacy `Block.children`
-    entries with new ChildEdges. `Block.children` is retained as a
+    `useStructuralChildren`, which MERGES legacy `Node.children`
+    entries with new Edges. `Node.children` is retained as a
     deprecated readable field until every writer is ported.
 
     Phases:
 
-    - Phase 1: foundation only — `ChildEdge` schema defined,
-      registered, helpers shipped, BlockTree merges both
+    - Phase 1: foundation only — `Edge` schema defined,
+      registered, helpers shipped, Graph merges both
       representations. The F-6 Phase 3b `promoteToWrapper` flow
       under Library is migrated as a first proof; everything else
-      still uses `Block.children`.
+      still uses `Node.children`.
     - Phase 2 (current): `createTagBlock` migrates both of its
       writers — Schema → tag node and tag node → query child —
-      to ChildEdges. `BlockNode` joins `BlockTree` in reading
+      to Edges. `Node` joins `Graph` in reading
       structural children via the merge hook so a tag node's
       query child still renders when the tag node appears as a
-      nested BlockNode (e.g. under Schema), not only when it's
-      the page block.
+      nested Node (e.g. under Schema), not only when it's
+      the page node.
     - Phase 3 (current, multi-step): main-outline writers convert
-      to ChildEdges:
+      to Edges:
         - 3a (current): the two "append exactly one child to an
           empty children list" writers — F-Pending-Child promote
-          and BlockTree's legacy outline auto-seed — switch to
-          `createChildEdge`. No sibling-order math needed.
+          and Graph's legacy outline auto-seed — switch to
+          `createEdge`. No sibling-order math needed.
         - 3b: `insertSiblingAfter` / `insertSiblingBefore`
           (Enter, Shift+Enter, Cmd+Shift+Enter). Needs sibling
           ordering — uses fractional `order` between adjacent
           existing siblings.
         - 3c: `handleIndent` / `handleDedent` (Tab / Shift+Tab).
-          Adds and removes ChildEdges to move a Block between
-          parents; no new Block created.
+          Adds and removes Edges to move a Node between
+          parents; no new Node created.
         - 3d: lazy on-first-write migration of pre-existing
-          `Block.children` entries to ChildEdges so the merge
+          `Node.children` entries to Edges so the merge
           stays consistent across edits to legacy outlines.
         - 3e: multi-predecessor UX — per-bullet predecessor-count
           badge (`predecessor-nav-list`'s smaller cousin on every
@@ -1847,80 +1850,80 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
           in a new pane (shift-click); Cmd+Tab to LINK (creates a
           new predecessor edge alongside the existing one) versus
           Tab to MOVE (transfers the edge).
-    - Phase 4 (current): collapse state moves off the Block and
+    - Phase 4 (current): collapse state moves off the Node and
       onto the edge. Reads go through `useEdgeExpanded(parent,
       block)`; writes go through `setEdgeExpanded`. Multi-parent
-      Blocks (Phase 3e) get independent per-occurrence collapse —
-      collapse a Block in one place and it stays open in the
+      Nodes (Phase 3e) get independent per-occurrence collapse —
+      collapse a Node in one place and it stays open in the
       other.
     - Phase 5 (current): explicit edge `kind` (default
-      'structural'); cycle prevention on writers so a Block can't
+      'structural'); cycle prevention on writers so a Node can't
       be linked under one of its own descendants.
   req F-DAG.Phase1.schema:
     given: the plugin loads
     when: it registers its schema module
     then:
-      - `ChildEdge` (a `Type.relation` schema with `source: Block`,
-        `target: Block`, `order: number`, optional `expanded` /
+      - `Edge` (a `Type.relation` schema with `source: Node`,
+        `target: Node`, `order: number`, optional `expanded` /
         `kind`) is included in the registered schemas alongside
-        `Block` and `BlockOutline`.
+        `Node` and `Graph`.
       - the relation typename is
-        `org.dxos.plugin.blocks.type.child-edge`.
+        `org.dxos.type.bramble.edge`.
   req F-DAG.Phase1.helpers:
     given: code wants to read or write structural children
-    when: it consults `components/BlockNode/child-edges.ts`
+    when: it consults `components/Node/child-edges.ts`
     then:
-      - `createChildEdge(db, parent, child, {order?, kind?})`
-        creates a `ChildEdge` via `Relation.make` (passing
+      - `createEdge(db, parent, child, {order?, kind?})`
+        creates a `Edge` via `Relation.make` (passing
         `Relation.Source` / `Relation.Target`), `db.add`s it, and
         defaults `order` to one past the current max among the
         parent's outgoing edges.
       - `getStructuralChildren(db, parent)` returns the merged list
-        of structural children — `Block.children` entries first (in
-        their array order), then ChildEdges sorted by `order` —
+        of structural children — `Node.children` entries first (in
+        their array order), then Edges sorted by `order` —
         each as a plain `Ref` matching the legacy shape.
       - `useStructuralChildren(parent)` is the React-hook variant;
-        subscribes to ChildEdge queries so new edges trigger a
+        subscribes to Edge queries so new edges trigger a
         re-render.
   req F-DAG.Phase1.promote-via-edge:
     given: the user clicks a wrapper-less query result (F-6
       Phase 3b.promote)
     when: `promoteToWrapper` runs
     then:
-      - the wrapper Block is created and `db.add`-ed as before.
-      - the wrapper's attachment to the per-space Library Block is
-        recorded as a new `ChildEdge` with `source: library`,
+      - the wrapper Node is created and `db.add`-ed as before.
+      - the wrapper's attachment to the per-space Library Node is
+        recorded as a new `Edge` with `source: library`,
         `target: wrapper`, `order: nextOrderFor(library)` — NOT by
         appending to `library.children`.
       - `library.children` stays empty across the promote flow.
   req F-DAG.Phase1.tree-reads-via-merge:
-    given: the BlockTree renders an outline rooted at any Block
-    when: it enumerates that Block's structural children
+    given: the Graph renders an outline rooted at any Node
+    when: it enumerates that Node's structural children
     then:
-      - it uses `useStructuralChildren(rootBlock)`, which merges
-        `Block.children` and incident ChildEdges per
+      - it uses `useStructuralChildren(rootNode)`, which merges
+        `Node.children` and incident Edges per
         F-DAG.Phase1.helpers.
       - for legacy outlines (no edges authored), the result is
         identical to the prior `snapshot.children` read.
       - for Library (post-promote), the result is the wrapper
-        Blocks resolved from ChildEdges; no regression to outline
+        Nodes resolved from Edges; no regression to outline
         navigation in either case.
   req F-DAG.Phase2.tag-block-edges:
     given: `createTagBlock` is invoked for a new typename
     when: it materialises the tag node and its query child
     then:
       - the tag node is added to `Schema.children` via a NEW
-        `ChildEdge` with `source: schemaBlock`, `target: tagBlock`.
-        `schemaBlock.children` is NOT written to.
+        `Edge` with `source: schemaBlock`, `target: tagBlock`.
+        `schemaNode.children` is NOT written to.
       - the auto-created query child is attached to the tag node
-        via a `ChildEdge` with `source: tagBlock`,
-        `target: queryChild`. `tagBlock.children` stays empty.
+        via a `Edge` with `source: tagBlock`,
+        `target: queryChild`. `tagNode.children` stays empty.
       - subsequent `createTagBlock` calls for different typenames
-        add additional ChildEdges off the same Schema Block; the
-        Schema Block is still find-or-create singleton per space.
+        add additional Edges off the same Schema Node; the
+        Schema Node is still find-or-create singleton per space.
   req F-DAG.Phase5.structural-kind-default:
-    given: a structural ChildEdge is being created
-    when: `createChildEdge(db, parent, child, options)` runs
+    given: a structural Edge is being created
+    when: `createEdge(db, parent, child, options)` runs
     then:
       - if `options.kind` is omitted, the edge is created with
         `kind: 'structural'` (the constant
@@ -1933,16 +1936,16 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - callers that want every edge regardless of kind pass
         `{ includeAllKinds: true }` to the reader.
   req F-DAG.Phase5.cycle-prevention:
-    given: a structural ChildEdge is being created (link, indent,
+    given: a structural Edge is being created (link, indent,
       promote, sibling-insert, …)
-    when: `createChildEdge` is asked to attach `parent → child`
+    when: `createEdge` is asked to attach `parent → child`
     then:
       - `wouldCreateCycle(db, parent, child)` runs first: it
         returns true when `parent === child` (self-loop) OR when
         `parent` is reachable by walking outgoing structural
         edges from `child`. The walk is bounded by a visited-set
         so any pre-existing cycle terminates safely.
-      - if a cycle would be created, `createChildEdge` returns
+      - if a cycle would be created, `createEdge` returns
         `undefined` without writing the edge.
       - non-structural edges (Phase-5-reserved kinds) are NOT
         cycle-checked — those are not part of the structural
@@ -1950,17 +1953,17 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
   req F-DAG.Phase3a.add-existing-via-picker:
     given: my cursor is in a pending-child placeholder (the faint
       bullet on an expanded leaf)
-    when: I type `@` and select an existing Block `X` from the
+    when: I type `@` and select an existing Node `X` from the
       mention picker
     then:
-      - NO wrapper Block is created (no `Block.make({content: [Ref(X)]})`).
-      - a `ChildEdge(parent, X)` is created via `createChildEdge`.
+      - NO wrapper Node is created (no `Bramble.makeNode({content: [Ref(X)]})`).
+      - a `Edge(parent, X)` is created via `createEdge`.
       - `X` now renders as a regular structural child of `parent`,
         with its NORMAL solid bullet.
       - the added node renders VISUALLY THE SAME as a node that
         was just typed inline — same bullet, same text colour,
         NO blue-link styling. The F-V3 blue ref treatment is for
-        `@`-mentions inside a Block's TEXT, not for whole-node
+        `@`-mentions inside a Node's TEXT, not for whole-node
         picks from the pending-child placeholder.
       - if `X` was already a child of another parent, it now has
         two structural parents; the multi-parent badge from
@@ -1971,15 +1974,15 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         `X` is silently rejected if `X` is an ancestor of
         `parent`.
     Note: this scenario is what distinguishes "add an existing
-    node X" from "mention X in this Block's text". The latter
+    node X" from "mention X in this Node's text". The latter
     happens when the user invokes `@` inside an existing
-    BlockEditor (typing into a Block's content): it inserts a Ref
-    segment into the Block's `content` (an F-V3 inline mention,
+    Editor (typing into a Node's content): it inserts a Ref
+    segment into the Node's `content` (an F-V3 inline mention,
     alongside text). The pending-child case is structurally
     different: the user is asking "what's the next bullet" not
     "what does this bullet say."
   req F-DAG.Phase4.per-occurrence-collapse:
-    given: a BlockNode rendering for `block` under `parent`
+    given: a Node rendering for `block` under `parent`
     when: it computes its collapse state OR toggles it
     then:
       - the read path uses `useEdgeExpanded(parent, block)`:
@@ -1991,38 +1994,38 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - the write path uses `setEdgeExpanded(db, parent, block,
         value)`: persists on the edge if one exists, else falls
         back to `block.state.expanded` (defensive).
-      - for a Block with multiple structural parents (Phase 3e
+      - for a Node with multiple structural parents (Phase 3e
         link), each occurrence carries its own `expanded` on its
-        own edge — collapsing the Block in one place does not
+        own edge — collapsing the Node in one place does not
         affect the other rendering.
   req F-DAG.Phase3d.read-side-migration-backstop:
-    given: a Block whose legacy `Block.children` array is
+    given: a Node whose legacy `Node.children` array is
       non-empty (e.g. an outline created before Phase 3a / 3b)
     when: any `useStructuralChildren(thisBlock)` mounts in the
       current client session
     then:
       - a session-level lock (a `WeakMap<db, Set<parentId>>`) is
         consulted to ensure the migration runs at most once per
-        parent, even when many BlockNodes mount concurrently and
+        parent, even when many Nodes mount concurrently and
         all subscribe to the same parent.
       - `ensureMigratedChildren(db, parent)` runs in a mount
-        effect: legacy children are re-created as ChildEdges with
+        effect: legacy children are re-created as Edges with
         sequential orders, `parent.children` is cleared.
       - subsequent reads return purely from edges; the merge
         becomes a one-sided union.
       - outlines that were never edited after Phase 3a–3c land
         get drained passively just by being viewed.
   req F-DAG.Phase3e.multi-parent-badge:
-    given: a Block has more than one structural parent — i.e. more
-      than one `ChildEdge` whose `target` is this Block
-    when: the BlockNode renders the bullet row
+    given: a Node has more than one structural parent — i.e. more
+      than one `Edge` whose `target` is this Node
+    when: the Node renders the bullet row
     then:
       - a small numeric badge appears immediately after the
         bullet showing the parent count.
       - the badge carries a tooltip ("Appears in N places").
       - the badge is suppressed when parent-edge-count <= 1.
-      - the badge appears on EVERY occurrence of the Block (it
-        renders inside BlockNode, so each rendered instance
+      - the badge appears on EVERY occurrence of the Node (it
+        renders inside Node, so each rendered instance
         shows it independently).
   req F-DAG.Phase3e.link-via-cmd-tab:
     given: the user holds Cmd (Mod) and presses Tab on a bullet
@@ -2031,9 +2034,9 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
     then:
       - both `parent` (current) and `prevSibling` (new) are
         migrated via `ensureMigratedChildren`.
-      - a new ChildEdge `prevSibling → block` is created and
+      - a new Edge `prevSibling → block` is created and
         appended at the end of prevSibling's children.
-      - the existing `parent → block` edge is PRESERVED — Block
+      - the existing `parent → block` edge is PRESERVED — Node
         becomes a structural child of BOTH parents.
       - the operation is idempotent: if an edge from prevSibling
         to block already exists, Cmd+Tab is a no-op (no duplicate
@@ -2041,25 +2044,25 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - the multi-parent badge (F-DAG.Phase3e.multi-parent-badge)
         appears on the bullet row after the link is created.
   req F-DAG.Phase3e.predecessor-nav-list:
-    given: I am viewing a Block as the page block, AND the page
+    given: I am viewing a Node as the page node, AND the page
       block has at least one predecessor (a structural in-edge —
-      i.e. at least one `ChildEdge` whose `target` is the page
+      i.e. at least one `Edge` whose `target` is the page
       block), AND a predecessor-navigation control is rendered at
-      the top of the page for that page block
+      the top of the page for that page node
     when: I invoke the predecessor-navigation control
     then:
-      - every predecessor of the page block appears as a
+      - every predecessor of the page node appears as a
         selectable option in the control.
       - each option labels its predecessor using the same
-        `BlockContent` resolver the H1 header uses (text + refs),
+        `Content` resolver the H1 header uses (text + refs),
         falling back to `(unnamed)` for predecessors with empty
         content.
       - the options are sorted alphabetically (case-insensitive)
-        by display label, with `Block.id` as a deterministic
+        by display label, with `Node.id` as a deterministic
         tiebreaker so identically-labelled predecessors keep a
         stable order across re-renders. Unnamed predecessors
         (label resolves to `(unnamed)`) sort to the end of the
-        list, then fall back to `Block.id` order among
+        list, then fall back to `Node.id` order among
         themselves.
       - non-structural edge kinds (Phase 5 reserved values) are
         EXCLUDED — only edges where `isStructuralEdge` returns true
@@ -2070,31 +2073,31 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         most one parent in the legacy tree model).
   req F-DAG.Phase3e.predecessor-nav-switch:
     given: the predecessor-navigation control is open and listing
-      the page block's predecessors
+      the page node's predecessors
     when: I select one of the predecessor options with a regular
       click (no modifier keys held)
     then:
-      - the current pane's page block switches to the selected
+      - the current pane's page node switches to the selected
         predecessor.
       - the predecessor renders as the H1 header (per
         F-Page-Header) with its own successors below.
       - the predecessor-navigation control dismisses; on the new
-        page block, the control reflects THAT page block's own
+        page node, the control reflects THAT page node's own
         predecessor set (which may be empty, one, or many).
       - no pane is opened or closed — the swap stays inside the
         current pane.
   req F-DAG.Phase3e.multi-occurrence-edit-sync:
-    given: Block X is rendered in two or more places in the
-      currently visible view — e.g. a multi-predecessor Block
-      via `F-DAG.Phase3e.link-via-cmd-tab`, or any Block reachable
+    given: Node X is rendered in two or more places in the
+      currently visible view — e.g. a multi-predecessor Node
+      via `F-DAG.Phase3e.link-via-cmd-tab`, or any Node reachable
       from more than one structural edge — so two or more
-      `BlockEditor` instances are mounted against the same live
+      `Editor` instances are mounted against the same live
       `block` ref
-    when: I type a character (or otherwise mutate `block.content`)
+    when: I type a character (or otherwise mutate `node.content`)
       inside ONE of those editor instances
     then:
-      - every OTHER `BlockEditor` instance bound to the same `block`
-        re-syncs its ProseMirror doc from the new `block.content`
+      - every OTHER `Editor` instance bound to the same `block`
+        re-syncs its ProseMirror doc from the new `node.content`
         within one ECHO subscription tick. The user sees their
         edit reflected in every visible rendering immediately
         — no manual refresh, no remount.
@@ -2108,22 +2111,22 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         via `Node.eq`) prevents the source editor's own write
         from being looped back as a redundant transaction.
     Note: this scenario was previously broken because the
-    BlockEditor mount effect's dependency array (`[block,
+    Editor mount effect's dependency array (`[block,
     makeRef, resolveRef]`) is stable across content changes —
-    the editor only read `block.content` once at mount and never
+    the editor only read `node.content` once at mount and never
     again. Multi-predecessor F-DAG outlines made the divergence
     immediately visible (typing in one occurrence left every
     other occurrence stale).
   req F-DAG.Phase3e.predecessor-nav-open-pane:
     given: the predecessor-navigation control is open and listing
-      the page block's predecessors
+      the page node's predecessors
     when: I select one of the predecessor options with the Shift
       key held
     then:
       - a new pane opens to the right of the current pane (per
         F-Open-Pane), rendering the selected predecessor as the
-        new pane's page block.
-      - the current pane is unchanged — its page block AND the
+        new pane's page node.
+      - the current pane is unchanged — its page node AND the
         state of its predecessor-navigation control are both
         preserved.
       - the F-Open-Pane deck-disabled fallback applies when deck
@@ -2146,70 +2149,70 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
         next sibling (via `orderBetween`).
       - if the expected parent edge in grandparent can't be
         found, dedent is a no-op (avoids orphan edges).
-      - no `Block.children` array is written from either path.
+      - no `Node.children` array is written from either path.
   req F-DAG.Phase3b.sibling-insert-via-edge:
     given: the user presses Enter, Shift+Enter, or Cmd+Shift+Enter
       on a bullet whose parent may still hold pre-existing
-      `Block.children` entries
+      `Node.children` entries
     when: the insert handler fires
     then:
       - `ensureMigratedChildren(db, parent)` runs first: every
-        legacy `Block.children` entry is converted to a
-        `ChildEdge` with sequential `order` (0, 1, 2, …) matching
+        legacy `Node.children` entry is converted to a
+        `Edge` with sequential `order` (0, 1, 2, …) matching
         the merged view, and `parent.children` is cleared.
       - the new bullet is `db.add`-ed.
-      - a new ChildEdge is created with `order` placed BETWEEN
+      - a new Edge is created with `order` placed BETWEEN
         the current bullet's edge and the appropriate neighbour
         (the next edge for `insertSiblingAfter`, the previous
         edge for `insertSiblingBefore`) via `orderBetween`.
         Edge-of-array inserts get `prev.order + 1` or
         `next.order - 1` so the resulting sort matches user
         intent.
-      - after this write, the parent's `Block.children` is empty
+      - after this write, the parent's `Node.children` is empty
         forever; every subsequent sibling-insert uses fractional
         orders without further migration.
   req F-DAG.Phase3a.append-via-edge:
     given: a writer needs to append exactly one new child to a
-      Block that has no existing children (legacy or edges)
+      Node that has no existing children (legacy or edges)
     when: the writer fires
     then:
       - the writer calls `db.add(newChild)` then
-        `createChildEdge(db, parent, newChild)`.
-      - parent's `Block.children` array is NOT touched.
+        `createEdge(db, parent, newChild)`.
+      - parent's `Node.children` array is NOT touched.
       - the two call-sites covered by Phase 3a are
         `PendingChildRow.onPromote` (F-Pending-Child) and
-        `BlockTree`'s legacy outline auto-seed migration.
-      - the seed-decision in `BlockTree` consults
-        `getStructuralChildren(rootBlock)`, so an outline that
-        already has either legacy children or ChildEdges is left
+        `Graph`'s legacy outline auto-seed migration.
+      - the seed-decision in `Graph` consults
+        `getStructuralChildren(rootNode)`, so an outline that
+        already has either legacy children or Edges is left
         alone.
   req F-DAG.Phase2.blocknode-merge:
-    given: BlockNode renders a non-system Block whose children may
-      come from `Block.children`, ChildEdges, or both
+    given: Node renders a non-system Node whose children may
+      come from `Node.children`, Edges, or both
     when: it computes `childRefs`
     then:
       - it uses `useStructuralChildren(block)`, the same merge hook
-        BlockTree uses.
-      - a tag node rendered as a nested BlockNode (e.g. when the
+        Graph uses.
+      - a tag node rendered as a nested Node (e.g. when the
         user expands a tag's bullet inside the Schema page) still
-        shows its query child, sourced from the ChildEdge.
-      - legacy outline reads are unaffected — when no ChildEdges
+        shows its query child, sourced from the Edge.
+      - legacy outline reads are unaffected — when no Edges
         fan out of `block`, the merged result is exactly the
         `snapshot.children` array, in the same order.
       - the hook is called BEFORE the `queryRef` early return so
         the rules-of-hooks order stays stable across all branches
-        of BlockNode rendering.
+        of Node rendering.
 ```
 
 ```mdl
 feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Page
   desc: |
-    On opening a block outline the user lands on TODAY'S
-    day-page — a Block whose role is "today's bullets". Each
-    day has its own day-page Block; the outline's `entries`
+    On opening a Bramble graph the user lands on TODAY'S
+    day-page — a Node whose role is "today's bullets". Each
+    day has its own day-page Node; the outline's `entries`
     field is a per-date map from ISO date to that day's
-    Block. Modelled on plugin-outliner's Journal type, but
-    with Blocks (and the full outliner UX — bullets,
+    Node. Modelled on plugin-outliner's Journal type, but
+    with Nodes (and the full outliner UX — bullets,
     supertags, predecessor-nav, all of it) instead of
     plain-text JournalEntry content.
 
@@ -2219,26 +2222,26 @@ feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Pa
     F-Day-Page adopts the same convention so the outliner
     has a natural start of work each day.
 
-    Key data shape (additive to BlockOutline; no other plugin
+    Key data shape (additive to Graph; no other plugin
     affected):
 
-        BlockOutline.entries: Record<ISO-date-string, Ref<Block>>
+        Graph.entries: Record<ISO-date-string, Ref<Node>>
 
     Helpers (to be added under
-    `components/BlockArticle/day-page.ts` or similar):
+    `components/Article/day-page.ts` or similar):
       - `getOrCreateDayPage(outline, date)` — find-or-create
         semantics. Returns `outline.entries[date]` if it
-        exists; otherwise creates a fresh Block, attaches it
+        exists; otherwise creates a fresh Node, attaches it
         as `outline.entries[date]`, and returns it.
       - `today()` — the user's local-tz date as
         `YYYY-MM-DD`.
   req F-Day-Page.open-to-today:
-    given: I open a block outliner (first mount in a session,
+    given: I open a Bramble graphr (first mount in a session,
       or revisit after navigating away)
     when: the article surface attaches and resolves its
-      pageBlock
+      pageNode
     then:
-      - the pageBlock is the day-page for today's local-tz
+      - the pageNode is the day-page for today's local-tz
         date, found-or-created via
         `getOrCreateDayPage(outline, today())`.
       - the day-page renders as a regular outliner page —
@@ -2251,18 +2254,18 @@ feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Pa
       keyboard shortcut, or "previous / next day"
       affordance)
     then:
-      - the pageBlock switches to the day-page for the
+      - the pageNode switches to the day-page for the
         selected date D', found-or-created as needed via
         `getOrCreateDayPage(outline, D')`.
       - when the active day-page is not today's, a quick-
         return affordance ("← back to today" or
         equivalent) is available to navigate back to today.
   req F-Day-Page.day-page-is-bullet-shaped:
-    given: a day-page Block reachable via
-      `BlockOutline.entries`
+    given: a day-page Node reachable via
+      `Graph.entries`
     when: I view or edit it
     then:
-      - it is a Block exactly like any other (per
+      - it is a Node exactly like any other (per
         F-Page-Header and F-Zoom semantics); typing sets its
         content, Tab / Shift+Tab / Enter all work as for a
         regular bullet.
@@ -2271,13 +2274,13 @@ feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Pa
         predecessor edges, etc.
       - F-Supertag.uniqueness, F-DAG, and all other cross-
         cutting invariants apply without special-casing — a
-        day-page is a Block first, a date-indexed entry
+        day-page is a Node first, a date-indexed entry
         second.
 ```
 
 ```mdl
 feat F-7: Tana Paste import     # Increment 7
-  req F-7.1: Pasting a payload starting with %%tana%% into a BlockOutline imports the structure as Blocks.
+  req F-7.1: Pasting a payload starting with %%tana%% into a Graph imports the structure as Nodes.
   req F-7.2: Supertags, fields, references, and dates are preserved using a stable-ID translation table.
 ```
 
@@ -2286,39 +2289,39 @@ feat F-7: Tana Paste import     # Increment 7
 ```mdl
 test T-1: Increment 1 — scaffold renders
   given: composer-app is running with isLabs enabled
-  when: user creates a Block Outline from the navigator
+  when: user creates a Bramble graph from the navigator
   then:
-    - BlockOutline + empty root Block appear in ECHO
-    - BlockArticle surface renders the placeholder
+    - Graph + empty root Node appear in ECHO
+    - Article surface renders the placeholder
     - no console errors
 ```
 
 ```mdl
 test T-2: Increment 2 — editable bullet round-trips
-  given: composer-app is running, a Block Outline has been created
+  given: composer-app is running, a Bramble graph has been created
   when: user types "hello world" into the editor and reloads the page
   then:
-    - Block.content === [{ kind: 'text', text: 'hello world' }]
+    - Node.content === [{ kind: 'text', text: 'hello world' }]
     - on reload, the editor mounts with "hello world" visible
     - no console errors attributable to plugin-blocks
 ```
 
 ```mdl
 test T-3: Increment 3 — Enter creates a new sibling
-  given: a Block Outline with a single bullet "first"
+  given: a Bramble graph with a single bullet "first"
   when: user places cursor at end of "first" and presses Enter, then types "second"
   then:
-    - rootBlock.children has two Block refs in order
-    - first Block.content === [{ kind: 'text', text: 'first' }]
-    - second Block.content === [{ kind: 'text', text: 'second' }]
+    - rootNode.children has two Node refs in order
+    - first Node.content === [{ kind: 'text', text: 'first' }]
+    - second Node.content === [{ kind: 'text', text: 'second' }]
     - on reload, both bullets render with original text
 ```
 
 ```mdl
 test T-4: Increment 3 — DXN copy
-  given: a Block Outline with a bullet, navigator.clipboard available
+  given: a Bramble graph with a bullet, navigator.clipboard available
   when: user right-clicks the bullet
-  then: Obj.getDXN(block) is written to the clipboard
+  then: Obj.getDXN(node) is written to the clipboard
 ```
 
 ```mdl
@@ -2326,7 +2329,7 @@ test T-5: Increment 3b — Tab indents
   given: an outline with two top-level bullets [A, B]
   when: cursor is in B and user presses Tab
   then:
-    - rootBlock.children === [A] (B removed from top level)
+    - rootNode.children === [A] (B removed from top level)
     - A.children === [B] (B is now A's child)
     - B.children unchanged (B keeps its own subtree)
     - B's editor has focus after re-mount
@@ -2338,7 +2341,7 @@ test T-6: Increment 3b — Shift+Tab dedents
   when: cursor is in B and user presses Shift+Tab
   then:
     - A.children === [] (B removed from A)
-    - rootBlock.children === [A, B] (B is now sibling of A)
+    - rootNode.children === [A, B] (B is now sibling of A)
     - B's editor has focus after re-mount
 ```
 
@@ -2348,7 +2351,7 @@ test T-7: Increment 4 — @-mention inserts a ref
   when: user types "hello @" then types a query that matches an object's label, then clicks the object
   then:
     - the @-and-query range is replaced by an inline ref node
-    - Block.content contains a RefSpan segment with target pointing at the chosen object
+    - Node.content contains a RefSpan segment with target pointing at the chosen object
     - the rendered text shows the target's current label
     - on reload the ref persists with the same DXN
 ```
@@ -2370,7 +2373,7 @@ test T-9: Increment V2 — collapse / expand parent
 
 ```mdl
 test T-V4-live: Adding a ref increments the target's count without leaving the source
-  given: an outline with a Block X (currently being edited) and another Block Y; Y currently has zero or N references
+  given: an outline with a Node X (currently being edited) and another Node Y; Y currently has zero or N references
   when: user inserts an inline ref to Y inside X — e.g. types @ in X, picks Y from the picker
   then:
     - within one paint frame after the ref node renders inside X, Y's count badge displays previous_count + 1
@@ -2400,7 +2403,7 @@ test T-Cmd-Shift-Enter: Cmd+Shift+Enter inserts an empty sibling ABOVE
   given: an outline with a single bullet X containing some text
   when: cursor is in X and user presses Cmd+Shift+Enter (Mod+Shift+Enter)
   then:
-    - parent.children has two Block refs in order [Y, X]
+    - parent.children has two Node refs in order [Y, X]
     - Y.content is empty
     - X.content is unchanged
     - cursor lands at the start of Y (Y has focus)
@@ -2425,7 +2428,7 @@ test T-Caret: focus paths produce a single visible caret
 
 ```mdl
 test T-Headline: zoomed headline renders refs alongside text
-  given: a Block X whose content is the segments
+  given: a Node X whose content is the segments
     [text "what is in ", ref→A, text " and what ", ref→B, text " now"]
     where A's label is "alpha" and B's label is "beta"
   when: I zoom into X
@@ -2463,13 +2466,13 @@ test T-Supertag-picker-excludes-relations: # picker does not offer relation-type
 ```
 
 ```mdl
-test T-Supertag-picker-excludes-self-types: # picker does not offer the block outliner's own types
+test T-Supertag-picker-excludes-self-types: # picker does not offer the Bramble graphr's own types
   given: a space in which the user has at least one block
     outline (so the outliner's own ECHO types are registered
     alongside the rest)
   when: I open the `#` picker
   then:
-    - I do NOT see `#Block-outline` or `#Block` in the picker.
+    - I do NOT see `#Node-outline` or `#Node` in the picker.
       Tagging a bullet with the outliner's own scaffolding
       would let the bullet "be" a copy of itself or its
       container — a recursive arrangement that doesn't make
@@ -2489,7 +2492,7 @@ test T-Supertag-picker-sorted: # picker entries are alphabetical, case-insensiti
 test T-Supertag-schema-shows-all-types: every type has a supertag node under Schema
   given: a space whose plugins have registered typed ECHO
     schemas (filtered per F-Supertag.types-shown)
-  when: I open the block outliner and zoom into the Schema
+  when: I open the Bramble graphr and zoom into the Schema
     system node
   then: for every registered type, there is a corresponding
     supertag node among Schema's children. Each supertag node's
@@ -2514,7 +2517,7 @@ test T-Supertag-mat-idempotent: supertag node set matches the allowed-type set, 
 
 ```mdl
 test T-Supertag-mat-live: newly registered types get a supertag node live
-  given: I am viewing the block outliner; some plugin
+  given: I am viewing the Bramble graphr; some plugin
     registers a new typed ECHO schema (that passes
     F-Supertag.types-shown's filter) after the outliner has
     mounted
@@ -2561,7 +2564,7 @@ test T-Supertag-uniq-sweep: normalisation collapses duplicate supertag associati
     for this space (one or more times, in any order)
   then:
     - the association set for (X, `#T`) becomes {canonical}
-      — exactly one node, selected by lower `Block.id` per
+      — exactly one node, selected by lower `Node.id` per
       F-Supertag.uniqueness's tie-break.
     - any other supertag-Refs on N1 and N2 (for types
       other than T or instances other than X) are
@@ -2657,7 +2660,7 @@ test T-Supertag-chip-click-zoom: clicking the chip navigates the current pane to
     is visible in the outliner pane I'm viewing
   when: I click N's `#T` chip (no modifier keys)
   then:
-    - the current pane's page block becomes the `#T`
+    - the current pane's page node becomes the `#T`
       supertag node (per F-Supertag.chip-gestures).
 ```
 
@@ -2669,9 +2672,9 @@ test T-Supertag-chip-shift-click-pane: shift-clicking the chip opens the superta
   when: I shift-click N's `#T` chip
   then:
     - a new pane opens to the right of the current pane.
-    - the new pane's page block is the `#T` supertag node
+    - the new pane's page node is the `#T` supertag node
       (per F-Supertag.chip-gestures).
-    - the current pane's state is preserved — its page block
+    - the current pane's state is preserved — its page node
       and outline view remain as they were.
 ```
 
@@ -2711,7 +2714,7 @@ test T-Supertag-open-control-shift-click-pane: shift-clicking the open-instance 
     - a new pane opens to the right of the current pane.
     - the new pane displays the typed instance's article
       surface (per F-Supertag.open-instance-control).
-    - the current pane's state is preserved — its page block
+    - the current pane's state is preserved — its page node
       and N are as they were.
 ```
 
@@ -2769,7 +2772,7 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `[Task, Person, Organization]` allowlist is gone; every ECHO
   schema in the space is available as a supertag now.
 - F-7 Tana Paste import — parse a payload starting with `%%tana%%` into
-  Blocks + TagDefs, preserving structure, supertags, fields, refs, and
+  Nodes + TagDefs, preserving structure, supertags, fields, refs, and
   dates via a stable-id translation table. Schema is already a faithful
   import target; what's missing is the parser.
 
@@ -2779,13 +2782,13 @@ Branch:         `claude/agitated-nash-bd0b0f`
   helpers (`findOrCreateSchemaBlock`,
   `findOrCreateLibraryBlock`). Both currently lack the
   per-(db, key) lock that `ensureAllSupertagNodes` /
-  `useTagBlock` already use. When two BlockArticle panes
+  `useTagBlock` already use. When two Article panes
   mount on the same tick (or React Strict Mode double-
   invokes one mount effect), both helpers can return
   before either's `db.add` is observable in the
   schemaRegistry's query cache — both check, both see
   nothing, both create. Result: duplicate `systemNode:
-  'schema'` Blocks or `systemNode: 'library'` Blocks per
+  'schema'` Nodes or `systemNode: 'library'` Nodes per
   space. Fix: thread the same `acquireLock(db, systemNode)`
   pattern through both helpers so concurrent calls
   serialise. No backwards-compat / cleanup required — the
@@ -2798,18 +2801,18 @@ Branch:         `claude/agitated-nash-bd0b0f`
   adjacent to each TagChip; activating it opens the typed
   instance's Composer article surface per
   F-Supertag.open-instance-control), `SupertagNode` (the
-  supertag node as a page block — H1 header sourced from the
+  supertag node as a page node — H1 header sourced from the
   node's renameable content, with a query-child body listing
   every instance of the type), and `PredecessorNav` (the
   page-top control introduced by F-DAG.Phase3e.predecessor-nav-*
-  that lists every predecessor of the current page block).
+  that lists every predecessor of the current page node).
   `TagChip` is already in `## Components`; the others are
   referenced from tests and reqs but never had their own
   component block authored.
 - Picker keyboard navigation (arrow keys + Enter to select; Esc already wired).
-- `add object label` translation key shows raw on hover for the create-Block-Outline affordance.
-- BacklinksPanel reactivity to a *source* Block's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
-- BlockEditor's Storybook story (referenced as standard practice but not yet authored).
+- `add object label` translation key shows raw on hover for the create-Node-Outline affordance.
+- BacklinksPanel reactivity to a *source* Node's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
+- Editor's Storybook story (referenced as standard practice but not yet authored).
 
 ---
 

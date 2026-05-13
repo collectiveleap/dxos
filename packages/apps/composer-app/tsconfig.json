@@ -236,10 +236,10 @@
       "path": "../../plugins/plugin-automation"
     },
     {
-      "path": "../../plugins/plugin-blocks"
+      "path": "../../plugins/plugin-board"
     },
     {
-      "path": "../../plugins/plugin-board"
+      "path": "../../plugins/plugin-bramble"
     },
     {
       "path": "../../plugins/plugin-chess"

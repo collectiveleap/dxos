@@ -9,7 +9,7 @@ import { type Command, EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { DXN, Obj, Ref } from '@dxos/echo';
+import { DXN, Obj } from '@dxos/echo';
 
 import { MentionPicker } from '../MentionPicker';
 import { TagPicker } from '../TagPicker';
@@ -568,9 +568,9 @@ export const Editor = ({
       }
       const instance = Obj.make(entry.schema as any, initialPropsForTag(entry.schema) as any);
       db.add(instance);
-      Obj.update(block, (mutable) => {
-        const previous = ((mutable as any).supertags ?? []) as readonly any[];
-        (mutable as any).supertags = [...previous, db.makeRef(Obj.getDXN(instance))];
+      Obj.update(block, (block) => {
+        const previous = ((block as any).supertags ?? []) as readonly any[];
+        (block as any).supertags = [...previous, db.makeRef(Obj.getDXN(instance))];
       });
       const tr = view.state.tr.delete(tag.state.from, tag.state.to);
       tr.setMeta(hashKey, 'close');

@@ -196,8 +196,8 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
       return;
     }
     const initialName = liveGraph.name;
-    Obj.update(paneRootNode, (mutable) => {
-      (mutable as any).content = [{ kind: 'text', text: initialName }];
+    Obj.update(paneRootNode, (paneRootNode) => {
+      (paneRootNode as any).content = [{ kind: 'text', text: initialName }];
     });
     // Run once at mount per graph.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,8 +211,8 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     if (!liveGraph || rootLabel.length === 0 || liveGraph.name === rootLabel) {
       return;
     }
-    Obj.update(liveGraph, (mutable) => {
-      (mutable as any).name = rootLabel;
+    Obj.update(liveGraph, (liveGraph) => {
+      (liveGraph as any).name = rootLabel;
     });
   }, [liveGraph, rootLabel]);
 

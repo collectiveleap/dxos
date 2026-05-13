@@ -540,12 +540,12 @@
         },
         {
           "type": "json",
-          "path": "packages/plugins/plugin-blocks/package.json",
+          "path": "packages/plugins/plugin-board/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "packages/plugins/plugin-board/package.json",
+          "path": "packages/plugins/plugin-bramble/package.json",
           "jsonpath": "$.version"
         },
         {
