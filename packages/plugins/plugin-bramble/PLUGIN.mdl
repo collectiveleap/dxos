@@ -2748,34 +2748,61 @@ test T-Create-Filter-And-Pick: typing into the create-object dialog narrows the 
     - clicking a remaining entry commits the selection and
       creates an instance of that type; the dialog closes and
       the new object opens in the pane
+    - hovering with the mouse moves the highlight to the
+      hovered item (single-cursor pattern) and clicking commits
+      that item with a clearly visible selection state
+    - holding ArrowDown / ArrowUp at auto-repeat speed
+      (~33 ms/event) advances the cursor by ONE entry per event
+      (no skipped items)
   desc: |
     Reported 2026-05-13 as: "the selection of menu items is not
     working — i can't select Bramble and what I do select isn't
-    clear". Pre-fix behaviour: typing into the type-search input
-    appeared inert — the option list stayed at every registered
-    ECHO type and the cursor stayed on whichever entry
-    auto-selected first (alphabetically, typically "Agent"),
-    making targeted selection of Bramble (or any other entry)
-    cumbersome.
+    clear". Then on follow-up: "hover doesn't highlight; up/down
+    arrows work but skip one item — this is after i disabled
+    Bramble." Current behaviour against the create-object dialog
+    in this branch:
 
-    Root cause: `useSearchListResults` in @dxos/react-ui-search
-    auto-reset its internal query state on every `items`
-    identity change. `CreateObjectDialog` rebuilds `options`
-    each render (its deps include `manager.capabilities` lookups
-    and a `viewTypenames` Set that recomputes on schema-registry
-    runs), so any parent re-render between the keystroke and
-    the 200ms `onSearch` debounce wiped the user's query. Fix
-    in the same commit: drop the auto-reset effect from
-    `useSearchListResults`; the `results` memo already depends
-    on `items`, so list changes propagate without clobbering
-    the query.
+    1. Filter is inert. Typing into the type-search input does
+       not narrow the option list — every registered ECHO type
+       remains visible and the cursor stays on whichever entry
+       auto-selected first (alphabetically, typically "Agent").
+       Targeted selection of Bramble (or any other entry) is
+       possible only by long scroll-and-click.
 
-    Observed via Bramble but applies wherever
-    `useSearchListResults` is mounted (CreateObjectPanel,
-    CollectionArticle, ChatOptions, MasonryContainer,
-    CommandsDialogContent, plugin-simple-layout Home/NavBranch,
-    ObjectPicker, Grid). The fix lifts the regression for all
-    of them.
+       Root cause: `useSearchListResults` in
+       @dxos/react-ui-search auto-resets its internal query
+       state whenever the `items` prop arrives with a fresh
+       array identity. `CreateObjectDialog` rebuilds `options`
+       each render (its deps include `manager.capabilities`
+       lookups and a `viewTypenames` Set that recomputes on
+       schema-registry runs), so any parent re-render between
+       the keystroke and the 200 ms `onSearch` debounce wipes
+       the user's query.
+
+    2. Mouse hover does not highlight items. The `Picker.Item`
+       ships a low-contrast `:hover` background (a 97%-light
+       grey on a near-white dialog body) AND keeps the keyboard
+       cursor (`aria-selected`, ~89% grey) decoupled from the
+       mouse cursor — so users see neither a prominent
+       hover-highlight nor a single moving cursor.
+
+    3. Rapid arrow-key presses skip items. `Picker.Input`'s
+       `handleKeyDown` reads `selectedValue` from its
+       closure (a useCallback dep), so events that fire faster
+       than React commits all compute "current + 1" from the
+       SAME starting index, producing visible skips at
+       auto-repeat speed.
+
+    All three root causes live UPSTREAM of plugin-bramble —
+    `useSearchListResults` (in @dxos/react-ui-search) for (1)
+    and `Picker` (in @dxos/react-ui-list) for (2) and (3). They
+    affect every consumer of those primitives, not Bramble
+    specifically. Fixes are deliberately OUT OF SCOPE for this
+    plugin and are flagged in `## Remaining` for a future
+    upstream coordination.
+
+    Captured here so the Bramble UX expectations are documented
+    end-to-end; the test will pass once the upstream fixes land.
 ```
 
 ---
@@ -2860,6 +2887,20 @@ Branch:         `claude/agitated-nash-bd0b0f`
 - `add object label` translation key shows raw on hover for the create-Node-Outline affordance.
 - BacklinksPanel reactivity to a *source* Node's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
 - Editor's Storybook story (referenced as standard practice but not yet authored).
+- **Upstream `@dxos/react-ui-search` + `@dxos/react-ui-list` defects
+  affecting the create-object dialog when launching Bramble** (see
+  `test T-Create-Filter-And-Pick` desc for the full diagnosis):
+  - `useSearchListResults` resets its query when `items` arrives with
+    a new array identity → typing in the type-search input is inert.
+  - `Picker.Item` ships a low-contrast `:hover` background AND keeps
+    mouse hover decoupled from the keyboard cursor → users see no
+    visible highlight under the mouse.
+  - `Picker.Input`'s `handleKeyDown` reads `selectedValue` from a
+    closure → rapid arrow-key auto-repeat skips items.
+  - Fixes belong in `react-ui-search` and `react-ui-list` (each
+    affects every consumer of those primitives, not just Bramble);
+    out of scope for this plugin. Workaround for users today: scroll
+    + click directly.
 
 ---
 
