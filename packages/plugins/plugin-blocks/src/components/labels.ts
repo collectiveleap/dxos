@@ -4,10 +4,10 @@
 
 import { Obj } from '@dxos/echo';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // Label resolver shared by the mention picker, RefNodeView, and the
-// outline's H1 → name auto-sync. For Block objects, expands inline ref
+// graph's H1 → name auto-sync. For Bramble.Node objects, expands inline ref
 // segments by recursively resolving each ref's target via this same
 // function so the rendered label includes ref text — without this, a
 // bullet whose content is `"hello [@A] world"` would render as
@@ -21,7 +21,7 @@ export const getDisplayLabel = (object: any, visited: Set<string> = new Set()): 
     return stdLabel;
   }
 
-  if (Obj.getTypename(object) === Block.Block.typename) {
+  if (Obj.getTypename(object) === Bramble.Node.typename) {
     const id = object?.id as string | undefined;
     if (id && visited.has(id)) {
       return '…';

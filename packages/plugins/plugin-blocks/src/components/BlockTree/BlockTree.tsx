@@ -8,12 +8,12 @@ import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { BlockNode } from '../BlockNode';
-import { createChildEdge, getStructuralChildren, useStructuralChildren } from '../BlockNode/child-edges';
+import { createEdge, getStructuralChildren, useStructuralChildren } from '../BlockNode/child-edges';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 export type BlockTreeProps = {
-  rootBlock: Block.Block;
+  rootBlock: Bramble.Node;
 };
 
 // Increment 3b: top-level component that walks `rootBlock.children` and
@@ -55,7 +55,7 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
       return;
     }
     const contentArr = (snapshot.content ?? []) as readonly unknown[];
-    const seed = Block.make(contentArr.length > 0 ? { content: [...contentArr] as any } : {});
+    const seed = Bramble.makeNode(contentArr.length > 0 ? { content: [...contentArr] as any } : {});
     if (contentArr.length > 0) {
       Obj.update(rootBlock, (rootBlock) => {
         (rootBlock as any).content = [];
@@ -63,7 +63,7 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
     }
     if (db) {
       db.add(seed);
-      createChildEdge(db, rootBlock, seed);
+      createEdge(db, rootBlock, seed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -101,7 +101,7 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
   return (
     <div className='space-y-1' onContextMenu={handleContextMenu}>
       {childRefs.map((ref) => {
-        const child = ref.target as Block.Block;
+        const child = ref.target as Bramble.Node;
         return (
           <BlockNode
             key={child.id}
@@ -118,8 +118,8 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
 
 // Walk the tree from rootBlock to find a Block by id. Used by the contextmenu
 // to look up the right Block when nested bullets are rendered.
-const findBlockById = (rootBlock: Block.Block, id: string): Block.Block | undefined => {
-  const stack: Block.Block[] = [rootBlock];
+const findBlockById = (rootBlock: Bramble.Node, id: string): Bramble.Node | undefined => {
+  const stack: Bramble.Node[] = [rootBlock];
   while (stack.length > 0) {
     const current = stack.pop()!;
     if (current.id === id) {

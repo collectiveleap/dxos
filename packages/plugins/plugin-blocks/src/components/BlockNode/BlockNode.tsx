@@ -13,9 +13,9 @@ import { findTagTypeByTypename } from '../BlockEditor/tag-types';
 import { MentionPicker } from '../MentionPicker';
 import {
   childEdgesOf,
-  createChildEdge,
+  createEdge,
   ensureMigratedChildren,
-  findChildEdge,
+  findEdge,
   orderBetween,
   setEdgeExpanded,
   useEdgeExpanded,
@@ -26,15 +26,15 @@ import { FieldGroups } from './FieldGroup';
 import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 export type BlockNodeProps = {
-  block: Block.Block;
+  block: Bramble.Node;
   // Block that owns `block` via its children array.
-  parent: Block.Block;
+  parent: Bramble.Node;
   // Block that owns `parent` via its children array. Undefined at top level
   // (when `parent` is the outline's invisible root).
-  grandparent?: Block.Block;
+  grandparent?: Bramble.Node;
   focusId: string | null;
   setFocusId: (id: string | null) => void;
 };
@@ -123,13 +123,13 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
       return;
     }
     ensureMigratedChildren(db, parent);
-    const newBlock = Block.make({ content: initialContent });
+    const newBlock = Bramble.makeNode({ content: initialContent });
     db.add(newBlock);
     const edgesNow = childEdgesOf(db, parent);
     const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
     const beforeEdge = currentIndex >= 0 ? edgesNow[currentIndex] : undefined;
     const afterEdge = currentIndex >= 0 ? edgesNow[currentIndex + 1] : undefined;
-    createChildEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
+    createEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
     setFocusId(newBlock.id);
   };
 
@@ -145,13 +145,13 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
       return;
     }
     ensureMigratedChildren(db, parent);
-    const newBlock = Block.make({ content: initialContent });
+    const newBlock = Bramble.makeNode({ content: initialContent });
     db.add(newBlock);
     const edgesNow = childEdgesOf(db, parent);
     const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
     const beforeEdge = currentIndex > 0 ? edgesNow[currentIndex - 1] : undefined;
     const afterEdge = currentIndex >= 0 ? edgesNow[currentIndex] : undefined;
-    createChildEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
+    createEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
     setFocusId(newBlock.id);
   };
 
@@ -176,7 +176,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     if (siblingIndex <= 0) {
       return;
     }
-    const prevSibling = parentChildren[siblingIndex - 1]?.target as Block.Block | undefined;
+    const prevSibling = parentChildren[siblingIndex - 1]?.target as Bramble.Node | undefined;
     if (!prevSibling) {
       return;
     }
@@ -190,11 +190,11 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     // end of prevSibling's children (default order = max + 1).
     ensureMigratedChildren(db, parent);
     ensureMigratedChildren(db, prevSibling);
-    const edge = findChildEdge(db, parent, block);
+    const edge = findEdge(db, parent, block);
     if (edge) {
       db.remove(edge);
     }
-    createChildEdge(db, prevSibling, block);
+    createEdge(db, prevSibling, block);
     setFocusId(block.id);
   };
 
@@ -207,7 +207,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     if (siblingIndex <= 0) {
       return;
     }
-    const prevSibling = parentChildren[siblingIndex - 1]?.target as Block.Block | undefined;
+    const prevSibling = parentChildren[siblingIndex - 1]?.target as Bramble.Node | undefined;
     if (!prevSibling) {
       return;
     }
@@ -221,10 +221,10 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     // If an edge prevSibling → block already exists, no-op (link
     // is idempotent — pressing Cmd+Tab twice doesn't pile up
     // duplicate edges).
-    if (findChildEdge(db, prevSibling, block)) {
+    if (findEdge(db, prevSibling, block)) {
       return;
     }
-    createChildEdge(db, prevSibling, block);
+    createEdge(db, prevSibling, block);
     // Note: we do NOT remove the existing parent → block edge.
     setFocusId(block.id);
   };
@@ -257,11 +257,11 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
     // explicit orders.
     ensureMigratedChildren(db, parent);
     ensureMigratedChildren(db, grandparent);
-    const blockEdge = findChildEdge(db, parent, block);
+    const blockEdge = findEdge(db, parent, block);
     if (blockEdge) {
       db.remove(blockEdge);
     }
-    const parentEdge = findChildEdge(db, grandparent, parent);
+    const parentEdge = findEdge(db, grandparent, parent);
     if (!parentEdge) {
       // grandparent no longer parents this parent — bail out
       // rather than create an orphan edge.
@@ -272,7 +272,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
       (edge: any) => (Relation.getTarget(edge) as any)?.id === parent.id,
     );
     const nextEdge = parentIndex >= 0 ? grandparentEdges[parentIndex + 1] : undefined;
-    createChildEdge(db, grandparent, block, { order: orderBetween(parentEdge, nextEdge) });
+    createEdge(db, grandparent, block, { order: orderBetween(parentEdge, nextEdge) });
     setFocusId(block.id);
   };
 
@@ -367,7 +367,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
               are frozen. */}
           <FieldGroups block={block} />
           {childRefs.map((ref) => {
-            const child = ref.target as Block.Block;
+            const child = ref.target as Bramble.Node;
             return (
               <BlockNode
                 key={child.id}
@@ -398,24 +398,24 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
                 if (!db) {
                   return;
                 }
-                const newChild = Block.make({
+                const newChild = Bramble.makeNode({
                   content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
                 });
                 db.add(newChild);
-                createChildEdge(db, block, newChild);
+                createEdge(db, block, newChild);
                 setFocusId(newChild.id);
               }}
               onAddExisting={(target) => {
                 // F-DAG.Phase3a.add-existing-via-picker: when the user
                 // selects an existing Block from the @ picker, add it
-                // as a STRUCTURAL CHILD via `createChildEdge` — no
+                // as a STRUCTURAL CHILD via `createEdge` — no
                 // wrapper Block, no content-ref. Cycle prevention from
-                // Phase 5 fires inside `createChildEdge`.
+                // Phase 5 fires inside `createEdge`.
                 const db = Obj.getDatabase(block);
                 if (!db) {
                   return;
                 }
-                createChildEdge(db, block, target as Block.Block);
+                createEdge(db, block, target as Bramble.Node);
                 setFocusId((target as any).id ?? null);
               }}
             />
@@ -644,7 +644,7 @@ const TagChip = ({
     }
     if (event.shiftKey) {
       event.preventDefault();
-      openPane(tagBlock as Block.Block);
+      openPane(tagBlock as Bramble.Node);
       return;
     }
     zoom(tagBlock.id);
@@ -663,7 +663,7 @@ const TagChip = ({
     if (!instance) {
       return;
     }
-    openPane(instance as Block.Block);
+    openPane(instance as Bramble.Node);
   };
 
   return (
@@ -702,13 +702,13 @@ const TagChip = ({
 // MentionPicker so the user can ADD AN EXISTING Block as a structural
 // child via a `ChildEdge` (no wrapper Block). Picker selection routes
 // through `onAddExisting`; the BlockNode parent's handler calls
-// `createChildEdge(parent, target)` directly.
+// `createEdge(parent, target)` directly.
 const PendingChildRow = ({
   parent,
   onPromote,
   onAddExisting,
 }: {
-  parent: Block.Block;
+  parent: Bramble.Node;
   onPromote: (initialText: string) => void;
   onAddExisting: (target: any) => void;
 }) => {

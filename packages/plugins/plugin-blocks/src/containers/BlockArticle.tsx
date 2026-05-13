@@ -28,23 +28,23 @@ import {
   useEnsureAllSupertagNodes,
   useNormalizeSupertagUniqueness,
 } from '#components';
-import { Block, type BlockOutline } from '#types';
+import { Bramble } from '#types';
 
-// The article surface accepts either a `BlockOutline` (top-level outline
-// opened via the navigator) or a `Block` (opened in a new pane via
+// The article surface accepts either a `Bramble.Graph` (top-level Graph
+// opened via the navigator) or a `Bramble.Node` (opened in a new pane via
 // shift-click on a child bullet, per F-Open-Pane). Both render the same
 // page UI: editable H1 header + breadcrumb + child tree + (when applicable)
 // backlinks panel.
-export type BlockArticleProps = AppSurface.ObjectArticleProps<BlockOutline.BlockOutline | Block.Block>;
+export type BlockArticleProps = AppSurface.ObjectArticleProps<Bramble.Graph | Bramble.Node>;
 
-// Renders the outline / sub-block as a Tana-style page. F-Page-Header:
-// the page block (default = the pane's root) ALWAYS renders as an
+// Renders the Graph / sub-node as a Tana-style page. F-Page-Header:
+// the page node (default = the pane's root) ALWAYS renders as an
 // editable H1 at the top, with its children rendered as bullets below.
-// Clicking a child's bullet makes that block the new page block within
+// Clicking a child's bullet makes that node the new page node within
 // the pane; shift-clicking opens it in a new pane (F-Open-Pane).
 export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps) => {
   // Subscribe to the subject for re-renders on top-level field changes
-  // (e.g. outline.name). Snapshots from useObject are NOT extensible and
+  // (e.g. graph.name). Snapshots from useObject are NOT extensible and
   // cannot be passed to other useObject calls or to Obj.update — always
   // pipe the LIVE entity (`subject`, `subject.root?.target`) to anything
   // downstream. The snapshot is only here to trigger React re-renders.
@@ -57,47 +57,47 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
   // `enableDeck === false`) and fall back to F-Zoom + a toast.
   const deckSettings = useAtomCapability(DeckCapabilities.Settings);
 
-  // Subject can be a BlockOutline (has `root`) or a Block (opened in a
-  // new pane via F-Open-Pane). The pane's root is the outline's root
-  // for outline subjects, or the subject itself for Block subjects.
-  const isOutline = isBlockOutline(subject);
-  const liveOutline = isOutline ? (subject as BlockOutline.BlockOutline) : null;
-  const paneRootBlock = (isOutline
+  // Subject can be a Bramble.Graph (has `root`) or a Bramble.Node (opened in a
+  // new pane via F-Open-Pane). The pane's root is the graph's root
+  // for graph subjects, or the subject itself for Node subjects.
+  const isGraph = isBrambleGraph(subject);
+  const liveGraph = isGraph ? (subject as Bramble.Graph) : null;
+  const paneRootNode = (isGraph
     ? (subject as any).root?.target
-    : (subject as Block.Block)) as Block.Block | null;
+    : (subject as Bramble.Node)) as Bramble.Node | null;
 
   // Subscribe to the pane root so a change to its content (e.g. typing
   // in the H1) re-renders this component (used by the rootLabel auto-sync).
-  // Falls back to `subject` when paneRootBlock is briefly null (e.g. an
-  // outline whose root ref hasn't resolved yet) since useObject expects
+  // Falls back to `subject` when paneRootNode is briefly null (e.g. a
+  // graph whose root ref hasn't resolved yet) since useObject expects
   // a non-null reactive object.
-  useObject(paneRootBlock ?? subject);
+  useObject(paneRootNode ?? subject);
 
-  const { list, countByTargetId } = useBacklinks(isOutline ? (subject as BlockOutline.BlockOutline) : undefined);
+  const { list, countByTargetId } = useBacklinks(isGraph ? (subject as Bramble.Graph) : undefined);
 
-  // The "page block" within this pane is the current zoom target. `null`
+  // The "page node" within this pane is the current zoom target. `null`
   // means "at pane root".
-  const [pageBlockId, setPageBlockId] = useState<string | null>(null);
-  const pageBlock = useMemo(() => {
-    if (!paneRootBlock) {
+  const [pageNodeId, setPageNodeId] = useState<string | null>(null);
+  const pageNode = useMemo(() => {
+    if (!paneRootNode) {
       return null;
     }
-    if (!pageBlockId) {
-      return paneRootBlock;
+    if (!pageNodeId) {
+      return paneRootNode;
     }
-    const inTree = findBlockById(paneRootBlock, pageBlockId);
+    const inTree = findNodeById(paneRootNode, pageNodeId);
     if (inTree) {
       return inTree;
     }
-    // F-6.Phase3.tag-node: a chip click can target a top-level Block
-    // outside this pane's outline (e.g. the per-space `#Task` tag
-    // Block). Fall back to a whole-DB lookup so cross-tree zoom
-    // works. Falls all the way back to `paneRootBlock` when the id
+    // F-Supertag tag-node: a chip click can target a top-level Node
+    // outside this pane's graph (e.g. the per-space `#Task` tag
+    // Node). Fall back to a whole-DB lookup so cross-tree zoom
+    // works. Falls all the way back to `paneRootNode` when the id
     // isn't anywhere in the space.
-    const db = Obj.getDatabase(paneRootBlock);
-    const foreign = db?.getObjectById?.(pageBlockId) as Block.Block | undefined;
-    return foreign ?? paneRootBlock;
-  }, [paneRootBlock, pageBlockId]);
+    const db = Obj.getDatabase(paneRootNode);
+    const foreign = db?.getObjectById?.(pageNodeId) as Bramble.Node | undefined;
+    return foreign ?? paneRootNode;
+  }, [paneRootNode, pageNodeId]);
 
   // F-Supertag.eager-materialization: on each space the outliner
   // mounts in, find-or-create one supertag-node per qualifying
@@ -105,41 +105,41 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
   // subscribe to the schemaRegistry so new types registered later
   // also materialize live. Idempotent across panes via a shared
   // per-typename lock.
-  useEnsureAllSupertagNodes(paneRootBlock ? Obj.getDatabase(paneRootBlock) : undefined);
+  useEnsureAllSupertagNodes(paneRootNode ? Obj.getDatabase(paneRootNode) : undefined);
 
   // F-Supertag.uniqueness: one-time-per-(db, session) normalisation
   // sweep — for every (instance, supertag) pair represented by more
-  // than one node in the space, keep the lowest-`Block.id` node as
+  // than one node in the space, keep the lowest-`Node.id` node as
   // canonical and drop the supertag Ref from the rest. Idempotent
   // (guard via WeakMap) so concurrent panes are safe.
-  useNormalizeSupertagUniqueness(paneRootBlock ? Obj.getDatabase(paneRootBlock) : undefined);
+  useNormalizeSupertagUniqueness(paneRootNode ? Obj.getDatabase(paneRootNode) : undefined);
 
-  const handleZoom = useCallback((blockId: string) => {
-    setPageBlockId(blockId);
+  const handleZoom = useCallback((nodeId: string) => {
+    setPageNodeId(nodeId);
   }, []);
 
   // F-DAG.Phase3e.predecessor-nav-switch: select a predecessor from
-  // the page-top control. The current pane swaps its page block to
+  // the page-top control. The current pane swaps its page node to
   // the chosen predecessor; if that predecessor IS the pane root,
-  // clear `pageBlockId` so the pane renders its natural root view.
+  // clear `pageNodeId` so the pane renders its natural root view.
   const handleSelectPredecessor = useCallback(
-    (target: Block.Block) => {
-      if (!paneRootBlock) {
+    (target: Bramble.Node) => {
+      if (!paneRootNode) {
         return;
       }
-      setPageBlockId(target.id === paneRootBlock.id ? null : target.id);
+      setPageNodeId(target.id === paneRootNode.id ? null : target.id);
     },
-    [paneRootBlock],
+    [paneRootNode],
   );
 
   // F-Open-Pane: invoke `LayoutOperation.Open` with the pane's
   // `attendableId` as `pivotId` so the new pane lands as a sibling
   // plank to the right of THIS pane. The deck's open handler expects
   // a CANONICAL QUALIFIED PATH (`<root>/<spaceId>/types/<typename>/all/<id>`),
-  // not a bare object id, so we derive the path from the live Block via
+  // not a bare object id, so we derive the path from the live Node via
   // `getObjectPathFromObject`. The corresponding article surface
-  // (registered for `Block.Block` in `react-surface.tsx`) picks the
-  // Block up as the new pane's subject.
+  // (registered for `Bramble.Node` in `react-surface.tsx`) picks the
+  // Node up as the new pane's subject.
   //
   // Solo→multi transition keeps the current pane: when the deck is in
   // solo mode, `SetLayoutMode { mode: 'multi' }` clears the solo entry
@@ -153,12 +153,12 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
   // toggle is OFF (`settings.enableDeck === false`), `DeckContent`
   // reverts any multi-mode transition immediately, so a new pane
   // would never appear. Detect that case up-front, fall back to
-  // F-Zoom (block becomes the page block of the current pane), and
+  // F-Zoom (node becomes the page node of the current pane), and
   // surface a toast that links to the Deck settings panel.
   const handleOpenPane = useCallback(
-    async (target: Block.Block) => {
+    async (target: Bramble.Node) => {
       if (!deckSettings?.enableDeck) {
-        setPageBlockId(target.id);
+        setPageNodeId(target.id);
         await invokePromise?.(LayoutOperation.AddToast, {
           id: `${meta.id}/open-pane-disabled/${target.id}`,
           title: t('open-pane.disabled.toast.title'),
@@ -186,65 +186,65 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
     [invokePromise, attendableId, deckSettings?.enableDeck, t],
   );
 
-  // F-Page-Header.5 (outline subject only): one-time migration — copy
-  // `outline.name` into `root.content` if root is empty AND name is set.
+  // F-Page-Header.5 (graph subject only): one-time migration — copy
+  // `graph.name` into `root.content` if root is empty AND name is set.
   useEffect(() => {
-    if (!liveOutline || !paneRootBlock) {
+    if (!liveGraph || !paneRootNode) {
       return;
     }
-    if (hasContent(paneRootBlock) || !liveOutline.name || liveOutline.name.length === 0) {
+    if (hasContent(paneRootNode) || !liveGraph.name || liveGraph.name.length === 0) {
       return;
     }
-    const initialName = liveOutline.name;
-    Obj.update(paneRootBlock, (mutable) => {
+    const initialName = liveGraph.name;
+    Obj.update(paneRootNode, (mutable) => {
       (mutable as any).content = [{ kind: 'text', text: initialName }];
     });
-    // Run once at mount per outline.
+    // Run once at mount per graph.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // F-Page-Header.6 (outline subject only): keep `outline.name` in step
+  // F-Page-Header.6 (graph subject only): keep `graph.name` in step
   // with `root.content`'s rendered text so the navigator label always
   // reflects what the user sees in the H1.
-  const rootLabel = paneRootBlock ? getDisplayLabel(paneRootBlock) : '';
+  const rootLabel = paneRootNode ? getDisplayLabel(paneRootNode) : '';
   useEffect(() => {
-    if (!liveOutline || rootLabel.length === 0 || liveOutline.name === rootLabel) {
+    if (!liveGraph || rootLabel.length === 0 || liveGraph.name === rootLabel) {
       return;
     }
-    Obj.update(liveOutline, (mutable) => {
+    Obj.update(liveGraph, (mutable) => {
       (mutable as any).name = rootLabel;
     });
-  }, [liveOutline, rootLabel]);
+  }, [liveGraph, rootLabel]);
 
   return (
     <Panel.Root role={role}>
       <Panel.Content>
-        {pageBlock ? (
+        {pageNode ? (
           // F-Scroll: outer Panel.Content has `overflow: hidden` —
           // the inner wrapper must establish its own scroll region
           // so long outlines / tall field groups / large backlink
           // panels are reachable, not silently clipped.
           <div className='p-4 h-full overflow-y-auto'>
             <PredecessorNav
-              pageBlock={pageBlock}
+              pageBlock={pageNode}
               onSelect={handleSelectPredecessor}
               onShiftSelect={handleOpenPane}
             />
-            <PageHeader block={pageBlock} />
-            {/* F-6 Phase 3b: when the page block is itself a wrapper
+            <PageHeader node={pageNode} />
+            {/* F-Supertag Phase 3b: when the page node is itself a wrapper
                 (carries `supertags`), surface its FieldGroups at the
                 page level — they otherwise only mount as part of a
-                BlockNode child row, which never happens for a
+                Node child row, which never happens for a
                 zoomed-in wrapper. */}
-            <FieldGroups block={pageBlock} />
+            <FieldGroups block={pageNode} />
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>
-                  <BlockTree rootBlock={pageBlock} />
+                  <BlockTree rootBlock={pageNode} />
                 </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
-            {isOutline && <BacklinksPanel backlinks={list} />}
+            {isGraph && <BacklinksPanel backlinks={list} />}
           </div>
         ) : (
           <div className='p-4 text-sm opacity-60'>(loading…)</div>
@@ -254,18 +254,18 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
   );
 };
 
-// Page-level header for the current `pageBlock`. Branches by the
-// Block's plugin-internal role:
+// Page-level header for the current `pageNode`. Branches by the
+// Node's plugin-internal role:
 // - tag node (`tagTypename` set): decorative amber `#` chip on the
-//   left + editable Block content on the right. The `#` is UI
-//   decoration only; it's NOT part of the Block's content (so the
+//   left + editable Node content on the right. The `#` is UI
+//   decoration only; it's NOT part of the Node's content (so the
 //   stored label is "Task", not "#Task").
 // - system node (`systemNode` set): read-only header — Schema /
 //   Library aren't user-renameable.
-// - any other Block: standard inline-editable H1 (current behaviour).
-const PageHeader = ({ block }: { block: Block.Block }) => {
-  const tagTypename = (block as any).tagTypename as string | undefined;
-  const systemNode = (block as any).systemNode as string | undefined;
+// - any other Node: standard inline-editable H1 (current behaviour).
+const PageHeader = ({ node }: { node: Bramble.Node }) => {
+  const tagTypename = (node as any).tagTypename as string | undefined;
+  const systemNode = (node as any).systemNode as string | undefined;
 
   if (systemNode) {
     return (
@@ -273,7 +273,7 @@ const PageHeader = ({ block }: { block: Block.Block }) => {
         className='mt-2 mb-4 text-2xl font-bold text-neutral-500 dark:text-neutral-500 select-none'
         title={`System node (${systemNode})`}
       >
-        {getDisplayLabel(block) || systemNode}
+        {getDisplayLabel(node) || systemNode}
       </h1>
     );
   }
@@ -289,7 +289,7 @@ const PageHeader = ({ block }: { block: Block.Block }) => {
           #
         </span>
         <span className='flex-1 min-w-0'>
-          <BlockEditor block={block} headlineMode />
+          <BlockEditor block={node} headlineMode />
         </span>
       </h1>
     );
@@ -297,17 +297,17 @@ const PageHeader = ({ block }: { block: Block.Block }) => {
 
   return (
     <h1 className='mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
-      <BlockEditor block={block} headlineMode />
+      <BlockEditor block={node} headlineMode />
     </h1>
   );
 };
 
-// True when `obj` is a BlockOutline (has a `root` field). Distinguishes
-// outline subjects from raw Block subjects opened via F-Open-Pane.
-const isBlockOutline = (obj: any): boolean => Boolean(obj && 'root' in obj && obj.root);
+// True when `obj` is a Bramble.Graph (has a `root` field). Distinguishes
+// graph subjects from raw Node subjects opened via F-Open-Pane.
+const isBrambleGraph = (obj: any): boolean => Boolean(obj && 'root' in obj && obj.root);
 
-const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
-  const stack: Block.Block[] = [root];
+const findNodeById = (root: Bramble.Node, id: string): Bramble.Node | null => {
+  const stack: Bramble.Node[] = [root];
   while (stack.length > 0) {
     const current = stack.pop()!;
     if (current.id === id) {
@@ -324,9 +324,9 @@ const findBlockById = (root: Block.Block, id: string): Block.Block | null => {
   return null;
 };
 
-// True iff the Block has at least one renderable content segment.
-const hasContent = (block: Block.Block): boolean => {
-  const segments = (block.content ?? []) as readonly any[];
+// True iff the Node has at least one renderable content segment.
+const hasContent = (node: Bramble.Node): boolean => {
+  const segments = (node.content ?? []) as readonly any[];
   return segments.some((segment) => {
     if (segment?.kind === 'text') {
       return (segment.text ?? '').length > 0;

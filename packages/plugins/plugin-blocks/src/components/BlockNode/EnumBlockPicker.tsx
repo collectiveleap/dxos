@@ -8,7 +8,7 @@ import { useObject } from '@dxos/react-client/echo';
 
 import { listOptionBlocks, optionLabelOf, useOptionBlock, type OptionKey } from './tag-options';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // F-6 Phase 2: enum-field editor that materializes each declared
 // literal as a Block (per `rule R-No-Echo-Changes`). The currently
@@ -88,7 +88,7 @@ const Pill = ({
   schemaTitle,
   onClick,
 }: {
-  optionBlock: Block.Block | undefined;
+  optionBlock: Bramble.Node | undefined;
   schemaTitle: string | undefined;
   onClick: () => void;
 }) => {

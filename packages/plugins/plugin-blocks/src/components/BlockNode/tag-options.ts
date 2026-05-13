@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Filter, Obj } from '@dxos/echo';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // Per-database lock: keys we've already kicked off a create for in
 // this client session. Without this, React Strict Mode's
@@ -59,11 +59,11 @@ export type OptionKey = {
 // key in the given database, or undefined if none exists yet. Walks
 // the typename-filtered Block set with a structural match on the
 // tag-option marker.
-export const findOptionBlock = (db: any, key: OptionKey): Block.Block | undefined => {
+export const findOptionBlock = (db: any, key: OptionKey): Bramble.Node | undefined => {
   if (!db) {
     return undefined;
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     const marker = (block as any).tagOption as OptionKey | undefined;
@@ -73,7 +73,7 @@ export const findOptionBlock = (db: any, key: OptionKey): Block.Block | undefine
       marker.fieldName === key.fieldName &&
       marker.literal === key.literal
     ) {
-      return block as Block.Block;
+      return block as Bramble.Node;
     }
   }
   return undefined;
@@ -84,8 +84,8 @@ export const findOptionBlock = (db: any, key: OptionKey): Block.Block | undefine
 // the literal) and writes the marker so it's findable on next
 // encounter. Caller is responsible for ensuring this is wrapped in
 // the appropriate change context (db.add handles its own).
-export const createOptionBlock = (db: any, key: OptionKey, defaultLabel: string): Block.Block => {
-  const block = Block.make({
+export const createOptionBlock = (db: any, key: OptionKey, defaultLabel: string): Bramble.Node => {
+  const block = Bramble.makeNode({
     content: [{ kind: 'text', text: defaultLabel }] as any,
     tagOption: { ...key },
   });
@@ -111,7 +111,7 @@ export const useOptionBlock = (
   db: any,
   key: OptionKey | null,
   defaultLabel: string | undefined,
-): Block.Block | undefined => {
+): Bramble.Node | undefined => {
   // Re-render tick: bump when we create a Block so the next render's
   // synchronous lookup sees it. Without this, the create-effect's new
   // Block wouldn't show up until something else triggers a re-render.
@@ -157,17 +157,17 @@ export const useOptionBlock = (
 // for the given (typename, fieldName) pair. Used by the picker to
 // surface user-renamed labels alongside any schema-declared literals
 // that haven't been materialized yet.
-export const listOptionBlocks = (db: any, typename: string, fieldName: string): Block.Block[] => {
+export const listOptionBlocks = (db: any, typename: string, fieldName: string): Bramble.Node[] => {
   if (!db) {
     return [];
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
-  const result: Block.Block[] = [];
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
+  const result: Bramble.Node[] = [];
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     const marker = (block as any).tagOption as OptionKey | undefined;
     if (marker && marker.typename === typename && marker.fieldName === fieldName) {
-      result.push(block as Block.Block);
+      result.push(block as Bramble.Node);
     }
   }
   return result;
@@ -176,7 +176,7 @@ export const listOptionBlocks = (db: any, typename: string, fieldName: string): 
 // Read the displayed label for an option Block. Pulls plain text from
 // the Block's `content` (ref segments are ignored for an option label
 // — option Blocks are intended to hold simple text labels).
-export const optionLabelOf = (block: Block.Block | undefined): string | undefined => {
+export const optionLabelOf = (block: Bramble.Node | undefined): string | undefined => {
   if (!block) {
     return undefined;
   }
@@ -189,5 +189,5 @@ export const optionLabelOf = (block: Block.Block | undefined): string | undefine
 };
 
 // Avoid unused-import warning if Obj is imported above but unused at
-// runtime in some build modes (Obj is referenced via Block.make above).
+// runtime in some build modes (Obj is referenced via Bramble.makeNode above).
 void Obj;

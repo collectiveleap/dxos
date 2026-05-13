@@ -4,9 +4,9 @@
 
 import { Filter, Obj } from '@dxos/echo';
 
-import { createChildEdge } from './child-edges';
+import { createEdge } from './child-edges';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // F-6 Phase 3b: per-space "Library" Block — catch-all parent for
 // wrapper Blocks promoted from query results. Analogous to the
@@ -15,26 +15,26 @@ import { Block } from '#types';
 export const LIBRARY_NODE_KEY = 'library';
 export const LIBRARY_NODE_LABEL = 'Library';
 
-export const findLibraryBlock = (db: any): Block.Block | undefined => {
+export const findLibraryBlock = (db: any): Bramble.Node | undefined => {
   if (!db) {
     return undefined;
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     if ((block as any).systemNode === LIBRARY_NODE_KEY) {
-      return block as Block.Block;
+      return block as Bramble.Node;
     }
   }
   return undefined;
 };
 
-export const findOrCreateLibraryBlock = (db: any): Block.Block => {
+export const findOrCreateLibraryBlock = (db: any): Bramble.Node => {
   const existing = findLibraryBlock(db);
   if (existing) {
     return existing;
   }
-  const library = Block.make({
+  const library = Bramble.makeNode({
     content: [{ kind: 'text', text: LIBRARY_NODE_LABEL }] as any,
     systemNode: LIBRARY_NODE_KEY,
   });
@@ -47,19 +47,19 @@ export const findOrCreateLibraryBlock = (db: any): Block.Block => {
 // Ref to that instance. Walked once per query render; cheap enough
 // for the spaces we expect at this stage. Returns Map<instanceId,
 // wrapperBlock>.
-export const buildWrapperIndex = (db: any): Map<string, Block.Block> => {
-  const index = new Map<string, Block.Block>();
+export const buildWrapperIndex = (db: any): Map<string, Bramble.Node> => {
+  const index = new Map<string, Bramble.Node>();
   if (!db) {
     return index;
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     const supertags = ((block as any).supertags ?? []) as readonly any[];
     for (const ref of supertags) {
       const target = ref?.target;
       if (target?.id && !index.has(target.id)) {
-        index.set(target.id, block as Block.Block);
+        index.set(target.id, block as Bramble.Node);
       }
     }
   }
@@ -93,7 +93,7 @@ export const queryInstancesByTypename = (db: any, typename: string): any[] => {
 // migrated to first-class edges. `Library.children` is no longer
 // written; readers merge both representations via
 // `useStructuralChildren`.
-export const promoteToWrapper = (db: any, instance: any): Block.Block => {
+export const promoteToWrapper = (db: any, instance: any): Bramble.Node => {
   const library = findOrCreateLibraryBlock(db);
   let initialLabel = '';
   try {
@@ -104,11 +104,11 @@ export const promoteToWrapper = (db: any, instance: any): Block.Block => {
   } catch {
     /* schema declares no usable LabelAnnotation — start with empty label */
   }
-  const wrapper = Block.make({
+  const wrapper = Bramble.makeNode({
     content: [{ kind: 'text', text: initialLabel }] as any,
     supertags: [db.makeRef(Obj.getDXN(instance))] as any,
   });
   db.add(wrapper);
-  createChildEdge(db, library, wrapper);
+  createEdge(db, library, wrapper);
   return wrapper;
 };

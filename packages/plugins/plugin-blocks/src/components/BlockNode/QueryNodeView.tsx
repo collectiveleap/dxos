@@ -11,7 +11,7 @@ import { getDisplayLabel } from '../labels';
 
 import { buildWrapperIndex, promoteToWrapper, queryInstancesByTypename } from './query-node';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // F-6 Phase 3b: render a query Block as a list of all ECHO instances
 // of the queried typename (regardless of whether each has a wrapping
@@ -82,7 +82,7 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
       rebindRowSubs();
       setTick((value) => value + 1);
     };
-    const blockQuery: any = db.query(Filter.typename(Block.Block.typename));
+    const blockQuery: any = db.query(Filter.typename(Bramble.Node.typename));
     const instanceQuery: any = typename ? db.query(Filter.typename(typename)) : null;
     const blockSub = blockQuery?.subscribe?.(bump);
     const instanceSub = instanceQuery?.subscribe?.(bump);
@@ -129,7 +129,7 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
     // `tick` participates so subscription bumps recompute.
   }, [db, typename, tick]);
 
-  const handleRowClick = (row: { instance: any; wrapper: Block.Block | undefined }) => {
+  const handleRowClick = (row: { instance: any; wrapper: Bramble.Node | undefined }) => {
     if (!db) {
       return;
     }

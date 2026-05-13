@@ -11,17 +11,17 @@ import { getDisplayLabel } from '../labels';
 
 import { usePredecessors } from './child-edges';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 export type PredecessorNavProps = {
   // The Block currently rendered as the page block. The control
   // surfaces every structural predecessor of this Block (`ChildEdge`s
   // whose `target` is `pageBlock`).
-  pageBlock: Block.Block;
+  pageBlock: Bramble.Node;
   // Regular click on a predecessor option — F-DAG.Phase3e.predecessor-nav-switch.
-  onSelect: (target: Block.Block) => void;
+  onSelect: (target: Bramble.Node) => void;
   // Shift+click on a predecessor option — F-DAG.Phase3e.predecessor-nav-open-pane.
-  onShiftSelect: (target: Block.Block) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
 };
 
 // F-DAG.Phase3e.predecessor-nav-*: page-top control that lists every
@@ -110,9 +110,9 @@ const PredecessorList = ({
   onSelect,
   onShiftSelect,
 }: {
-  predecessors: Block.Block[];
-  onSelect: (target: Block.Block) => void;
-  onShiftSelect: (target: Block.Block) => void;
+  predecessors: Bramble.Node[];
+  onSelect: (target: Bramble.Node) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
 }) => {
   const [tick, setTick] = useState(0);
 
@@ -153,9 +153,9 @@ const PredecessorRow = ({
   onSelect,
   onShiftSelect,
 }: {
-  predecessor: Block.Block;
-  onSelect: (target: Block.Block) => void;
-  onShiftSelect: (target: Block.Block) => void;
+  predecessor: Bramble.Node;
+  onSelect: (target: Bramble.Node) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
 }) => {
   // F-DAG.Phase3e.predecessor-nav-list: each row labels its
   // predecessor via the same resolver as the H1 header. Subscribe
@@ -189,7 +189,7 @@ const PredecessorRow = ({
   );
 };
 
-const sortPredecessors = (predecessors: readonly Block.Block[]): Block.Block[] => {
+const sortPredecessors = (predecessors: readonly Bramble.Node[]): Bramble.Node[] => {
   const list = predecessors.slice();
   list.sort((a, b) => {
     const labelA = getDisplayLabel(a);

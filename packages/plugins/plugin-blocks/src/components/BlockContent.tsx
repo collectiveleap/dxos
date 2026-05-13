@@ -6,12 +6,12 @@ import React, { Fragment } from 'react';
 
 import { useObject } from '@dxos/react-client/echo';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 import { getDisplayLabel } from './labels';
 
 export type BlockContentProps = {
-  block: Block.Block;
+  block: Bramble.Node;
 };
 
 // F-Headline: renders a Block's content (text + inline refs) as React

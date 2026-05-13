@@ -15,18 +15,18 @@ import { type CreateObject } from '@dxos/plugin-space/types';
 import { ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
-import { Block, BlockOutline, ChildEdge } from '#types';
+import { Bramble } from '#types';
 
 export const BlocksPlugin = Plugin.define(meta).pipe(
   AppPlugin.addMetadataModule({
     metadata: {
-      id: BlockOutline.BlockOutline.typename,
+      id: Bramble.Graph.typename,
       metadata: {
-        icon: Annotation.IconAnnotation.get(BlockOutline.BlockOutline).pipe(Option.getOrThrow).icon,
-        iconHue: Annotation.IconAnnotation.get(BlockOutline.BlockOutline).pipe(Option.getOrThrow).hue ?? 'white',
+        icon: Annotation.IconAnnotation.get(Bramble.Graph).pipe(Option.getOrThrow).icon,
+        iconHue: Annotation.IconAnnotation.get(Bramble.Graph).pipe(Option.getOrThrow).hue ?? 'white',
         createObject: ((props, options) =>
           Effect.gen(function* () {
-            const object = BlockOutline.make({ name: props.name });
+            const object = Bramble.makeGraph({ name: props.name });
             return yield* Operation.invoke(SpaceOperation.AddObject, {
               object,
               target: options.target,
@@ -38,7 +38,7 @@ export const BlocksPlugin = Plugin.define(meta).pipe(
     },
   }),
   AppPlugin.addSchemaModule({
-    schema: [Block.Block, BlockOutline.BlockOutline, ChildEdge.ChildEdge],
+    schema: [Bramble.Node, Bramble.Edge, Bramble.Graph],
   }),
   AppPlugin.addSurfaceModule({ activate: ReactSurface }),
   AppPlugin.addTranslationsModule({ translations }),

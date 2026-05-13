@@ -8,9 +8,9 @@ import { Filter, Obj } from '@dxos/echo';
 
 import { collectTagTypes } from '../BlockEditor/tag-types';
 
-import { createChildEdge } from './child-edges';
+import { createEdge } from './child-edges';
 
-import { Block } from '#types';
+import { Bramble } from '#types';
 
 // F-6 Phase 3 (system-node): the per-space "Schema" Block is the
 // permanent parent of every tag-typename Block. Marker is stored on
@@ -18,15 +18,15 @@ import { Block } from '#types';
 export const SCHEMA_NODE_KEY = 'schema';
 export const SCHEMA_NODE_LABEL = 'Schema';
 
-export const findSchemaBlock = (db: any): Block.Block | undefined => {
+export const findSchemaBlock = (db: any): Bramble.Node | undefined => {
   if (!db) {
     return undefined;
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     if ((block as any).systemNode === SCHEMA_NODE_KEY) {
-      return block as Block.Block;
+      return block as Bramble.Node;
     }
   }
   return undefined;
@@ -36,12 +36,12 @@ export const findSchemaBlock = (db: any): Block.Block | undefined => {
 // freshly-materialized tag Blocks so that zooming to a tag node lands
 // the user in an outline tree (Schema → tag1, tag2, …) rather than a
 // dangling top-level Block.
-export const findOrCreateSchemaBlock = (db: any): Block.Block => {
+export const findOrCreateSchemaBlock = (db: any): Bramble.Node => {
   const existing = findSchemaBlock(db);
   if (existing) {
     return existing;
   }
-  const schema = Block.make({
+  const schema = Bramble.makeNode({
     content: [{ kind: 'text', text: SCHEMA_NODE_LABEL }] as any,
     systemNode: SCHEMA_NODE_KEY,
   });
@@ -82,15 +82,15 @@ const acquireLock = (db: any, typename: string): boolean => {
 
 // Synchronous lookup. Returns the existing tag Block matching the
 // typename in the given database, or undefined if none exists yet.
-export const findTagBlock = (db: any, typename: string): Block.Block | undefined => {
+export const findTagBlock = (db: any, typename: string): Bramble.Node | undefined => {
   if (!db) {
     return undefined;
   }
-  const blocks = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: Block.Block }>;
+  const blocks = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: Bramble.Node }>;
   for (const item of blocks) {
     const block = (item as any).object ?? item;
     if ((block as any).tagTypename === typename) {
-      return block as Block.Block;
+      return block as Bramble.Node;
     }
   }
   return undefined;
@@ -110,25 +110,25 @@ export const findTagBlock = (db: any, typename: string): Block.Block | undefined
 // materialization time, we both enforce that invariant and give the
 // user a working "show me all #Task instances" view the moment they
 // land on the tag page.
-export const createTagBlock = (db: any, typename: string, defaultLabel: string): Block.Block => {
-  const block = Block.make({
+export const createTagBlock = (db: any, typename: string, defaultLabel: string): Bramble.Node => {
+  const block = Bramble.makeNode({
     content: [{ kind: 'text', text: defaultLabel }] as any,
     tagTypename: typename,
   });
   db.add(block);
 
-  const queryChild = Block.make({
+  const queryChild = Bramble.makeNode({
     queryRef: { typename },
   });
   db.add(queryChild);
   // F-DAG Phase 2: tag node → query child as a ChildEdge.
   // `tagBlock.children` stays empty; readers use the merge hook.
-  createChildEdge(db, block, queryChild);
+  createEdge(db, block, queryChild);
 
   // F-DAG Phase 2: Schema → tag node as a ChildEdge.
   // `schemaBlock.children` stays empty across additions.
   const schemaBlock = findOrCreateSchemaBlock(db);
-  createChildEdge(db, schemaBlock, block);
+  createEdge(db, schemaBlock, block);
   return block;
 };
 
@@ -144,7 +144,7 @@ export const useTagBlock = (
   db: any,
   typename: string | undefined,
   defaultLabel: string | undefined,
-): Block.Block | undefined => {
+): Bramble.Node | undefined => {
   const [tick, setTick] = useState(0);
 
   const existing = useMemo(() => {
@@ -229,7 +229,7 @@ export const normalizeSupertagUniqueness = (db: any): void => {
   }
   uniquenessSweepLocks.set(db, true);
 
-  const items = (db.query(Filter.typename(Block.Block.typename)).runSync() ?? []) as Array<{ object: any }>;
+  const items = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{ object: any }>;
   const blocks = items.map((item) => (item as any).object ?? item);
 
   // Map<"instanceId|typename", Block[]>.
@@ -313,7 +313,7 @@ export const useEnsureAllSupertagNodes = (db: any): void => {
 // the Block's `content`; ref segments are ignored because tag Blocks
 // are intended to hold simple text labels (with `#` prefix added at
 // render time).
-export const tagLabelOf = (block: Block.Block | undefined): string | undefined => {
+export const tagLabelOf = (block: Bramble.Node | undefined): string | undefined => {
   if (!block) {
     return undefined;
   }

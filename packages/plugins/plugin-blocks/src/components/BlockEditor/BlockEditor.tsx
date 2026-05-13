@@ -14,7 +14,7 @@ import { DXN, Obj, Ref } from '@dxos/echo';
 import { MentionPicker } from '../MentionPicker';
 import { TagPicker } from '../TagPicker';
 
-import type { Block } from '#types';
+import { Bramble } from '#types';
 
 import './block-editor.css';
 
@@ -27,7 +27,7 @@ import { fromDoc, toDoc } from './serialize';
 import { initialPropsForTag, type TagTypeEntry } from './tag-types';
 
 export type BlockEditorProps = {
-  block: Block.Block;
+  block: Bramble.Node;
   autoFocus?: boolean;
   onEnter?: (beforeText: string, afterText: string) => void;
   onIndent?: () => void;

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Annotation, Type } from '@dxos/echo';
 import { EntityKind, getTypeAnnotation } from '@dxos/echo/internal';
 
-import { Block, BlockOutline } from '#types';
+import { Bramble } from '#types';
 
 // F-6.Phase3.all-echo-types: every non-Relation, non-System ECHO
 // schema registered with the database can be applied as a
@@ -135,7 +135,7 @@ export const collectTagTypes = (db: any): TagTypeEntry[] => {
     if (getTypeAnnotation(schema)?.kind === EntityKind.Relation) {
       continue;
     }
-    if (schema === Block.Block || schema === BlockOutline.BlockOutline) {
+    if (schema === Bramble.Node || schema === Bramble.Graph) {
       continue;
     }
     const entry = entryFromSchema(schema);
