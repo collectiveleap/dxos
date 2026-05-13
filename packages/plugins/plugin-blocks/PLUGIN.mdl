@@ -167,6 +167,41 @@ rule R-Spec-Entry-Conventions:
     be "examples; the exact set tracks the current schema".
 ```
 
+```mdl
+rule R-Greenfield-Stance:
+  desc: |
+    plugin-blocks is early enough that no user data exists in
+    production. When a bug or design flaw can be fixed at the
+    root for newly-created (greenfield) spaces, fix it there
+    and accept that existing test-space artifacts may be
+    inconsistent. Do NOT invest in migration code,
+    backwards-compatibility shims, or one-off normalisation
+    passes whose only purpose is to repair test-space data
+    written by an earlier implementation.
+
+    Why: established 2026-05-13. The concurrent-mount race in
+    `findOrCreateSchemaBlock` / `findOrCreateLibraryBlock`
+    produced duplicate Schema and Library system Blocks in the
+    user's test space. The right fix is to make those helpers
+    race-safe so a greenfield instance never produces dupes;
+    the existing dupes in the user's space are accepted as
+    test-data noise rather than worked around. Generalising
+    that decision: pre-launch, root-cause fixes are cheap and
+    correct; defensive backwards-compat is dead weight that
+    will outlive its purpose.
+
+    How to apply: when you discover state in the user's test
+    space that disagrees with current code's invariants, do
+    NOT add cleanup code unless the same bug could recur on a
+    fresh space. Instead, identify and fix the underlying
+    write path so new spaces are correct, and flag the stale
+    test-space state to the user as a separate concern (they
+    can wipe & re-seed if it bothers them). This rule is
+    plugin-blocks-specific and expires when the plugin ships
+    to real users — at that point, real data migration becomes
+    a first-class concern.
+```
+
 ## Extensions
 
 | Term        | URI                            |
