@@ -191,7 +191,7 @@ export const createEdge = (
   db: any,
   parent: Bramble.Node,
   child: Bramble.Node,
-  options: { order?: number; kind?: string } = {},
+  options: { order?: number; kind?: 'child' } = {},
 ): Bramble.Edge | undefined => {
   const kind = options.kind ?? EDGE_KIND_CHILD;
   if (kind === EDGE_KIND_CHILD && wouldCreateCycle(db, parent, child)) {

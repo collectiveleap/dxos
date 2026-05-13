@@ -188,12 +188,12 @@ export const Edge = Schema.Struct({
   // `Node.state.expanded` off the Node. Not consumed yet.
   expanded: Schema.optional(Schema.Boolean),
 
-  // Edge kind — the agreed-upon Relationship semantics. Today only
-  // `'child'` is used (structural part-whole; source = whole, target
-  // = part). Closed taxonomy grows deliberately; see CONCEPTS.md
-  // §8.1. Commit 6 narrows this to `Schema.Literal('child')` once all
-  // writers populate it.
-  kind: Schema.optional(Schema.String),
+  // Edge kind — the agreed-upon Relationship semantics. Today the
+  // closed taxonomy contains exactly one entry: `'child'` (structural
+  // part-whole; source = whole, target = part). Future kinds expand
+  // the literal alternatives, each with declared role semantics; see
+  // CONCEPTS.md §8.1.
+  kind: Schema.Literal('child'),
 }).pipe(
   Type.relation({
     typename: 'org.dxos.type.bramble.edge',
