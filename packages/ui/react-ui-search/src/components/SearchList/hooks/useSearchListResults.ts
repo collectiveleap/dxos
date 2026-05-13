@@ -3,7 +3,7 @@
 //
 
 import commandScore from 'command-score';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 export type UseSearchListResultsOptions<T> = {
   /** Items to filter. */
@@ -47,11 +47,18 @@ export const useSearchListResults = <T = unknown>({
   const [query, setQuery] = useState<string>('');
   const queryRef = useRef<string>('');
 
-  // Update results when items change.
-  useEffect(() => {
-    queryRef.current = '';
-    setQuery('');
-  }, [items]);
+  // NOTE: do NOT auto-reset the query when `items` changes by
+  // reference. Parent components frequently re-render with a fresh
+  // `items` array (new `.map`/`.filter`/`.sort` each render), and an
+  // auto-reset here would race the user's typing — between the input
+  // event and the 200ms `onSearch` debounce, any parent re-render
+  // would wipe the query. Symptom: typing into the search input
+  // appears to do nothing because the filter is cleared just after
+  // it would have applied. The `results` memo below already depends
+  // on `items`, so changes to the underlying list are reflected
+  // automatically without needing to clobber the query. Callers that
+  // legitimately need a fresh state on items change should remount
+  // the hook (e.g., via a parent `key` prop).
 
   const defaultExtract = useCallback((item: T) => {
     // If item is a string, return it directly

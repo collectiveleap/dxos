@@ -2731,6 +2731,53 @@ test T-Supertag-browse-reactivity: query row label updates live as the instance 
       query-row label resolver).
 ```
 
+```mdl
+test T-Create-Filter-And-Pick: typing into the create-object dialog narrows the type list; click commits
+  given: I have opened the create-object dialog ("+") in a space
+    that has the Bramble plugin enabled
+  when: I type a substring of a type name (e.g. "bra" for Bramble)
+    into the type search input
+  then:
+    - the rendered option list narrows to entries whose label
+      fuzzy-matches the typed substring; the cursor
+      (aria-selected) lands on the highest-scored entry so that
+      pressing Enter would commit it
+    - the typed substring persists across parent re-renders —
+      the filter remains in effect for the duration of the
+      user's typing session
+    - clicking a remaining entry commits the selection and
+      creates an instance of that type; the dialog closes and
+      the new object opens in the pane
+  desc: |
+    Reported 2026-05-13 as: "the selection of menu items is not
+    working — i can't select Bramble and what I do select isn't
+    clear". Pre-fix behaviour: typing into the type-search input
+    appeared inert — the option list stayed at every registered
+    ECHO type and the cursor stayed on whichever entry
+    auto-selected first (alphabetically, typically "Agent"),
+    making targeted selection of Bramble (or any other entry)
+    cumbersome.
+
+    Root cause: `useSearchListResults` in @dxos/react-ui-search
+    auto-reset its internal query state on every `items`
+    identity change. `CreateObjectDialog` rebuilds `options`
+    each render (its deps include `manager.capabilities` lookups
+    and a `viewTypenames` Set that recomputes on schema-registry
+    runs), so any parent re-render between the keystroke and
+    the 200ms `onSearch` debounce wiped the user's query. Fix
+    in the same commit: drop the auto-reset effect from
+    `useSearchListResults`; the `results` memo already depends
+    on `items`, so list changes propagate without clobbering
+    the query.
+
+    Observed via Bramble but applies wherever
+    `useSearchListResults` is mounted (CreateObjectPanel,
+    CollectionArticle, ChatOptions, MasonryContainer,
+    CommandsDialogContent, plugin-simple-layout Home/NavBranch,
+    ObjectPicker, Grid). The fix lifts the regression for all
+    of them.
+```
+
 ---
 
 ## Remaining
