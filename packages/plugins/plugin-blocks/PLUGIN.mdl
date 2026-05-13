@@ -94,6 +94,56 @@ rule R-No-Echo-Changes:
     annotation, or a new core helper as the path of least resistance.
 ```
 
+```mdl
+rule R-Test-Entry-Conventions:
+  desc: |
+    When authoring or reviewing `test T-N` entries in
+    `## Acceptance`, apply these four conventions:
+
+    1. POSITIVE LANGUAGE ONLY. `then:` clauses describe what
+       happens, not what doesn't. Defensive absence claims
+       ("we don't filter X", "no error is thrown") are a
+       yellow flag — usually the absence is implied by a
+       positive rule earlier in the entry, or by enumeration
+       of the positive set.
+
+    2. ABSTRACT `#T` / type T form. Tests use abstract `#T`
+       with concrete typenames like `#Task` only as examples
+       — e.g. "a bullet N tagged with supertag `#T` (e.g.
+       `#Task`)". This keeps tests robust to schema
+       evolution.
+
+    3. REFER-DON'T-RESTATE. When a rule is canonically
+       defined in a `req` or sibling `test`, reference it
+       ("per F-Supertag.types-shown") instead of
+       duplicating. Drift between copies is the failure mode.
+
+    4. DIVORCE TESTS FROM SPECIFIC RENDERINGS where possible.
+       Data-level invariants ("the supertag node set matches
+       the allowed type set, idempotently") beat UI-event
+       reproductions ("close and reopen the outliner"). The
+       test's truth lives in the database, not in a specific
+       surface's mount lifecycle.
+
+    UX and behaviour assertions share one given/when/then
+    shape — every plugin spec in DXOS uses given+then
+    required, when optional, prose with bullet lists. There
+    is no UX-specific keyword (no `view:` / `see:` /
+    screenplay format).
+
+    Why: established 2026-05-13 during a 1-by-1 review of 22
+    F-Supertag test entries. Drafts violating these were
+    rejected; revisions accepted. Capturing here so future
+    review sessions don't drift back to the rejected styles.
+
+    How to apply: read each `then:` clause critically. If it
+    asserts an absence, ask whether a positive enumeration
+    would cover the same ground. If it names a specific
+    type (Task, Person), check whether `#T` with that as an
+    example would work. If it restates a rule already in a
+    req, replace with a reference.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -156,6 +206,11 @@ type BlockOutline
   fields:
     name?: string
     root: Ref<Block>
+    # F-Day-Page: per-date day-page Blocks. Each value is the
+    # Block that holds the user's bullets for that day. Keys
+    # are ISO-format date strings (YYYY-MM-DD) in the user's
+    # local timezone.
+    entries?: Record<string, Ref<Block>>
 ```
 
 ## Components
@@ -2089,6 +2144,80 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
 ```
 
 ```mdl
+feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Page
+  desc: |
+    On opening a block outline the user lands on TODAY'S
+    day-page — a Block whose role is "today's bullets". Each
+    day has its own day-page Block; the outline's `entries`
+    field is a per-date map from ISO date to that day's
+    Block. Modelled on plugin-outliner's Journal type, but
+    with Blocks (and the full outliner UX — bullets,
+    supertags, predecessor-nav, all of it) instead of
+    plain-text JournalEntry content.
+
+    Why: the empty/awkward outliner landing screen is a real
+    pain point — opening to a blank page leaves the user
+    without an anchor. Tana solves this with a per-day page;
+    F-Day-Page adopts the same convention so the outliner
+    has a natural start of work each day.
+
+    Key data shape (additive to BlockOutline; no other plugin
+    affected):
+
+        BlockOutline.entries: Record<ISO-date-string, Ref<Block>>
+
+    Helpers (to be added under
+    `components/BlockArticle/day-page.ts` or similar):
+      - `getOrCreateDayPage(outline, date)` — find-or-create
+        semantics. Returns `outline.entries[date]` if it
+        exists; otherwise creates a fresh Block, attaches it
+        as `outline.entries[date]`, and returns it.
+      - `today()` — the user's local-tz date as
+        `YYYY-MM-DD`.
+  req F-Day-Page.open-to-today:
+    given: I open a block outliner (first mount in a session,
+      or revisit after navigating away)
+    when: the article surface attaches and resolves its
+      pageBlock
+    then:
+      - the pageBlock is the day-page for today's local-tz
+        date, found-or-created via
+        `getOrCreateDayPage(outline, today())`.
+      - the day-page renders as a regular outliner page —
+        H1 header sourced from its content, with whatever
+        children the user has typed (initially empty).
+  req F-Day-Page.navigation-between-days:
+    given: I am viewing the day-page for some date D in
+      the outliner
+    when: I activate a day-navigation control (date picker,
+      keyboard shortcut, or "previous / next day"
+      affordance)
+    then:
+      - the pageBlock switches to the day-page for the
+        selected date D', found-or-created as needed via
+        `getOrCreateDayPage(outline, D')`.
+      - when the active day-page is not today's, a quick-
+        return affordance ("← back to today" or
+        equivalent) is available to navigate back to today.
+  req F-Day-Page.day-page-is-bullet-shaped:
+    given: a day-page Block reachable via
+      `BlockOutline.entries`
+    when: I view or edit it
+    then:
+      - it is a Block exactly like any other (per
+        F-Page-Header and F-Zoom semantics); typing sets its
+        content, Tab / Shift+Tab / Enter all work as for a
+        regular bullet.
+      - it can be tagged with supertags via the `#` picker
+        (per F-Supertag.types-shown), have children, take
+        predecessor edges, etc.
+      - F-Supertag.uniqueness, F-DAG, and all other cross-
+        cutting invariants apply without special-casing — a
+        day-page is a Block first, a date-indexed entry
+        second.
+```
+
+```mdl
 feat F-7: Tana Paste import     # Increment 7
   req F-7.1: Pasting a payload starting with %%tana%% into a BlockOutline imports the structure as Blocks.
   req F-7.2: Supertags, fields, references, and dates are preserved using a stable-ID translation table.
@@ -2588,6 +2717,19 @@ Branch:         `claude/agitated-nash-bd0b0f`
 
 ### Pieces flagged but not yet spec'd
 
+- Component blocks for the rest of the F-Supertag UI:
+  `OpenInstanceControl` (the small icon button rendered
+  adjacent to each TagChip; activating it opens the typed
+  instance's Composer article surface per
+  F-Supertag.open-instance-control), `SupertagNode` (the
+  supertag node as a page block — H1 header sourced from the
+  node's renameable content, with a query-child body listing
+  every instance of the type), and `PredecessorNav` (the
+  page-top control introduced by F-DAG.Phase3e.predecessor-nav-*
+  that lists every predecessor of the current page block).
+  `TagChip` is already in `## Components`; the others are
+  referenced from tests and reqs but never had their own
+  component block authored.
 - Picker keyboard navigation (arrow keys + Enter to select; Esc already wired).
 - `add object label` translation key shows raw on hover for the create-Block-Outline affordance.
 - BacklinksPanel reactivity to a *source* Block's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
