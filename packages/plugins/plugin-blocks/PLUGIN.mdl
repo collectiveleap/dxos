@@ -313,6 +313,29 @@ component BlockNode
 ```
 
 ```mdl
+component TagChip
+  desc: |
+    Inline chip rendered for each supertag on a node-tagged-with-
+    supertag. Displays the supertag's renameable label (sourced
+    from the per-space supertag node's content) prefixed by `#`.
+    Immediately adjacent: an open-instance control that navigates
+    to the typed instance's Composer article surface
+    (F-Supertag.open-instance-control).
+  props:
+    typename: string
+    db: Database
+    instance: Obj.Any
+  actions:
+    handleChipClick(event)              # F-Supertag.chip-gestures
+    handleOpenInstance(event)           # F-Supertag.open-instance-control
+  layout:
+    [#Task] [↗]
+       |     |
+       |     open-instance control
+       chip
+```
+
+```mdl
 feat F-4: Inline live-name refs    # Increment 4 (current)
   desc: |
     Typing @ inside a bullet opens an object picker; selecting a target
@@ -1490,16 +1513,6 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
         plugin-blocks's own scaffolding (`Block.Block`,
         `BlockOutline.BlockOutline`). The remainder is offered —
         no allowlist.
-      - `SystemTypeAnnotation` is INTENTIONALLY NOT a filter.
-        Plugin-author "system / don't surface" markers (e.g.
-        `JournalEntry`'s `SystemTypeAnnotation` set by
-        plugin-outliner) DO surface in the picker — F-Supertag's
-        stated intent is "every ECHO type except plugin-blocks
-        internal", and respecting third-party "hide me" markers
-        would re-introduce gates beyond that. The
-        `Filter.location: ['database', 'runtime']` already
-        excludes truly-internal-ECHO types (Identity, Space,
-        etc.) at the registry level.
       - the list resolves via `useTagTypes(db)`, which holds a
         live subscription to
         `db.schemaRegistry.query({location: ['database', 'runtime']}).subscribe(...)`.
@@ -2236,6 +2249,296 @@ test T-Headline: zoomed headline renders refs alongside text
   when: A is renamed from "alpha" to "ALPHA"
   then: within one tick, the H1 reflects "what is in ALPHA and what beta now"
     without any reload or focus change
+```
+
+```mdl
+test T-Supertag-picker-lists-types: # picker offers every registered ECHO type as an option
+  given: a space whose plugins have registered one or more typed
+    ECHO schemas (e.g. Task, Person, Document)
+  when: I am editing a bullet and I type `#`
+  then:
+    - a picker opens and lists every registered ECHO type as a
+      selectable `#`-prefixed entry. Each entry's label is the
+      type's display title (e.g. `#Task`, `#Person`,
+      `#Document`).
+```
+
+```mdl
+test T-Supertag-picker-excludes-relations: # picker does not offer relation-typed schemas
+  given: a space whose plugins have registered "relation" types —
+    ECHO types whose role is to describe an edge between two
+    other entities rather than to be an entity in their own right
+  when: I open the `#` picker
+  then:
+    - relation types do NOT appear as picker entries. A bullet
+      can BE a Task or a Person; a bullet cannot BE an edge
+      between two other things.
+```
+
+```mdl
+test T-Supertag-picker-excludes-self-types: # picker does not offer the block outliner's own types
+  given: a space in which the user has at least one block
+    outline (so the outliner's own ECHO types are registered
+    alongside the rest)
+  when: I open the `#` picker
+  then:
+    - I do NOT see `#Block-outline` or `#Block` in the picker.
+      Tagging a bullet with the outliner's own scaffolding
+      would let the bullet "be" a copy of itself or its
+      container — a recursive arrangement that doesn't make
+      sense to the user.
+```
+
+```mdl
+test T-Supertag-picker-sorted: # picker entries are alphabetical, case-insensitive
+  given: a space with types whose display titles are "Zebra",
+    "apple", and "Banana"
+  when: I open the `#` picker without filtering
+  then: the entries appear in the order "apple", "Banana",
+    "Zebra".
+```
+
+```mdl
+test T-Supertag-schema-shows-all-types: every type has a supertag node under Schema
+  given: a space whose plugins have registered typed ECHO
+    schemas (filtered per F-Supertag.types-shown)
+  when: I open the block outliner and zoom into the Schema
+    system node
+  then: for every registered type, there is a corresponding
+    supertag node among Schema's children. Each supertag node's
+    display label is the type's title (e.g. `Task`, `Person`,
+    `Document`); zooming into one lists every instance of that
+    type in the space.
+```
+
+```mdl
+test T-Supertag-mat-idempotent: supertag node set matches the allowed-type set, idempotently
+  given: a space with a current set T of allowed ECHO types
+    (the same exclusion rule that F-Supertag.types-shown
+    defines for the picker)
+  when: the system establishes supertag nodes for these types,
+    one or more times, in any order
+  then:
+    - for every type in T there is exactly one supertag node
+      in the space.
+    - the supertag node for a given type carries a stable
+      identity across successive establishments.
+```
+
+```mdl
+test T-Supertag-mat-live: newly registered types get a supertag node live
+  given: I am viewing the block outliner; some plugin
+    registers a new typed ECHO schema (that passes
+    F-Supertag.types-shown's filter) after the outliner has
+    mounted
+  when: the schema registration commits
+  then: within one tick the new type has a supertag node
+    among Schema's children, and I see the new entry as a
+    child of the Schema node.
+```
+
+```mdl
+test T-Supertag-picker-creates-fresh-instance: applying #T creates a new typed instance
+  given: a bullet whose content is "Buy milk" and zero
+    supertags
+  when: I open the `#` picker on this bullet and select T
+  then:
+    - a new instance of type T is created in ECHO (verifiable
+      via a query for type T's instances in the space — one
+      more instance exists than before).
+    - the "Buy milk" node is associated with the new instance
+      (its supertags array now references this instance).
+    - the new instance's label is "Buy milk" (seeded per
+      T-Supertag-title-seed-outliner).
+```
+
+```mdl
+test T-Supertag-promote-reuses-existing: clicking an already-associated instance navigates to its existing node
+  given: an instance X of type T; a node N in the outline is
+    already associated with X via `#T`; X's row appears in
+    the `#T` supertag node's query view
+  when: I click X's row in the query view
+  then:
+    - the outliner navigates to N.
+    - the association set for (X, `#T`) remains {N}
+      (F-Supertag.uniqueness is preserved on this path).
+```
+
+```mdl
+test T-Supertag-uniq-sweep: normalisation collapses duplicate supertag associations
+  given: a space in inconsistent state — two distinct nodes
+    N1 and N2 both have `supertags` referencing the SAME
+    instance X of type T (left over from some earlier
+    broken flow)
+  when: the system runs the uniqueness-normalisation sweep
+    for this space (one or more times, in any order)
+  then:
+    - the association set for (X, `#T`) becomes {canonical}
+      — exactly one node, selected by lower `Block.id` per
+      F-Supertag.uniqueness's tie-break.
+    - any other supertag-Refs on N1 and N2 (for types
+      other than T or instances other than X) are
+      preserved.
+```
+
+```mdl
+test T-Supertag-title-seed-outliner: bullet text seeds the new instance's title
+  given: a bullet whose content is "Buy milk" and zero
+    supertags; type T (e.g. `#Task`) is registered
+  when: I open the `#` picker on this bullet and select T
+  then:
+    - the bullet still reads "Buy milk".
+    - the new type-T instance attached to this bullet (per
+      T-Supertag-picker-creates-fresh-instance) has its label
+      set to "Buy milk".
+```
+
+```mdl
+test T-Supertag-title-seed-from-instance: clicking an existing instance creates a node carrying its label
+  given: an instance X of type T with label "Quarterly
+    Review"; no node in the outline is currently associated
+    with X via `#T`
+  when: I click X's row in the `#T` supertag node's query
+    view
+  then:
+    - a new node appears (parented per F-6.Phase3b.promote).
+    - the new node's bullet text reads "Quarterly Review"
+      (seeded from X's label per F-Supertag.title-sync's
+      externally-originated path).
+    - the new node's supertag references X.
+```
+
+```mdl
+test T-Supertag-title-write: typing in the bullet renames the typed instance
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`);
+    N's linked instance has label "old"
+  when: I focus the bullet, select all, and type "new"
+  then:
+    - the bullet reads "new".
+    - N's linked instance has label "new" within one tick
+      (per F-Supertag.title-sync's steady-state write path).
+```
+
+```mdl
+test T-Supertag-title-read: renaming a typed instance updates the bullet targeting it
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`)
+    whose linked instance has label "old"; the outliner is
+    mounted and N is visible
+  when: another surface renames the linked instance from
+    "old" to "new" (e.g. a write via Composer's article
+    view, a navtree rename, an automation)
+  then:
+    - within one tick the bullet N reads "new" (per
+      F-Supertag.title-sync's steady-state read path).
+```
+
+```mdl
+test T-Supertag-title-no-label-noop: types without a designated label still permit typing
+  given: a bullet tagged with `#T` where T's schema doesn't
+    designate any field as its label (no canonical "title"
+    or "name" field for the sync to write into)
+  when: I type any text into the bullet
+  then:
+    - the bullet's content updates to reflect the typed text,
+      same as for any other bullet.
+    - the typed instance's fields remain at their prior
+      values — the title-sync write path has no label-field
+      to target on this schema, so it leaves the instance
+      alone (per F-Supertag.title-sync's degradation
+      behaviour).
+```
+
+```mdl
+test T-Supertag-title-hidden-in-fields: FieldGroup shows the typed instance's non-label fields
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`,
+    whose schema designates `title` as its label field); N
+    is expanded
+  when: the FieldGroup renders below the bullet
+  then:
+    - the FieldGroup renders exactly one row per non-label
+      field declared by T's current schema (per
+      F-Supertag.title-hidden-in-fields). Examples of such
+      fields for Task at time of writing: Priority, Status,
+      Assigned, Estimate, Description, Project — the exact
+      set tracks whatever non-label fields T's schema
+      currently declares.
+```
+
+```mdl
+test T-Supertag-chip-click-zoom: clicking the chip navigates the current pane to the supertag node
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`)
+    is visible in the outliner pane I'm viewing
+  when: I click N's `#T` chip (no modifier keys)
+  then:
+    - the current pane's page block becomes the `#T`
+      supertag node (per F-Supertag.chip-gestures).
+```
+
+```mdl
+test T-Supertag-chip-shift-click-pane: shift-clicking the chip opens the supertag node in a new pane
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`)
+    is visible in the outliner pane I'm viewing; Composer's
+    deck mode is enabled
+  when: I shift-click N's `#T` chip
+  then:
+    - a new pane opens to the right of the current pane.
+    - the new pane's page block is the `#T` supertag node
+      (per F-Supertag.chip-gestures).
+    - the current pane's state is preserved — its page block
+      and outline view remain as they were.
+```
+
+```mdl
+test T-Supertag-open-control-renders: chip carries an open-instance control alongside it
+  given: a bullet N tagged with supertag `#T` (e.g. `#Task`)
+  when: N is rendered
+  then:
+    - a small icon control renders immediately after the
+      `#T` chip (per F-Supertag.open-instance-control).
+    - the control has an accessible name and a tooltip that
+      describe its action (opening the typed instance's
+      Composer surface) — exact wording is at the
+      implementation's discretion.
+```
+
+```mdl
+test T-Supertag-open-control-click: clicking the open-instance control opens the typed instance in the current pane
+  given: a bullet N tagged with supertag `#T` (e.g. `#Agent`,
+    which represents an ECHO type registering a dedicated
+    Composer article surface like AgentArticle); deck mode
+    is enabled
+  when: I click the open-instance control on this bullet
+  then:
+    - the current pane displays the typed instance's article
+      surface in place of the outliner (per
+      F-Supertag.open-instance-control).
+```
+
+```mdl
+test T-Supertag-open-control-shift-click-pane: shift-clicking the open-instance control opens the typed instance in a new pane
+  given: a bullet N tagged with supertag `#T` (e.g. `#Agent`);
+    the outliner is visible in a pane; deck mode is enabled
+  when: I shift-click the open-instance control on this
+    bullet
+  then:
+    - a new pane opens to the right of the current pane.
+    - the new pane displays the typed instance's article
+      surface (per F-Supertag.open-instance-control).
+    - the current pane's state is preserved — its page block
+      and N are as they were.
+```
+
+```mdl
+test T-Supertag-browse-reactivity: query row label updates live as the instance is renamed
+  given: I am zoomed into the `#T` supertag node (e.g.
+    `#Task`); its query view lists one row for an instance
+    X of type T with label "alpha"
+  when: another surface renames X from "alpha" to "beta"
+    (via rename in Composer, an automation, etc.)
+  then:
+    - within one tick the query row's label reads "beta"
+      (per F-Supertag.title-sync's read path applied to the
+      query-row label resolver).
 ```
 
 ---
