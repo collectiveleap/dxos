@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Filter, Obj } from '@dxos/echo';
 
-import { collectTagTypes } from '../BlockEditor/tag-types';
+import { collectTagTypes } from '../Editor/tag-types';
 
-import { createEdge } from './child-edges';
+import { createEdge } from './edges';
 
 import { Bramble } from '#types';
 

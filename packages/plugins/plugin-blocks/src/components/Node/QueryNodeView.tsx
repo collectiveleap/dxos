@@ -26,7 +26,7 @@ import { Bramble } from '#types';
 export type QueryNodeViewProps = {
   // Accepts a live Block or its snapshot — we only read fields and
   // resolve the database, never mutate this argument. The
-  // dispatching BlockNode passes its `useObject` snapshot so query
+  // dispatching Node passes its `useObject` snapshot so query
   // rows react to typename / Block changes without our own
   // subscriber here.
   block: any;
@@ -117,7 +117,7 @@ export const QueryNodeView = ({ block }: QueryNodeViewProps) => {
       const wrapper = wrapperIndex.get(instance.id);
       // F-Supertag.title-sync makes the typed instance's label the
       // canonical source: when a wrapper exists, its content is kept
-      // in step with `Obj.getLabel(instance)` by the BlockEditor-
+      // in step with `Obj.getLabel(instance)` by the Editor-
       // resident subscriber. But that subscriber only runs while the
       // wrapper's editor is mounted — which it isn't from inside the
       // query view. Reading the instance directly avoids the stale-

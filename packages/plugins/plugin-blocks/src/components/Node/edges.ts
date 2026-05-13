@@ -94,7 +94,7 @@ export const getStructuralChildren = (db: any, parent: Bramble.Node): any[] => {
 
 // Process-global lock for the F-DAG Phase 3d backstop migration —
 // each (db, parent) pair is migrated at most once per session even
-// when many BlockNodes mount concurrently and all call
+// when many Nodes mount concurrently and all call
 // `useStructuralChildren(parent)` on the same parent.
 const migrationLocks = new WeakMap<object, Set<string>>();
 

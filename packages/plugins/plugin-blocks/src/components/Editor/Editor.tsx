@@ -26,7 +26,7 @@ import { schema } from './schema';
 import { fromDoc, toDoc } from './serialize';
 import { initialPropsForTag, type TagTypeEntry } from './tag-types';
 
-export type BlockEditorProps = {
+export type EditorProps = {
   block: Bramble.Node;
   autoFocus?: boolean;
   onEnter?: (beforeText: string, afterText: string) => void;
@@ -43,7 +43,7 @@ export type BlockEditorProps = {
   onCollapseRequest?: () => void;
   onExpandRequest?: () => void;
   // ArrowUp / ArrowDown move the cursor to the previous / next visible
-  // Block. The parent BlockNode walks the rendered tree to find the
+  // Block. The parent Node walks the rendered tree to find the
   // adjacent visible row and focuses its editor. Always consumed so the
   // browser doesn't scroll on no-op edge cases.
   onMoveUp?: () => void;
@@ -66,7 +66,7 @@ export type BlockEditorProps = {
 // selecting a target inserts a ref into the doc and persists a real ECHO Ref
 // into Block.content. The RefNodeView resolves the target's label live on
 // every ProseMirror update().
-export const BlockEditor = ({
+export const Editor = ({
   block,
   autoFocus,
   onEnter,
@@ -80,7 +80,7 @@ export const BlockEditor = ({
   onShiftEnter,
   onShiftEnterAbove,
   headlineMode,
-}: BlockEditorProps) => {
+}: EditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onEnterRef = useRef(onEnter);
@@ -335,7 +335,7 @@ export const BlockEditor = ({
         view.updateState(next);
         // F-DAG.Phase3e.multi-occurrence-edit-sync: external-sync
         // transactions reapply `block.content` from ECHO after
-        // another BlockEditor instance wrote to the same Block.
+        // another Editor instance wrote to the same Block.
         // Skip the write-back so the sync doesn't loop or trample
         // the content we just received.
         if (transaction.docChanged && !transaction.getMeta('externalSync')) {
@@ -407,7 +407,7 @@ export const BlockEditor = ({
   }, [block, makeRef, resolveRef]);
 
   // F-Caret: when autoFocus flips to true on an already-mounted editor (e.g.
-  // F-Nav arrow navigation flipping focusId on the BlockTree), the mount
+  // F-Nav arrow navigation flipping focusId on the Graph), the mount
   // effect does NOT re-run, so view.focus() is never called. Wire a
   // dedicated effect that focuses the view AND places the PM selection at
   // the start of the doc so the caret has a paintable position. The
@@ -426,7 +426,7 @@ export const BlockEditor = ({
   }, [autoFocus]);
 
   // F-DAG.Phase3e.multi-occurrence-edit-sync: in a DAG-shaped outline
-  // the same Block can be rendered by two or more BlockEditor
+  // the same Block can be rendered by two or more Editor
   // instances at once (multi-predecessor Blocks, side-by-side panes,
   // the same Block reachable via more than one structural edge).
   // When the user types into ONE of those editors, the local PM
@@ -559,7 +559,7 @@ export const BlockEditor = ({
   // type, add it to the block's database, append a Ref to
   // `Block.supertags`, then strip the `#`-and-query trigger text from
   // the editor (no inline marker — the chip lives outside the
-  // contenteditable, rendered by BlockNode).
+  // contenteditable, rendered by Node).
   const handleSelectTag = useCallback(
     (entry: TagTypeEntry) => {
       const view = viewRef.current;

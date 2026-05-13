@@ -4,7 +4,7 @@
 
 import { Filter, Obj } from '@dxos/echo';
 
-import { createEdge } from './child-edges';
+import { createEdge } from './edges';
 
 import { Bramble } from '#types';
 
@@ -84,7 +84,7 @@ export const queryInstancesByTypename = (db: any, typename: string): any[] => {
 //
 // F-Supertag.title-sync (externally-originated seeding): the node's
 // content is seeded from `Obj.getLabel(instance)` as a single text
-// segment. The steady-state subscriber installed by `BlockEditor`
+// segment. The steady-state subscriber installed by `Editor`
 // keeps the two in sync from there on; if a later external write
 // changes the instance's label, the subscriber reflects the change
 // into `block.content`.

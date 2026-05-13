@@ -9,7 +9,7 @@ import { Capabilities, Capability } from '@dxos/app-framework';
 import { Surface } from '@dxos/app-framework/ui';
 import { AppSurface } from '@dxos/app-toolkit/ui';
 
-import { BlockArticle } from '#containers';
+import { Article } from '#containers';
 import { Bramble } from '#types';
 
 export default Capability.makeModule(() =>
@@ -20,17 +20,17 @@ export default Capability.makeModule(() =>
         id: 'article',
         filter: AppSurface.object(AppSurface.Article, Bramble.Graph),
         component: ({ data, role }) => (
-          <BlockArticle role={role} subject={data.subject} attendableId={data.attendableId} />
+          <Article role={role} subject={data.subject} attendableId={data.attendableId} />
         ),
       }),
       // F-Open-Pane: a single Node opened in a new pane via shift-click on
-      // a child bullet. Same `BlockArticle` renders the Node as the pane's
+      // a child bullet. Same `Article` renders the Node as the pane's
       // root (no name auto-sync, no backlinks panel).
       Surface.create({
         id: 'article-block',
         filter: AppSurface.object(AppSurface.Article, Bramble.Node),
         component: ({ data, role }) => (
-          <BlockArticle role={role} subject={data.subject} attendableId={data.attendableId} />
+          <Article role={role} subject={data.subject} attendableId={data.attendableId} />
         ),
       }),
     ]),

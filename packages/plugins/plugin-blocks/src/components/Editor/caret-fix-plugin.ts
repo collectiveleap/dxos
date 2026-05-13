@@ -7,7 +7,7 @@ import { Decoration, DecorationSet } from 'prosemirror-view';
 
 // F-Caret: empty paragraph caret-visibility indicator.
 //
-// BlockEditor wraps each Block's editor in an `inline-block` shell so the
+// Editor wraps each Block's editor in an `inline-block` shell so the
 // backlinks badge can sit next to the text (per F-V4.placement). For
 // non-empty paragraphs this works fine — the `<p>` takes the text's
 // width and the caret renders inside the text node.

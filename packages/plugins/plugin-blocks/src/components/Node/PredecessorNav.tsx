@@ -9,7 +9,7 @@ import { useObject } from '@dxos/react-client/echo';
 
 import { getDisplayLabel } from '../labels';
 
-import { usePredecessors } from './child-edges';
+import { usePredecessors } from './edges';
 
 import { Bramble } from '#types';
 

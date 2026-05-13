@@ -8,8 +8,8 @@ import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
 import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
-import { BlockEditor } from '../BlockEditor';
-import { findTagTypeByTypename } from '../BlockEditor/tag-types';
+import { Editor } from '../Editor';
+import { findTagTypeByTypename } from '../Editor/tag-types';
 import { MentionPicker } from '../MentionPicker';
 import {
   childEdgesOf,
@@ -21,14 +21,14 @@ import {
   useEdgeExpanded,
   useParentEdgeCount,
   useStructuralChildren,
-} from './child-edges';
+} from './edges';
 import { FieldGroups } from './FieldGroup';
 import { QueryNodeView } from './QueryNodeView';
 import { tagLabelOf, useTagBlock } from './tag-supertags';
 
 import { Bramble } from '#types';
 
-export type BlockNodeProps = {
+export type NodeProps = {
   block: Bramble.Node;
   // Block that owns `block` via its children array.
   parent: Bramble.Node;
@@ -42,7 +42,7 @@ export type BlockNodeProps = {
 // Recursive renderer for a Block and its children. Tab/Shift+Tab/Enter
 // handlers live here so they can close over the parent + grandparent context.
 // Visual rules are owned by the Bullet and ExpandChevron sub-components below.
-export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: BlockNodeProps) => {
+export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodeProps) => {
   const [snapshot] = useObject(block);
   // Per-row hover state — drives ExpandChevron visibility. Replaces a Tailwind
   // `group-hover:` approach that was lighting up multiple chevrons at once.
@@ -89,7 +89,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
   const backlinkCount = useBacklinkCount(block.id);
 
   // F-Zoom: clicking the bullet zooms into this Block. The handler comes
-  // from BlockArticle via context; default is a no-op when no provider is
+  // from Article via context; default is a no-op when no provider is
   // mounted (e.g., storybook stories).
   const zoom = useZoom();
   // F-Open-Pane: shift-clicking the bullet opens the Block in a new pane
@@ -330,7 +330,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
             className='min-w-0 max-w-full [&_.ProseMirror]:inline-block'
             data-naked-ref={isNakedRefContent((snapshot as any)?.content) ? 'true' : undefined}
           >
-            <BlockEditor
+            <Editor
               block={block}
               autoFocus={focusId === block.id}
               onEnter={handleEnter}
@@ -369,7 +369,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
           {childRefs.map((ref) => {
             const child = ref.target as Bramble.Node;
             return (
-              <BlockNode
+              <Node
                 key={child.id}
                 block={child}
                 parent={block}
@@ -435,7 +435,7 @@ export const BlockNode = ({ block, parent, grandparent, focusId, setFocusId }: B
 // `editable.focus()` + setting a DOM Range directly. The previous DOM-level
 // approach placed the selection at `editable, 0` (BEFORE the `<p>`), which
 // has no caret rect — so the cursor was invisible after every arrow nav.
-// `setFocusId` flips the target BlockEditor's `autoFocus` prop, which in
+// `setFocusId` flips the target Editor's `autoFocus` prop, which in
 // turn triggers the editor's autoFocus useEffect to set PM's selection at
 // `TextSelection.atStart(doc)` and call `view.focus()`. PM then places the
 // DOM caret inside the first text node (or, for an empty paragraph, past
@@ -486,7 +486,7 @@ type ExpandChevronProps = {
 
 // F-V2 Expand/Collapse control (revised in F-Pending-Child): a chevron set
 // inside a bordered, lightly filled circle. Hidden by default; the
-// parent BlockNode tracks its row's hover state via React and passes
+// parent Node tracks its row's hover state via React and passes
 // `visible`. Keyboard focus also reveals the control via
 // `focus-visible`. ALWAYS rendered now — leaves get a chevron too so
 // they can be expanded to reveal the pending-child placeholder
@@ -695,13 +695,13 @@ const TagChip = ({
 // F-Pending-Child: a faint placeholder row rendered as the only child of
 // an expanded leaf. Visual only — no Block exists until the user types
 // any character into the editable area, at which point `onPromote` is
-// called with the typed text and the parent BlockNode persists a real
+// called with the typed text and the parent Node persists a real
 // child Block.
 //
 // F-DAG.Phase3a.add-existing-via-picker: typing `@` opens the
 // MentionPicker so the user can ADD AN EXISTING Block as a structural
 // child via a `ChildEdge` (no wrapper Block). Picker selection routes
-// through `onAddExisting`; the BlockNode parent's handler calls
+// through `onAddExisting`; the Node parent's handler calls
 // `createEdge(parent, target)` directly.
 const PendingChildRow = ({
   parent,

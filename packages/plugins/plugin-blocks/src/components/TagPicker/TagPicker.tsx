@@ -4,8 +4,8 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { findTagBlock, tagLabelOf } from '../BlockNode/tag-supertags';
-import { type TagTypeEntry, useTagTypes } from '../BlockEditor/tag-types';
+import { findTagBlock, tagLabelOf } from '../Node/tag-supertags';
+import { type TagTypeEntry, useTagTypes } from '../Editor/tag-types';
 
 export type TagPickerProps = {
   // Query text typed after the `#` (excluding the `#` itself).

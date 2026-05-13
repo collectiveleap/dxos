@@ -17,8 +17,8 @@ import { meta } from '#meta';
 import {
   BacklinkCountContext,
   BacklinksPanel,
-  BlockEditor,
-  BlockTree,
+  Editor,
+  Graph,
   FieldGroups,
   OpenPaneContext,
   PredecessorNav,
@@ -35,14 +35,14 @@ import { Bramble } from '#types';
 // shift-click on a child bullet, per F-Open-Pane). Both render the same
 // page UI: editable H1 header + breadcrumb + child tree + (when applicable)
 // backlinks panel.
-export type BlockArticleProps = AppSurface.ObjectArticleProps<Bramble.Graph | Bramble.Node>;
+export type ArticleProps = AppSurface.ObjectArticleProps<Bramble.Graph | Bramble.Node>;
 
 // Renders the Graph / sub-node as a Tana-style page. F-Page-Header:
 // the page node (default = the pane's root) ALWAYS renders as an
 // editable H1 at the top, with its children rendered as bullets below.
 // Clicking a child's bullet makes that node the new page node within
 // the pane; shift-clicking opens it in a new pane (F-Open-Pane).
-export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps) => {
+export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // Subscribe to the subject for re-renders on top-level field changes
   // (e.g. graph.name). Snapshots from useObject are NOT extensible and
   // cannot be passed to other useObject calls or to Obj.update — always
@@ -240,7 +240,7 @@ export const BlockArticle = ({ role, subject, attendableId }: BlockArticleProps)
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>
-                  <BlockTree rootBlock={pageNode} />
+                  <Graph rootBlock={pageNode} />
                 </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
@@ -289,7 +289,7 @@ const PageHeader = ({ node }: { node: Bramble.Node }) => {
           #
         </span>
         <span className='flex-1 min-w-0'>
-          <BlockEditor block={node} headlineMode />
+          <Editor block={node} headlineMode />
         </span>
       </h1>
     );
@@ -297,7 +297,7 @@ const PageHeader = ({ node }: { node: Bramble.Node }) => {
 
   return (
     <h1 className='mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
-      <BlockEditor block={node} headlineMode />
+      <Editor block={node} headlineMode />
     </h1>
   );
 };
@@ -338,4 +338,4 @@ const hasContent = (node: Bramble.Node): boolean => {
   });
 };
 
-export default BlockArticle;
+export default Article;

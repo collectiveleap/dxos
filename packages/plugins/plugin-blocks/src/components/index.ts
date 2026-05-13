@@ -3,10 +3,10 @@
 //
 
 export * from './BacklinksPanel';
-export * from './BlockContent';
-export * from './BlockEditor';
-export * from './BlockNode';
-export * from './BlockTree';
+export * from './Content';
+export * from './Editor';
+export * from './Node';
+export * from './Graph';
 export * from './MentionPicker';
 export * from './TagPicker';
 export * from './backlinks';

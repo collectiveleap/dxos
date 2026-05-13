@@ -10,20 +10,20 @@ import { Bramble } from '#types';
 
 import { getDisplayLabel } from './labels';
 
-export type BlockContentProps = {
+export type ContentProps = {
   block: Bramble.Node;
 };
 
 // F-Headline: renders a Block's content (text + inline refs) as React
 // elements, mirroring the editor's inline rendering but read-only.
-// Used by BlockArticle to render the zoomed headline so that ref
+// Used by Article to render the zoomed headline so that ref
 // segments don't disappear (which is what `getDisplayLabel`'s
 // text-only join used to do).
 //
 // Each ref segment is rendered via a `RefLabel` child that subscribes
 // to the target via `useObject`, so a rename of the target propagates
 // to the rendered label without any local edit.
-export const BlockContent = ({ block }: BlockContentProps) => {
+export const Content = ({ block }: ContentProps) => {
   const [snapshot] = useObject(block);
   const segments = ((snapshot?.content ?? []) as readonly any[]).filter(Boolean);
   if (segments.length === 0) {

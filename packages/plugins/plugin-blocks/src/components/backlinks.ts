@@ -185,7 +185,7 @@ export const useBacklinks = (graph: Bramble.Graph | undefined): BacklinkData => 
   return data;
 };
 
-// React context that propagates the per-target count map to BlockNode without
+// React context that propagates the per-target count map to Node without
 // prop drilling through every level of the recursive tree.
 export const BacklinkCountContext = createContext<Map<string, number>>(new Map());
 
@@ -194,16 +194,16 @@ export const useBacklinkCount = (nodeId: string): number => {
   return counts.get(nodeId) ?? 0;
 };
 
-// React context that lets any BlockNode request a zoom into a Node by id.
-// Provided by BlockArticle. Default is a no-op so BlockNode renders cleanly
+// React context that lets any Node request a zoom into a Node by id.
+// Provided by Article. Default is a no-op so Node renders cleanly
 // even when no provider is mounted (storybook stories, etc.).
 export const ZoomContext = createContext<(nodeId: string) => void>(() => {});
 
 export const useZoom = () => useContext(ZoomContext);
 
-// F-Open-Pane: lets any BlockNode request that a Node be opened in a NEW
+// F-Open-Pane: lets any Node request that a Node be opened in a NEW
 // pane (sibling plank) to the right of the current pane. Provided by
-// BlockArticle, which wires this through `LayoutOperation.Open` with the
+// Article, which wires this through `LayoutOperation.Open` with the
 // pane's `attendableId` as `pivotId` so the new plank lands next to the
 // current one. Takes the live Node object (not just an id) so the
 // handler can derive the canonical qualified path via

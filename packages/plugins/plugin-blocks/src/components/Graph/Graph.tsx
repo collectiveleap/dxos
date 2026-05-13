@@ -7,20 +7,20 @@ import React, { useEffect, useState } from 'react';
 import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
-import { BlockNode } from '../BlockNode';
-import { createEdge, getStructuralChildren, useStructuralChildren } from '../BlockNode/child-edges';
+import { Node } from '../Node';
+import { createEdge, getStructuralChildren, useStructuralChildren } from '../Node/edges';
 
 import { Bramble } from '#types';
 
-export type BlockTreeProps = {
+export type GraphProps = {
   rootBlock: Bramble.Node;
 };
 
 // Increment 3b: top-level component that walks `rootBlock.children` and
-// renders a recursive BlockNode for each. Owns `focusId` (preserved across
+// renders a recursive Node for each. Owns `focusId` (preserved across
 // re-parenting on Tab/Shift+Tab) and the contextmenu listener that copies
 // a bullet's DXN to the clipboard.
-export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
+export const Graph = ({ rootBlock }: GraphProps) => {
   const [snapshot] = useObject(rootBlock);
   const [focusId, setFocusId] = useState<string | null>(null);
 
@@ -103,7 +103,7 @@ export const BlockTree = ({ rootBlock }: BlockTreeProps) => {
       {childRefs.map((ref) => {
         const child = ref.target as Bramble.Node;
         return (
-          <BlockNode
+          <Node
             key={child.id}
             block={child}
             parent={rootBlock}
