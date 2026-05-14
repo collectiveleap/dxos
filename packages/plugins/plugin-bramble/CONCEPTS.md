@@ -44,6 +44,27 @@ it.* When future increments add features, they should be evaluated
 against whether they help the user dance — not whether they reduce
 the apparent mess.
 
+### 1.1 Anti-Tana / anti-saved-view positioning
+
+Bramble's product positioning is explicitly **anti-Tana,
+anti-saved-view, anti-database-view**. Not "Tana but local-first."
+Not "Notion's database views with property-graph semantics
+underneath." A different category of tool — *perspective-aware*
+rather than view-of-a-table.
+
+The gravitational pull during design conversations is toward
+"saved query + rendering pipeline" — what Tana / Notion / Roam
+already ship. *Lens-as-saved-view* is the canonical drift to watch
+for; whenever a Lens proposal collapses to "filter rows + pick
+renderer," that's a regression to abandon, not a feature to refine.
+See §9.1 (The Tana trap) for the diagnosis and §9.2–9.5 for what
+generative-P does that saved-view categorically cannot.
+
+This is positioning, not just design. The product narrative,
+documentation tone, demo flows, and feature prioritisation should
+all run *away* from "Tana but…" framings. Bramble does what
+Tana cannot, not what Tana already does plus a twist.
+
 ---
 
 ## 2. Substrate: it is actually a mess
