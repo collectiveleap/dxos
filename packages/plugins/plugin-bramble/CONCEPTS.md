@@ -587,7 +587,679 @@ the rename first.
 
 ---
 
-## 9. Sources
+## 9. Lens — from concept to operational primitive
+
+What follows extends §8.2's "first-class Perspective Node-subtype"
+into a concrete design. Captured 2026-05-13/14 from a working
+session that explored what Lens has to BE if it's going to earn its
+keep — i.e. do work that a saved query with rendering options
+cannot.
+
+### 9.1 The Tana trap
+
+If a Lens is "an anchor + a filter + a renderer," then Bramble's
+Lens primitive collapses to a saved query with rendering options.
+Tana ships exactly that. Notion ships exactly that. There is no
+reason a user would adopt Bramble specifically for *that*.
+
+The Tana shape leaves Cabrera's P doing no work: in a saved-query
+view, the *point* is just "the predicate I filter by," and the
+*view* is just "the rows that pass." Same distinctions, regrouped.
+Pivot-table semantics. Cabrera's stronger claim — *the point
+generates new distinctions* — is wholly absent.
+
+The Lens primitive earns its existence only if it does what saved
+queries categorically cannot. The design conversation kept drifting
+toward Tana-shape; flagging this drift in advance.
+
+### 9.2 What Cabrera's P actually does — five operations
+
+Cabrera's formula: **P := (ρ ↔ v)** — a point co-implying a view.
+Working through what that means operationally (and what the
+real-world examples in §9.4 demonstrate empirically):
+
+1. **Observer substitution.** The agent doing the thinking
+   changes. From "I, the user" to "I, the microbe / the customer
+   / the future generation / the strongest critic." The cognitive
+   stand-in is the perspective; the substrate has not changed.
+
+2. **Ontology inheritance.** The new observer brings its own
+   salience map — preferred D's, S's, R's. A microbe-perspective
+   foregrounds chemical gradients; a customer-perspective
+   foregrounds friction and price; an engineer-perspective
+   foregrounds technical debt. The perspective doesn't just
+   filter; it *imports a vocabulary of relevance*.
+
+3. **Generative response.** With observer substituted and ontology
+   inherited, the perspective produces *new content* — statements,
+   judgments, narratives, predicaments — that did not exist before
+   its activation. This is the move Tana's views cannot make. The
+   graph grows by one perspective-produced artifact per
+   invocation.
+
+4. **Attribution.** The generated content carries its provenance.
+   *The Penelopiad* is recognisably the maids' account, not
+   Homer's. The premortem risks are tagged future-failure-team.
+   Without attribution, perspective-generated content drifts loose
+   from its source point and loses meaning.
+
+5. **Composition (P-on-P).** Perspectives operate on the outputs
+   of other perspectives. *Wide Sargasso Sea* is a perspective on
+   the perspective *Jane Eyre* embedded. Steelmanning is a
+   perspective on the opponent's perspective. The recursion isn't
+   a curiosity; it's how genuine cultural critique works.
+
+### 9.3 The homogenous-perspective error
+
+Cabrera explicitly names a failure mode:
+
+> *Homogenous perspective error: assuming any group is
+> characterised by a single perspective.*
+
+A tool that surfaces *only one* perspective on a graph (the
+"outline view") trains the user to think there is one true view.
+Making perspectives *plural* and *explicit* is itself a cognitive
+intervention. Tools that allow only an implicit perspective do
+cognitive harm — they bake in a default vantage and obscure that
+other vantages exist.
+
+Bramble's Lens primitive earns its keep when it makes plurality
+visible and switchable. This is the deepest justification for the
+primitive's existence I've found in Cabrera.
+
+### 9.4 Generative-P examples from the wider world
+
+A sampler of how perspective-taking actually works outside
+knowledge tools. Each example does what a query cannot. Captured
+here so the design has anchors when "what is a Lens, really?"
+comes up later.
+
+**Irreconcilable accounts of the same event:**
+
+- *Rashomon* (Kurosawa, 1950). Four witnesses, four accounts of a
+  forest killing. None is a filter on the others; each *generates
+  different facts*. The "Rashomon effect" is now a term cognitive
+  scientists use for the constitutive role of perspective in
+  memory.
+- *The Sound and the Fury* (Faulkner, 1929). Same family decline
+  narrated four times. The first section is told by Benjy whose
+  perception is non-linear and pre-verbal; decades collide on one
+  page because that is the cognitive architecture of his point.
+  Point as constitutive of what counts as an event.
+
+**P as cognitive scaffold:**
+
+- Rawls's *Veil of Ignorance* (1971). Design a society from a
+  perspective where you don't know your own position. The point
+  IS the ignorance. Produces principles (the difference
+  principle) that exist nowhere in the world prior.
+- Gary Klein's *Premortem* (2007). Imagine the project has
+  already failed; reason backwards. Klein's research: ~30% more
+  risks surfaced vs. standard risk workshops. Same project;
+  future-failure-perspective sees what present-perspective
+  cannot.
+- Haudenosaunee Seventh-Generation Principle. Decide as if a
+  generation alive in the 23rd century will judge. Operative in
+  constitutional change and resource management for six
+  centuries. Different perspective → different priorities than
+  quarterly-shareholder thinking ever produces.
+
+**P of a non-human / non-conscious entity:**
+
+- Lynn Margulis & endosymbiotic theory (1967 onwards). The
+  biologist's decade of inhabiting the microbial perspective
+  produced the theory that eukaryotic cells are consortia of
+  formerly free-living microbes. Textbook biology now. Same
+  cells; different ontology — generated by the perspective.
+- Aldo Leopold, "Thinking Like a Mountain" (1949). The mountain
+  has a perspective across geological time; from the mountain's
+  view, the wolf is essential infrastructure. Foundational essay
+  of modern ecological ethics — generated by perspective on a
+  non-conscious entity.
+- Einstein's light-beam thought experiment (1895). "What would I
+  see riding alongside a light beam?" The impossible perspective
+  generated, ten years later, the theory (special relativity)
+  that explained why no observer can occupy it. Physics advanced
+  via point-of-view.
+- Robin Wall Kimmerer, *Braiding Sweetgrass* (2013). Potawatomi
+  botanist; takes the perspective of plants ("what does the
+  strawberry want?") as a research method. Yields agronomic
+  practices Western biology missed.
+
+**P that inverts the canonical narrative:**
+
+- Margaret Atwood's *The Penelopiad* (2005) — *Odyssey* from the
+  perspective of the twelve murdered maids.
+- Tom Stoppard's *Rosencrantz and Guildenstern Are Dead* (1966)
+  — *Hamlet* from two of Shakespeare's minor characters; the
+  famous soliloquies become gibberish heard offstage.
+- Jean Rhys's *Wide Sargasso Sea* (1966) — *Jane Eyre*'s
+  "madwoman in the attic" written as a Creole protagonist
+  destroyed by colonial racism.
+
+**P as negotiation / empathy infrastructure:**
+
+- Gestalt "Empty Chair" technique. The client physically
+  switches chairs and speaks *as* the absent person; words
+  emerge the client didn't know they could access.
+- Internal Family Systems (Schwartz, 1990s). The psyche as
+  multiple "parts" each with its own perspective; therapy works
+  by dialoguing among them.
+- Steelmanning. Before arguing against a position, state its
+  strongest form — stronger than the opponent did. Sometimes the
+  steelman convinces you and you change your mind.
+- Project Zero's "Step Inside" routine (Ritchhart et al.).
+  Three sub-prompts — perceive / know / care about — applied to
+  any chosen point. Captured separately in §9.10 because it's
+  the cleanest pedagogical instantiation of generative P.
+
+**P as aesthetic primitive:**
+
+- Cubism (Picasso/Braque, ~1907–12). Multiple simultaneous
+  perspectives on one canvas. Asserts that single-point
+  perspective *under-represents* the object.
+- Italo Calvino, *Invisible Cities* (1972). 55 cities described
+  *from the city's own perspective* — each a meditation on a
+  single quality (memory, desire, signs, exchange).
+- Wes Anderson's *Grand Budapest Hotel* (2014). Plot nested four
+  perspective-levels deep; the story changes meaning at each
+  level. P-on-P-on-P-on-P as structural principle.
+
+**P that reveals what perspective itself is:**
+
+- Thomas Nagel, "What Is It Like to Be a Bat?" (1974). The
+  structural inaccessibility of one perspective from another
+  becomes a definition of consciousness.
+- Wittgenstein's duck-rabbit (*Philosophical Investigations*,
+  1953). Same lines, two seeings. Perception always involves a
+  perspective.
+- Bohr's Complementarity (1927). The wave/particle property of
+  light *depends on the measurement perspective*. Physics
+  accepted that the substrate itself is perspectival.
+
+### 9.5 What unites these examples
+
+- **The point is a stance, not a filter.** None of these can be
+  expressed as `WHERE typename = X`. Each is a cognitive-
+  imaginative apparatus.
+- **The output is new content, not subset.** The graph grows
+  under perspective-taking; rows are not selected.
+- **Multiple perspectives can be irreconcilable and that's the
+  point.** Rashomon's accounts don't average to a truth.
+- **The perspective can be of a thing** (mountain, microbe,
+  city, beam of light). "Perspective of an idea or thing" is a
+  real cognitive move with empirical track record (Margulis,
+  Leopold, Kimmerer).
+- **P can be of P.** Recursion is how cultural critique,
+  therapy, philosophy of science, and metacognition all operate.
+- **Time horizons are points.** Seven generations, premortem,
+  80-year-old self, geological time. The temporal frame *is*
+  itself a perspective primitive.
+
+### 9.6 What a tool must provide to enable generative P
+
+Decomposing the five operations from §9.2 into tool affordances:
+
+| Operation | Tool affordance |
+|---|---|
+| Observer substitution | Perspective Node — first-class data object with `identity` (who/what), `vocabulary` (positive + negative), `access` (what it can/can't know), `priorities`, `temporal frame`, `failure-modes` (what it MUST NOT do) |
+| Ontology inheritance | Salience declaration — which `Edge.kind`s foregrounded; which dimmed; which supertags salient; which fields prioritised. Same Node renders differently per Lens |
+| Generative response | Invocation surface — pair (Perspective, Target) → produce annotation. Three modes: human-driven (Step-Inside style); AI-driven (LLM with Perspective declaration as prompt); hybrid |
+| Attribution | Annotation as new Node + provenance edges: `about: Ref<Node>`, `from: Ref<Perspective>`, `by: Ref<User>`, `at: timestamp`. The graph remembers cognitive history |
+| Composition | Perspectives apply to annotation Nodes the same way they apply to source Nodes. P-on-P emerges naturally; no special machinery |
+
+**Why this is newly feasible:**
+
+- **LLMs as drop-in perspective-takers.** Modern LLMs are
+  extraordinary at perspective-taking — a capability Margulis
+  cultivated over a decade, a model can perform in seconds for a
+  wide class of perspectives. Not all (you wouldn't trust an LLM
+  with a microbial perspective on novel biology) but many useful
+  ones (customer voices, role-stakeholders, conceptual stances,
+  historical figures, future-selves).
+- **Local-first graph databases (ECHO).** Annotation Nodes need
+  to persist, link to source, be edited, queried, survive
+  sessions. ECHO provides this without a server round-trip per
+  generation.
+- **Plugin architecture (Composer).** A perspective surface is
+  not yet-another-app; it's a new kind of *interaction* inside
+  an environment the user already uses for everything else.
+
+**The big-picture move:**
+
+What this enables, in one sentence: *a knowledge graph that
+records not just what the user knows, but who they had to become
+to see it.*
+
+That's a category of tool no one has shipped. Notion shows what
+you know. Tana shows what you know, typed. Roam shows what you
+know, linked. Bramble (in this model) would show what you know,
+*viewed-from-where*. Every Node would carry answers to two
+questions:
+
+- *What is this?* (the content)
+- *From which perspectives have I looked at this?* (the
+  annotations and their attributions)
+
+The second question has never been first-class in a knowledge
+tool. Books carry it implicitly (an author). Conversations carry
+it as turn-taking. Wikis explicitly try to hide it (NPOV). A
+perspective-aware graph would make it the central thing.
+
+### 9.7 Worked example — Steve's follow-up-email process as Cabrera-P operationalised
+
+In an adjacent Claude session (2026-05-13), Steve drafted a
+follow-up email to a venture partner using a process he later
+reframed as Perspective work. The full process doc is at
+`sandbox/alright-whats-next/.claude/worktrees/great-ellis-47116c/People/eric-engineer/notes/2026-05-13-followup-email-process.md`
+in the adjacent worktree.
+
+The document is unusually disciplined Cabrera-P in operational
+form. Reproducing its structure here because it crystallises what
+Bramble's Lens primitive needs to support.
+
+**The Point is structured, not narrated.** A seven-row table
+making each aspect of the perspective examinable and linked to
+source artifacts:
+
+| Aspect | Generalised role |
+|---|---|
+| Who is sending | author identity (grounded in canonical source files) |
+| Relationship to receiver | dyadic context (history, prior contact, register) |
+| Capacity actually available | author scope (what they can deliver right now) |
+| Credibility scope claimable | author provenance (evidence basis for claims) |
+| What the agent NEEDS | the positive ask |
+| What the agent does NOT need | the explicit negative space |
+| Failure modes to avoid | the forbidden moves |
+
+The last two rows do work my earlier Lens sketches missed: a
+perspective is *as much defined by what's excluded as what's
+included*. Inhabiting Steve-here means refusing the
+"stay-in-touch" register, the pity-conversation, the
+portfolio-recital. The forbidden moves are part of the
+perspective's identity.
+
+**The 7 phases are perspective-discipline, not a pipeline.**
+
+- Phase 0: re-anchor the Point (re-load source artifacts before
+  drafting).
+- Phase 1: re-ground the source conversation (raw transcript over
+  auto-summary; surface attribution errors).
+- Phase 2: build named-entity research substrate.
+- Phase 3: scan adjacent space honestly (judgment-producing
+  lens, not row-selecting filter).
+- Phase 4: draft the View, mirror source language, refuse Claude
+  register inflation, three-iteration scope calibration on
+  credibility claims.
+- Phase 5: audit the View *from the Point* — every claim
+  defensible per-segment, confidence-rated, weak claims flagged
+  with distinct visual treatment.
+- Phase 6: render the audited View legibly (per-segment hover
+  links to audit entries; flagged claims visually distinct).
+- Phase 7: author writes personal portion (Phases 4–6 guarantee
+  the structural content is defensible; the personal opener is
+  voice-preserved by convention — the system refuses to draft
+  it).
+
+Phases 0 and 5 are P-on-P moves: applying the Point to its own
+state and to its own output.
+
+**The closing "What a different Point would have produced"
+section.** Five alternative Points are named and what each would
+have generated:
+
+| Alternative Point | Would have produced |
+|---|---|
+| "Generic networking" | padded candidate list to look thorough |
+| "VC-pitch" | specific ask for a specific intro |
+| "Research-summary" | recited info the recipient already knows in finer detail |
+| "Credentialed-stranger" | over-justified qualifications |
+| "Claude-default professional register" | "thought leadership / strategic alignment / value-add" inflation |
+
+This is Cabrera's homogenous-perspective-error correction in
+operational form. Most perspective-work skips this verification
+step; including it elevates the document from "thoughtful process
+notes" to "P operationalised."
+
+**The process generates *canon*.** Each iteration produces new
+generalisable rules:
+
+- `canon/quoted-material-is-verbatim.md` — quoted phrases must be
+  source-verbatim.
+- `canon/mirror-source-language.md` — mirror the source's actual
+  words for rapport (paired with the above).
+- `canon/experience/rackspace.md` — captures the operator-
+  adjacent provenance for "infrastructure" as a credibility
+  claim.
+
+This is *better than the earlier Bramble sketch*. The
+perspective-discipline produces *generalisable principles* that
+constrain future perspective-work. Each cycle improves the
+institution's perspective-taking capacity. Canon is not the
+Point; it is the *habits* that maintain the Point's integrity
+across many Views over time.
+
+**Implicit P moves in Steve's process that weren't labelled as P:**
+
+- *Phase 1's transcript re-grounding.* Going back to the raw
+  transcript and discovering auto-summary fabrications is taking
+  the perspective of *actual utterance* over the perspective of
+  *Claude's summary*. Both are perspectives on the same audio;
+  one is closer to source. The discipline is to keep checking
+  which Point your facts came from.
+- *Phase 4 rule "Don't recite to a board member."* Multi-Point
+  sensitivity — the View must accommodate that the *reader* has
+  their own Point on the content. You're not just generating
+  *from your Point* but *for their Point*. The dyadic case of P.
+- *Phase 4 rule "Claim credibility at accurate scope."* The
+  three-iteration walk (overclaim → underclaim → accurate) is
+  P-against-P: the author's self-perception Point vs. an
+  imagined honest-auditor's Point. The iteration calibrates
+  between them.
+- *The canon library itself.* Each canon artifact is a
+  *constraint on perspective-taking* — a meta-perspective on
+  future selves who might cut corners.
+
+### 9.8 What this teaches Bramble's Lens design
+
+Consolidated implications from §9.6 + the Steve worked example:
+
+1. **Lens fields should include `failure-modes` and `does-not-need`,
+   not just `priorities`.** The forbidden moves define the Lens as
+   sharply as the positive ones. Without negative space, the Lens
+   drifts toward Claude-default register or generic best-practice.
+
+2. **Lens activation should include a *re-anchor* phase.** Before
+   generating, the tool re-loads the Point's source artifacts and
+   presents them to the user (or the AI). Without it, the Point
+   ossifies and successive Views drift.
+
+3. **Views generate artifacts with per-claim provenance.** Audit
+   as the default output shape, not a separate step. The audit
+   *is* the View's accountability surface.
+
+4. **The Point must respect that the reader has their own Point.**
+   Two-Point work — generating-from-author-Point, generating-for-
+   audience-Point — is a distinct mode. The Lens should carry
+   "audience Point" as a constraint, not just "author Point."
+   This is multi-Point sensitivity most knowledge-tool design
+   ignores.
+
+5. **The work generates canon.** Each Lens-application can
+   produce new rules that get added to a canon library. The
+   library is itself a graph object, browsable, citable from
+   future Lens-applications. This is how the institution's
+   perspective-taking capacity *compounds*.
+
+6. **Alternative-Point counterfactual checking should be a
+   standard view.** "Show me what this artifact would look like
+   under [these other Points]" should be a one-click affordance.
+   Phase-5-style verification, made invokable.
+
+7. **The personal portion belongs to the user.** The Lens system
+   should *refuse* to draft author-personal content. The tool
+   should be opinionated about which parts of a View are
+   author-personal and which are perspective-mechanical.
+
+8. **Per-segment hover-audit rendering is the generalisable
+   pattern.** Phase 6's "every claim is a link to its audit,
+   with hover summary, with flagged-claim visual treatment"
+   should be how Bramble renders ANY perspective-generated
+   artifact. Readable prose for the reader; one-click
+   defensibility for the author.
+
+**A small refinement to the framing.** Steve's "Point" is doing
+two distinct jobs: (a) the stance (who he is, what he needs, his
+vocabulary, his failure modes), and (b) the constraint set
+(canon principles, mirroring rules, audit requirements).
+Cabrera's P-as-(ρ ↔ v) handles (a) cleanly. (b) is more like
+*cultivated discipline* than perspective-as-such — what *maintains
+the integrity* of perspective-taking across many Views over time.
+
+So: the **Point** is the agent; the **canon** is the agent's
+*habits*. Both are needed to produce a consistent View, but
+they're different kinds of artifact. In the tool: the Perspective
+Node carries stance fields; a separate "Practice" or "Canon"
+layer carries the rules that constrain *how* the perspective
+operates.
+
+### 9.9 Opening screen as a Lens — design walks
+
+Two scenarios walked in this round of work to test what "Lens"
+means as a first-instance feature.
+
+**Today Lens (single anchor, dynamic resolver):**
+
+- Point: `() => getOrCreateDayPage(graph, today())` — a function
+  resolving to a date-specific Node each open.
+- View: standard Article surface, page-block = today's day-page.
+- UX: Bramble opens to today's date as an H1, ready for typing.
+  Subsequent opens same day resolve to the same Node; next day
+  resolves to a fresh one.
+- Open decisions (deferred):
+  - Date in `content` (renamable) vs typed field (stable label
+    via renderer)?
+  - Continuity: snap-to-today on re-open, or restore last-zoom?
+  - Date navigation chrome: page-header arrows, calendar picker,
+    recent-days list, or none?
+  - Lens chrome visibility: invisible until second Lens exists,
+    subtle label always, or palette-only?
+
+**Tasks Lens (cross-cutting typename point):**
+
+- Point: a typename (e.g., `org.dxos.type.task`) — a *category*,
+  not a place.
+- View: the QueryNodeView surface (existing F-Supertag Phase 3b
+  infrastructure) listing all instances.
+- Distance from Today: orthogonal axis. Today asks "what am I
+  doing right now?"; Tasks asks "what am I responsible for
+  across all time?" Same graph; non-overlapping vantages.
+- The introduction of "Lens" as a distinction: when the user
+  creates this second Lens (e.g., via "Save as Lens…" on a
+  tag-node page), they encounter "Lens" vocabulary for the
+  first time. The Today Lens retroactively becomes legible as a
+  Lens too. This is the Cabrera move literally: *naming a
+  perspective surfaces the prior implicit perspective that was
+  already shaping their view*.
+
+**Crucial constraint surfaced in the walks.** Lens-as-distinction
+cannot exist with N=1. With only Today, "Today" is
+indistinguishable from "how Bramble works." Plurality is what
+introduces the concept. The Tasks walk was chosen because it's
+*genuinely distant* from Today on every axis (point is a category
+not a place; view is cross-cutting not local; relationship to
+graph is orthogonal). Threshold / Continuation / Inbox aren't
+distant enough — they just substitute the anchor with a different
+"where to start" while keeping the same view-shape.
+
+**What the Tasks walk revealed.** With Today alone, `point` could
+be a function-or-Ref union. With Tasks added, it becomes a tagged
+union with `kind` discriminator:
+
+- `kind: 'function'` (Today) — resolves dynamically each open.
+- `kind: 'typename'` (Tasks) — resolves the per-space tagBlock.
+- `kind: 'node-ref'` (future Threshold) — resolves to a specific
+  Node.
+- `kind: 'composition'` (future meta-perspective home) —
+  resolves multiple sub-perspectives.
+
+This is a design forcing-function that wasn't visible when only
+Today was in scope.
+
+**Is the Tasks Lens "effectively a query"?** Mostly yes for
+catalog Lenses: a typename predicate. Bramble *already has* this
+primitive (the `Bramble.Node.queryRef` field used by F-Supertag
+Phase 3b query-nodes — "when set, this Node is a live query
+result list — its outline rendering is REPLACED by a list of
+every ECHO instance whose typename matches `queryRef.typename`").
+The Tasks Lens is largely a saved query-node treated as a
+first-class opening — no new schema beyond a
+`BrambleGraph.defaultPerspective: Ref<Node>` pointer.
+
+But **Lens ⊃ Query.** State-dependent points (Continuation Lens —
+last-viewed Node), find-or-create resolvers (Today),
+compositions (Morning Lens) are not expressible as graph queries.
+The Perspective primitive is the *generalisation* of `queryRef`
+to other kinds of points — not a parallel primitive.
+
+**The trap to avoid:** the design conversation kept collapsing
+back into "saved view + rendering" because Tasks fits that shape
+neatly. Today doesn't (it's a find-or-create resolver, not a
+query). The Lens primitive should be designed so that *Today is
+not the special case* and Tasks is — the more general form
+accommodates the function-and-state-dependent points that don't
+reduce to queries.
+
+### 9.10 Step-Inside as the canonical first generative Lens
+
+If Bramble ships one perspective-taking Lens beyond Today + Tasks,
+Step-Inside (Harvard Project Zero — Ritchhart, Church, Morrison)
+is the cleanest Cabrera move:
+
+> Three sub-prompts applied to any chosen point X:
+>
+> 1. What can [X] **perceive**?
+> 2. What might [X] **know**?
+> 3. What might [X] **care about**?
+
+X can be a persona, an object, an idea, a future self, a non-
+human entity, an artwork, an institution, an abstract concept.
+The protocol generates content the substrate did not previously
+contain — Cabrera's "perspective of an idea or thing" made
+concrete in three prompts.
+
+The Project Zero materials specifically endorse non-human points:
+"works really well with self-portraits, portraits and group
+portraits and also with objects too." A painting can be a point;
+an architectural space can be a point; a historical moment can
+be a point. The Step-Inside routine commits the user (or the AI)
+to answer perceive/know/care from inside that point.
+
+Bramble UX for Step-Inside:
+
+- User invokes "Step Inside" on the current Node, picks (or
+  declares) a point — a persona, an object, an abstract concept.
+- A three-pane form opens: Perceive / Know / Care.
+- Either user fills it in (cognitive gym mode), or LLM fills it
+  in given the point declaration + Node content (AI-driven
+  mode), or both (hybrid — LLM drafts, user revises).
+- Output: three child Nodes attributed to the Step-Inside
+  invocation with provenance edges back to the point and the
+  source Node.
+
+This is the smallest unit of "Lens does generative work" that
+isn't a database view. If Bramble ships it, the Lens vocabulary
+is earned.
+
+**Other generative Lens types worth holding as candidates:**
+
+| Lens | What it generates |
+|---|---|
+| Six-Hats (de Bono) | Six bundled perspectives — Facts, Feelings, Critique, Benefits, Creative, Process — each producing a different kind of contribution. Switching reveals what each hat sees that the others don't. |
+| Iceberg (Donella Meadows) | Four perspective-altitudes on the same event — Events, Patterns, Structure, Mental Models. Each altitude foregrounds different distinctions about the same content. |
+| CATWOE (Checkland's Soft Systems) | Six stakeholder perspectives — Customer, Actor, Transformation, Worldview, Owner, Environment — for any change initiative. |
+| Premortem (Klein) | Future-failure point. "It's a year from now, this project failed catastrophically. Why?" Generates risks present-perspective cannot see. |
+| Adversarial / Red-Team | "What would the strongest critic argue?" Counter-perspective. |
+| Outsider | "Someone with no prior context for this." Surfaces what's missing, jargon-y, tacit. |
+| Future-Self | "Your 80-year-old self / your team next year." Time-horizon shift. |
+| Voice-of-the-Idea | "The project itself." Personification-as-cognitive-aid. The codebase wants simplicity; the design fears feature-creep; the project remembers its origin commitment. |
+| Conflict Lens | A meta-Lens surfacing Nodes where two of your other Lenses produce contradictory annotations. |
+
+Each of these *generates content* — annotations, judgments,
+risks, framings — that didn't exist before the perspective was
+taken. None of them collapse to "WHERE typename = X."
+
+### 9.11 Open questions carried forward
+
+Captured here so the next session can pick up the thread:
+
+- **Perspective Node schema fields.** Concrete shape to be
+  drafted. Candidate fields: `name`, `identity` (prose),
+  `vocabulary` (positive + negative), `access`, `priorities`,
+  `failure-modes`, `temporal-frame`, `point` (tagged union per
+  §9.9), `renderer-hint` (which view surface).
+- **Point as tagged union — what kinds ship in v1?** Suggest:
+  `function` (Today), `typename` (Tasks), `node-ref` (Threshold).
+  Reserve `composition` for later.
+- **Annotation Node schema.** What fields beyond the provenance
+  edges? Confidence? Hedges? Author tags? Conversation thread?
+  Per-segment audit linkage (Phase 6 pattern)?
+- **Canon as a graph object.** Should canon entries be Bramble
+  Nodes (the discipline-layer integrated into the graph), or
+  external Markdown files (Steve's current approach)? Tradeoffs
+  in composability vs. portability.
+- **Alternative-Point counterfactual rendering.** What does the
+  Phase-5-style "what would Point B have produced?" UI look
+  like? A separate panel? An overlay? A diff view?
+- **The personal-portion guarantee.** How does the Lens
+  primitive know which parts of a View are author-personal?
+  Marked regions in the template? A reserved "human-voice"
+  Edge.kind? Convention-only?
+- **Multi-Point work.** Author-Point + audience-Point as paired
+  inputs to a single Lens activation. Schema implication: does
+  a Lens carry `audience: Ref<Perspective>` as a field?
+- **LLM provider abstraction.** AI-driven invocation needs an
+  LLM. Which? Inline call, external service, BYOK? How does the
+  provenance edge name the model + prompt-version so future
+  iterations can audit "what model generated which annotation
+  when"?
+- **What ships first?** Three plausible sequences:
+  1. *Today Lens only* (simplest; doesn't earn the Lens
+     vocabulary until a second Lens lands).
+  2. *Step-Inside as the first Lens* (most Cabrera-honest;
+     introduces P as generative from day one; needs LLM
+     integration).
+  3. *Today + a Catalog Lens (Tasks)* (introduces plurality
+     without needing LLM; cheapest to ship; least
+     inspirational).
+  - The walks in §9.9 mapped (3); the strongest design case is
+    arguably for (2); (1) is the most pragmatic. Decision
+    deferred.
+- **Naming alignment.** Spec-and-code probably want to use
+  "Perspective" (matching Cabrera); user-facing UI keeps "Lens"
+  (friendlier, well-precedented in optics-and-microscopy
+  metaphor). Decision deferred until the schema lands.
+- **Relationship to existing `Node.queryRef`.** Is the
+  Perspective Node a new type that *contains* a query-ref (when
+  `point.kind === 'typename'`), or is the existing query-node
+  pattern *generalised in place* by adding optional Perspective
+  fields to `Bramble.Node` itself? Smaller schema delta vs.
+  cleaner semantics. Decision deferred.
+
+### 9.12 Strikingly-disciplined Cabrera moves worth naming
+
+Pulled out of the Steve worked example and the literature, things
+the design should explicitly support because they're rare and
+high-leverage:
+
+- **"What this Point produced that a different Point would not
+  have."** Verification by counter-factual. Most
+  perspective-work skips this; including it is what makes
+  perspective-taking honest rather than self-confirming.
+- **"What's NOT here yet."** Outsider-Lens / negation-Lens.
+  Producing what's *missing* as first-class output. Databases
+  categorically cannot do this; perspectives can.
+- **"Mirror the source's actual language."** When a perspective
+  acts ON something with a voice (a person, an institution, a
+  prior document), mirroring its actual words rather than
+  paraphrasing is a respect-and-rapport move that AI generation
+  routinely fails on without explicit constraint.
+- **"Re-anchor before each session."** Perspectives drift. The
+  protocol-level habit of reloading source artifacts is what
+  prevents Claude-default-register seeping into successive
+  Views.
+- **"Refuse to draft the personal portion."** The tool should
+  be opinionated about author-voice preservation. Lens machinery
+  for everything else; convention-protected handwritten opener.
+- **"Generate canon as a byproduct."** Each cycle of
+  perspective-taking that lands new rules adds to a discipline-
+  library that compounds. The institution's perspective-taking
+  capacity *grows*, rather than being re-discovered each
+  session.
+
+---
+
+## 10. Sources
 
 Web-search-verified during the conversation that produced this doc:
 
@@ -621,14 +1293,82 @@ Web-search-verified during the conversation that produced this doc:
   trickster narratives via the African diaspora — the canonical
   English-language preservation is Harris's, the metaphor is older
 
+**Added during the §9 (Lens) round, 2026-05-13/14:**
+
+- Cabrera, D. — *DSRP Theory: A Primer*, Systems 10(2) 26 (2022) —
+  [MDPI](https://www.mdpi.com/2079-8954/10/2/26) /
+  [ResearchGate PDF](https://www.researchgate.net/publication/358965380_DSRP_Theory_A_Primer)
+- Cabrera, D. — *Perspectives Organize Information in Mind and
+  Nature: Empirical Findings of Point-View Perspective (P) in
+  Cognitive and Material Complexity*, Systems 10(3) 52 (2022) —
+  [MDPI](https://www.mdpi.com/2079-8954/10/3/52)
+- Cabrera & Cabrera — *Four building blocks of systems thinking*,
+  Integration and Implementation Insights (2022) —
+  [i2insights](https://i2insights.org/2022/04/12/dsrp-systems-thinking-building-blocks/)
+- Project Zero, Harvard Graduate School of Education —
+  *Step Inside* thinking routine (formerly *Perceive, Know, Care
+  About*) — written up at
+  [Thinking Museum](https://thinkingmuseum.com/2021/06/30/step-inside-thinking-routines-to-foster-perspective-taking/);
+  routine landing page at
+  [PZ Thinking Routines](https://pz.harvard.edu/thinking-routines).
+  Generalised in Ritchhart, Church, Morrison — *Making Thinking
+  Visible* (Jossey-Bass, 2011).
+- Project Zero — *Circle of Viewpoints* routine —
+  [PZ routine PDF](https://pz.harvard.edu/sites/default/files/Circle%20of%20Viewpoints_0.pdf)
+- Klein, Gary — *Performing a Project Premortem*, Harvard Business
+  Review (Sept 2007) — [HBR](https://hbr.org/2007/09/performing-a-project-premortem)
+- Rawls, John — *A Theory of Justice* (Harvard UP, 1971); veil of
+  ignorance entry at [SEP](https://plato.stanford.edu/entries/rawls/)
+- Margulis, Lynn — origin of endosymbiotic theory in the 1967 paper
+  *On the Origin of Mitosing Cells* (J. Theor. Biol.); broader
+  account in *Symbiotic Planet* (1998) and [Wikipedia](https://en.wikipedia.org/wiki/Symbiogenesis)
+- Leopold, Aldo — *A Sand County Almanac* (Oxford UP, 1949); the
+  essay "Thinking Like a Mountain" is its load-bearing chapter —
+  [Wikipedia](https://en.wikipedia.org/wiki/A_Sand_County_Almanac)
+- Kimmerer, Robin Wall — *Braiding Sweetgrass: Indigenous Wisdom,
+  Scientific Knowledge and the Teachings of Plants* (Milkweed,
+  2013) — [publisher](https://milkweed.org/book/braiding-sweetgrass)
+- Haudenosaunee Confederacy — *Seventh-Generation Principle*, part
+  of the Great Law of Peace —
+  [Iroquois Museum](https://www.iroquoismuseum.org/sevengenerations/)
+- Nagel, Thomas — *What Is It Like to Be a Bat?*, Philosophical
+  Review 83 (Oct 1974) —
+  [Wikipedia](https://en.wikipedia.org/wiki/What_Is_It_Like_to_Be_a_Bat%3F)
+- Bohr complementarity (1927) — Copenhagen interpretation entry at
+  [SEP](https://plato.stanford.edu/entries/qm-copenhagen/)
+- Schwartz, Richard — *Internal Family Systems Therapy* (Guilford,
+  1995); IFS overview at [Wikipedia](https://en.wikipedia.org/wiki/Internal_family_systems_model)
+- *Rashomon effect* general entry — [Wikipedia](https://en.wikipedia.org/wiki/Rashomon_effect)
+  (cinematic source: Kurosawa, *Rashomon*, 1950, adapted from
+  Akutagawa's *In a Grove* / *Rashomon* short stories)
+- Faulkner, William — *The Sound and the Fury* (1929)
+- Atwood, Margaret — *The Penelopiad* (Canongate, 2005)
+- Stoppard, Tom — *Rosencrantz and Guildenstern Are Dead* (Faber,
+  1967)
+- Rhys, Jean — *Wide Sargasso Sea* (Penguin, 1966)
+- Calvino, Italo — *Invisible Cities* (Einaudi, 1972; trans.
+  Weaver, Harcourt, 1974)
+- Anderson, Wes — *The Grand Budapest Hotel* (2014) — for the
+  nested-perspective structure as a formal device
+- de Bono, Edward — *Six Thinking Hats* (Penguin, 1985) — six
+  pre-built generative perspectives
+- Meadows, Donella — *Thinking in Systems: A Primer* (Chelsea
+  Green, 2008); the four-level iceberg model is widely attributed
+  but discussed throughout her work and elaborated by Senge in
+  *The Fifth Discipline* (Doubleday, 1990)
+- Checkland, Peter — *Soft Systems Methodology in Action* (Wiley,
+  1990); CATWOE root definitions
+- Wittgenstein, Ludwig — *Philosophical Investigations* (1953); the
+  duck-rabbit "aspect-seeing" passage at PI II.xi
+
 ---
 
-## 10. How to use this doc
+## 11. How to use this doc
 
 - **Pull from it.** When a `PLUGIN.mdl` rule, feature, or req
   needs philosophical grounding, cite a section here rather than
   paraphrasing. Example: a future `R-Edge-Kind-Is-Social` rule can
-  cite §5 and §8.1.
+  cite §5 and §8.1. A future `F-Lens` increment can cite §9.
 - **Append to it.** When new conceptual ground gets covered (a new
   philosophical source, a new stance refinement, a new framework
   contact like David Bohm's implicate order or Karen Barad's
