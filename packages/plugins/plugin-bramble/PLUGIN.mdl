@@ -332,7 +332,10 @@ type Node
     fields?: Record<string, Ref<Node>[]>
     state?: { checked?: boolean }
     view?: { kind: 'table' | 'cards' | 'tabs' | 'calendar' }
-    attachment?: { kind: 'image' | 'file', url: string }
+    # F-PDF-Upload extends `attachment` with optional `name`,
+    # `mimeType`, and `sha256` fields; the hash keys the dedup
+    # index.
+    attachment?: { kind: 'image' | 'file', url: string, name?: string, mimeType?: string, sha256?: string }
 ```
 
 ```mdl
@@ -3245,6 +3248,111 @@ feat F-Supertag-Chips-On-Page-Header: supertag chips render alongside the H1    
       layout collapses).
 ```
 
+```mdl
+feat F-PDF-Upload: drop a PDF onto a page to become a Node   # Increment 2f
+  desc: |
+    Drag-and-drop a PDF file anywhere over a Bramble page (the
+    article surface) to create a new bullet whose attachment is
+    the uploaded file. The Node renders with a PDF icon + the
+    filename; clicking the icon opens the file in a new tab.
+
+    Storage routes through `AppCapabilities.FileUploader` — the
+    capability that plugin-wnfs contributes today. plugin-bramble
+    does NOT roll its own file storage; if no FileUploader is
+    registered, the drop target shows a "file upload unavailable"
+    hint instead of accepting the drop. This keeps R-No-Echo-
+    Changes satisfied (file storage stays in the WNFS plugin) and
+    keeps the integration narrow (one capability call per drop).
+
+    Same-PDF-twice deduplicates: the bytes are hashed
+    (SHA-256, hex digest, computed in the browser via
+    WebCrypto.subtle) before upload. If a Bramble.Node already
+    exists in the space whose `attachment.sha256` matches the
+    hash, NO new Node is created and NO new file is uploaded —
+    instead a structural edge (`createEdge` per F-DAG) is added
+    from the drop-site parent to the existing Node so the
+    existing Node appears as a structural successor at the
+    drop point. Re-dropping the same file under different
+    drop sites surfaces the same Node in multiple places via
+    the F-DAG multi-parent badge (per F-DAG.Phase3e).
+
+    Drop site resolution:
+      - When the drop coordinates land over a rendered bullet
+        row (`[data-block-id]`), that bullet's Node becomes the
+        new attachment-Node's structural predecessor.
+      - Otherwise the page node (the pane's current
+        `pageNode`) is used.
+
+    The PDF chip rendering is the standard Node visual flavour
+    for `attachment.kind === 'file'` AND a PDF mime type — the
+    same field can later host non-PDF file attachments (e.g.
+    images dropped via the same code path).
+
+  req F-PDF-Upload.drop-creates-node:
+    given: a Bramble page is open; a PDF file is dragged from
+      the OS over the page
+    when: the user releases the drag (`drop`) over the article
+      surface
+    then:
+      - the file bytes are hashed (SHA-256 hex);
+      - no Bramble.Node carrying that `attachment.sha256` exists
+        in the space yet (this is the first-encounter branch);
+      - the bytes are uploaded via `AppCapabilities.FileUploader`
+        and the returned URL becomes the new Node's
+        `attachment.url`;
+      - a new Bramble.Node is created with `attachment` set to
+        `{ kind: 'file', url, name: file.name, mimeType:
+        file.type, sha256 }`. `Node.kind` is NOT set — the
+        rendering keys off `attachment.kind` +
+        `attachment.mimeType`, so the existing `Node.kind`
+        literal enum is unaffected.
+      - the new Node is added under the drop-site parent
+        (resolved per F-PDF-Upload's drop-site rules above)
+        via `createEdge`, so the new Node shows up as a fresh
+        bullet at that location.
+
+  req F-PDF-Upload.dedup-reuses-existing-node:
+    given: a Bramble.Node M exists in the space with
+      `attachment.sha256` equal to the hash of file F; the user
+      drops file F onto a Bramble page
+    when: the drop is processed and the hash is computed
+    then:
+      - no new file is uploaded (the existing URL is sufficient);
+      - no new Bramble.Node is created (M is reused);
+      - the drop-site parent gains a `createEdge` to M, so M
+        renders as a structural successor at the drop point.
+        When the drop-site parent already has an edge to M, the
+        edge addition is a no-op (createEdge is idempotent).
+
+  req F-PDF-Upload.chip-rendering:
+    given: a Bramble.Node N with `attachment.kind === 'file'` and
+      a PDF mime type (`attachment.mimeType === 'application/pdf'`
+      or `attachment.url` ends in `.pdf`)
+    when: N is rendered as a bullet (either as a structural
+      child or as a zoomed page node)
+    then:
+      - a PDF chip appears adjacent to the bullet's editable
+        content. The chip carries the `ph--file-pdf--regular`
+        icon followed by the filename
+        (`attachment.name`; falls back to a derived label from
+        the URL when `name` is absent for legacy attachments).
+      - clicking the chip opens `attachment.url` in a new tab
+        (target=_blank, rel=noopener).
+      - the bullet remains zoomable per F-Zoom — its bullet dot
+        is unchanged.
+
+  req F-PDF-Upload.no-uploader-graceful:
+    given: an environment where no plugin contributes
+      `AppCapabilities.FileUploader` (e.g. plugin-wnfs is not
+      enabled in this Composer build)
+    when: a PDF is dropped on a Bramble page
+    then:
+      - no Node is created, no upload is attempted;
+      - the drop overlay surfaces a "file upload unavailable"
+        affordance (a hint text or toast) acknowledging the
+        gesture without silently dropping the file.
+```
+
 ## Acceptance
 
 ```mdl
@@ -4271,6 +4379,58 @@ test T-Supertag-Chips-On-Page-Header: page H1 shows chips for the page Node's su
     - clicking the chip navigates to the per-space Step tag-Node (zoom into Schema → Step)
     - shift-clicking the chip opens the tag-Node in a new pane
     - on a page node with no supertags, no chip row is rendered
+```
+
+```mdl
+test T-PDF-Upload-creates-node: dropping a PDF onto a page creates a new Node carrying the file
+  given: a Bramble page open on a pane; plugin-wnfs contributes
+    `AppCapabilities.FileUploader`; the user has a local PDF
+    file F (e.g. ~100 KB) ready to drag from the OS
+  when: I drag F onto the article surface and release the
+    pointer over an empty area of the page
+  then:
+    - a new Bramble.Node N is created with `attachment: {
+      kind: 'file', url: <wnfs://… URL>, name: F.name, mimeType:
+      'application/pdf', sha256: <SHA-256 hex of F's bytes> }`.
+      `Node.kind` is NOT set (it remains undefined per
+      F-PDF-Upload.drop-creates-node).
+    - N appears in the page as a fresh bullet under the drop-
+      site parent (the page node when the drop did not land on
+      a specific bullet), wired in via `createEdge` per F-DAG.
+    - N's rendered row shows the PDF chip
+      (`ph--file-pdf--regular` icon + filename) per
+      F-PDF-Upload.chip-rendering.
+```
+
+```mdl
+test T-PDF-Upload-dedupes-on-second-drop: dropping the SAME PDF a second time reuses the existing Node
+  given: a Bramble.Node M already exists in the space with
+    `attachment.sha256` equal to the hash of file F (e.g. via
+    T-PDF-Upload-creates-node having just run)
+  when: I drop F onto a Bramble page a second time
+  then:
+    - the total count of Bramble.Nodes carrying any
+      `attachment.sha256` equal to F's hash remains exactly 1
+      (M is reused; no second Node is created).
+    - the drop-site parent at the moment of the second drop
+      has a structural successor edge pointing at M (added
+      via `createEdge` if not already present). The same M is
+      now visible at the new drop point AND at its original
+      location; the F-DAG multi-parent badge surfaces on every
+      occurrence of M (per F-DAG.Phase3e).
+```
+
+```mdl
+test T-PDF-Upload-chip-opens-file: clicking the PDF chip opens the file in a new tab
+  given: a Bramble bullet rendering a Node whose
+    `attachment.kind === 'file'` and whose mime type is
+    `application/pdf`
+  when: I click the PDF chip adjacent to the bullet's content
+  then:
+    - the browser opens `attachment.url` in a new tab
+      (`target="_blank"`, `rel="noopener noreferrer"`).
+    - the bullet's zoom gesture is unaffected — clicking the
+      bullet dot still zooms per F-Zoom.
 ```
 
 ---

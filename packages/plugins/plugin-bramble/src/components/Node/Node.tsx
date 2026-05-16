@@ -11,6 +11,7 @@ import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { Editor } from '../Editor';
 import { findTagTypeByTypename } from '../Editor/tag-types';
 import { MentionPicker } from '../MentionPicker';
+import { PdfChip, isPdfAttachment } from '../PdfDrop';
 import {
   childEdgesOf,
   createEdge,
@@ -369,6 +370,13 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
             />
           </div>
           <TagChips block={snapshot} />
+          {/* F-PDF-Upload.chip-rendering: when this Node's attachment is
+              a PDF file, render the PDF chip (icon + filename) adjacent
+              to its content. The chip's click opens the file in a new
+              tab without disturbing the bullet's own zoom gesture. */}
+          {isPdfAttachment((snapshot as any).attachment) && (
+            <PdfChip attachment={(snapshot as any).attachment} />
+          )}
           {backlinkCount > 0 && (
             <span
               className='text-xs leading-none px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0'

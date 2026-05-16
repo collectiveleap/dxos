@@ -39,6 +39,7 @@ import {
   useBacklinks,
   useEnsureAllSupertagNodes,
   useNormalizeSupertagUniqueness,
+  usePdfDropTarget,
 } from '#components';
 import { Bramble } from '#types';
 
@@ -337,6 +338,14 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // F-PDF-Upload: wire the drop-target onto the article's scroll
+  // container. The hook returns DragEvent handlers (spread onto the
+  // scroll div) and a visual overlay (rendered inside the same
+  // container) — the editor underneath keeps its normal pointer
+  // events; only DragEnter/Over/Leave/Drop hit the wrapper. The
+  // current `pageNode` is the default drop-site parent.
+  const pdfDrop = usePdfDropTarget({ pageNode });
+
   // F-Page-Header.6 (graph subject only): keep `graph.name` in step
   // with `root.content`'s rendered text so the navigator label always
   // reflects what the user sees in the H1.
@@ -358,7 +367,17 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
           // the inner wrapper must establish its own scroll region
           // so long outlines / tall field groups / large backlink
           // panels are reachable, not silently clipped.
-          <div className='p-4 h-full overflow-y-auto'>
+          <div
+            className='relative p-4 h-full overflow-y-auto'
+            // F-PDF-Upload: drop-target handlers. The container is
+            // `position: relative` so the absolute overlay positions
+            // against it.
+            onDragEnter={pdfDrop.dragHandlers.onDragEnter}
+            onDragOver={pdfDrop.dragHandlers.onDragOver}
+            onDragLeave={pdfDrop.dragHandlers.onDragLeave}
+            onDrop={pdfDrop.dragHandlers.onDrop}
+          >
+            {pdfDrop.overlay}
             <PredecessorNav
               pageBlock={pageNode}
               onSelect={handleSelectPredecessor}
