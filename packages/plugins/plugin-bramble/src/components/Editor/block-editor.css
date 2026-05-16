@@ -27,6 +27,24 @@
 }
 
 /*
+ * F-Page-Header.7 / F-Caret: suppress the browser's default
+ * :focus-visible outline on Bramble's ProseMirror editors. Per
+ * user feedback 2026-05-14, the blinking caret IS the focus
+ * indicator — there is no other visual focus state (no orange
+ * outline, no ring). Chrome's default :focus-visible draws a
+ * 1px outline in the OS accent color (often orange on macOS),
+ * which we explicitly override here.
+ *
+ * Applies to both the H1 PageHeader's editor and every body
+ * bullet's editor, since they all render via the same `Editor`
+ * component and share the `.ProseMirror` class.
+ */
+.ProseMirror:focus,
+.ProseMirror:focus-visible {
+  outline: none;
+}
+
+/*
  * F-Pending-Child.cursor-alignment: the pending child row's editable
  * is a `<div contentEditable>` (not a ProseMirror editor). When empty,
  * an inline-block has no text content, so its inline-baseline defaults

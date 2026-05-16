@@ -41,7 +41,11 @@ const findSchemaByTypename = (db: any, typename: string): Schema.Schema.Any | un
     return undefined;
   }
   const schemas = (db.schemaRegistry.query({ location: ['database', 'runtime'] }).runSync() ?? []) as Schema.Schema.Any[];
-  return schemas.find((schema) => Type.getTypename(schema) === typename);
+  // `Type.getTypename` is typed against `AnyEntity` (RelationSchemaBase /
+  // ObjSchemaBase), but the schemaRegistry returns `Schema.Schema.Any`
+  // whose `Context` widens to `unknown`. The runtime call works on every
+  // registered schema; the cast bridges the unknown-vs-never context gap.
+  return schemas.find((schema) => Type.getTypename(schema as any) === typename);
 };
 
 // Apply a fresh supertag instance of `schema` to `node`. Mirrors

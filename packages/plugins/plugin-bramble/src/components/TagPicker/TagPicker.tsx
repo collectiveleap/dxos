@@ -40,6 +40,7 @@ type DisplayItem = {
 // when the picker re-opens.
 export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerProps) => {
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
   const [placement, setPlacement] = useState<{ left: number; top: number }>({
     left: cursor.left,
     top: cursor.bottom + POPOVER_GAP,
@@ -57,6 +58,24 @@ export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerPro
       .filter((item) => item.label.toLowerCase().includes(lowercaseQuery));
   }, [query, db, tagTypes]);
 
+  // F-6.Phase1.keyboard-nav: active item tracked by index. Reset to
+  // the first entry whenever the filter narrows (query change) so
+  // the highlight never points outside the now-smaller list.
+  const [activeIndex, setActiveIndex] = useState(0);
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
+  // If the list shrinks for non-query reasons (schemaRegistry churn),
+  // clamp the active index so it stays in bounds.
+  useEffect(() => {
+    setActiveIndex((idx) => (idx >= items.length ? 0 : idx));
+  }, [items.length]);
+
+  // Latest state is shared with the keydown listener via a ref so a
+  // single listener handles everything across re-renders.
+  const stateRef = useRef({ items, activeIndex, onSelect });
+  stateRef.current = { items, activeIndex, onSelect };
+
   useLayoutEffect(() => {
     const node = popoverRef.current;
     if (!node) {
@@ -72,6 +91,13 @@ export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerPro
     const left = Math.min(cursor.left, Math.max(VIEWPORT_PADDING, viewportWidth - rect.width - VIEWPORT_PADDING));
     setPlacement({ left, top });
   }, [cursor.left, cursor.top, cursor.bottom, items.length]);
+
+  // F-6.Phase1.keyboard-nav: scroll the active item into the
+  // popover's overflow viewport when nav moves outside the visible
+  // portion of the list (`max-h-64 overflow-y-auto`).
+  useLayoutEffect(() => {
+    itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
 
   // Click-outside to close. Defer one tick so the `#` keypress doesn't
   // immediately fire this handler.
@@ -90,6 +116,73 @@ export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerPro
     };
   }, [onClose]);
 
+  // F-6.Phase1.keyboard-nav: ArrowDown/Up/Enter on `window` in the
+  // capture phase, so the editor's ProseMirror keymap (attached to
+  // the contenteditable element) never sees these keys while the
+  // picker is open. Escape is intentionally left to the editor's
+  // keymap (F-6.Phase1.escape) so the cursor stays adjacent to the
+  // typed `#`.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const { items, activeIndex, onSelect } = stateRef.current;
+      // Bare ArrowDown / ArrowUp: nav. Cmd+ArrowUp/Down (F-V2.8/2.9
+      // collapse-expand) and other modified arrows fall through to the
+      // editor.
+      const bareKey = !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
+      if (event.key === 'ArrowDown' && bareKey) {
+        if (items.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((idx) => (idx + 1) % items.length);
+        return;
+      }
+      if (event.key === 'ArrowUp' && bareKey) {
+        if (items.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((idx) => (idx - 1 + items.length) % items.length);
+        return;
+      }
+      if (event.key === 'Enter') {
+        // Per user clarification 2026-05-14: Shift+Enter and
+        // Cmd+Shift+Enter (and any meta-Enter chord) are N/A while the
+        // picker is open — swallow them as no-ops so the editor's
+        // F-Shift-Enter / F-Cmd-Shift-Enter handlers don't fire and
+        // accidentally create a sibling while the user is mid-`#`-query.
+        // Plain Alt/Ctrl combos with Enter aren't Bramble gestures, so
+        // we leave them alone (fall through).
+        if (event.shiftKey || event.metaKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (event.altKey || event.ctrlKey) {
+          return;
+        }
+        // Bare Enter: commit (or swallow when no matches so the editor
+        // doesn't split the bullet on an empty filter result).
+        if (items.length === 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        const item = items[activeIndex];
+        if (!item) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect(item.entry);
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, []);
+
   return (
     <div
       ref={popoverRef}
@@ -99,24 +192,39 @@ export const TagPicker = ({ query, cursor, db, onSelect, onClose }: TagPickerPro
       {items.length === 0 ? (
         <div className='p-2 text-sm opacity-60'>No matching tag types</div>
       ) : (
-        <ul className='max-h-64 overflow-y-auto'>
-          {items.map(({ entry, label }) => (
-            <li key={entry.typename}>
-              <button
-                type='button'
-                className='flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                onMouseDown={(event) => {
-                  // mousedown (not click) so the editor's blur handler
-                  // doesn't race the click and lose focus.
-                  event.preventDefault();
-                  onSelect(entry);
+        <ul className='max-h-64 overflow-y-auto' role='listbox'>
+          {items.map(({ entry, label }, index) => {
+            const isActive = index === activeIndex;
+            return (
+              <li
+                key={entry.typename}
+                ref={(node) => {
+                  itemRefs.current[index] = node;
                 }}
+                role='option'
+                aria-selected={isActive}
               >
-                <span className='text-neutral-400'>#</span>
-                <span>{label}</span>
-              </button>
-            </li>
-          ))}
+                <button
+                  type='button'
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${
+                    isActive
+                      ? 'bg-blue-100 dark:bg-blue-900/40'
+                      : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                  }`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(event) => {
+                    // mousedown (not click) so the editor's blur handler
+                    // doesn't race the click and lose focus.
+                    event.preventDefault();
+                    onSelect(entry);
+                  }}
+                >
+                  <span className='text-neutral-400'>#</span>
+                  <span>{label}</span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

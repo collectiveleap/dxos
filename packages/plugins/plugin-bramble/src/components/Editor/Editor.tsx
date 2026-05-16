@@ -29,6 +29,12 @@ import { initialPropsForTag, type TagTypeEntry } from './tag-types';
 export type EditorProps = {
   block: Bramble.Node;
   autoFocus?: boolean;
+  // When `autoFocus` is true, this controls WHERE the caret lands:
+  // false (default) → start of the doc, true → end of the doc.
+  // Used by the pending-child promote path so the caret continues
+  // from after the just-typed character. Default (start) is correct
+  // for Enter-split, F-Nav arrow nav, and empty-page autofocus.
+  autoFocusAtEnd?: boolean;
   onEnter?: (beforeText: string, afterText: string) => void;
   onIndent?: () => void;
   onDedent?: () => void;
@@ -69,6 +75,7 @@ export type EditorProps = {
 export const Editor = ({
   block,
   autoFocus,
+  autoFocusAtEnd,
   onEnter,
   onIndent,
   onDedent,
@@ -159,18 +166,24 @@ export const Editor = ({
     }
 
     const enterCommand: Command = (state, dispatch) => {
-      // When the picker is open, swallow Enter so the editor doesn't split.
-      // The user clicks an item to select; closing happens elsewhere.
+      // When either picker is open, swallow Enter so the editor doesn't split.
+      // F-6.Phase1.keyboard-nav delivers Enter to the tag picker via a
+      // window-capture listener; this is defence-in-depth for the mount-tick
+      // window before the picker's listener attaches.
       const mState = mentionKey.getState(state);
       if (mState?.active) {
         return true;
       }
-      // F-Page-Header: header consumes Enter without splitting or callbacks
-      // (the header has no parent in the outline tree, so sibling-creation
-      // via Enter doesn't apply).
-      if (headlineModeRef.current) {
+      const hState = hashKey.getState(state);
+      if (hState?.active) {
         return true;
       }
+      // F-Page-Header.8 (revised 2026-05-14): the H1 now participates
+      // in Enter-splits-and-creates-sibling — the caller (PageHeader)
+      // wires `onEnter` to a handler that creates a new FIRST child
+      // of the page node. The editor itself doesn't need to know
+      // whether it's an H1 or a body bullet; if `onEnter` is wired,
+      // we split and call it.
       if (!onEnterRef.current) {
         return false;
       }
@@ -243,11 +256,17 @@ export const Editor = ({
     // Shift+Enter creates an empty sibling Block AFTER the current one
     // without splitting the current bullet's content. Distinct from Enter
     // which splits at the cursor.
-    const shiftEnterCommand: Command = () => {
-      // F-Page-Header: header consumes Shift+Enter (no parent → no sibling).
-      if (headlineModeRef.current) {
+    const shiftEnterCommand: Command = (state) => {
+      // F-6.Phase1.keyboard-nav modifier clause / F-4.6: when either
+      // picker is open, Shift+Enter is N/A — swallow so no sibling is
+      // accidentally inserted while the user is mid-`#`/`@`-query.
+      if (mentionKey.getState(state)?.active || hashKey.getState(state)?.active) {
         return true;
       }
+      // F-Page-Header.9 (revised 2026-05-14): the H1 now participates
+      // in Shift+Enter-creates-empty-sibling — PageHeader wires
+      // `onShiftEnter` to create an empty new FIRST child of the
+      // page node. Same uniform flow as a body bullet.
       if (!onShiftEnterRef.current) {
         return false;
       }
@@ -257,8 +276,14 @@ export const Editor = ({
 
     // Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Block
     // BEFORE the current one (visually above). Mirror of Shift+Enter.
-    const shiftEnterAboveCommand: Command = () => {
-      // F-Page-Header: header consumes Cmd+Shift+Enter (no parent → no sibling).
+    const shiftEnterAboveCommand: Command = (state) => {
+      // Same picker-swallow as shiftEnterCommand.
+      if (mentionKey.getState(state)?.active || hashKey.getState(state)?.active) {
+        return true;
+      }
+      // F-Page-Header.10: header consumes Cmd+Shift+Enter as a no-op
+      // ("above the H1" doesn't exist within the page-view scope;
+      // predecessor-nav covers cross-page upward movement).
       if (headlineModeRef.current) {
         return true;
       }
@@ -273,12 +298,22 @@ export const Editor = ({
     // unconditionally — single-line bullets don't need within-paragraph
     // line navigation. Always returns true so the browser doesn't scroll
     // on no-op edge cases (top/bottom of outline).
-    const arrowUpCommand: Command = () => {
+    const arrowUpCommand: Command = (state) => {
+      // When either picker is open, swallow ArrowUp so the cursor doesn't
+      // jump to the previous Node. The pickers handle nav themselves via
+      // window-capture (F-6.Phase1.keyboard-nav); this is defence-in-depth
+      // for the mount-tick window before the picker's listener attaches.
+      if (mentionKey.getState(state)?.active || hashKey.getState(state)?.active) {
+        return true;
+      }
       onMoveUpRef.current?.();
       return true;
     };
 
-    const arrowDownCommand: Command = () => {
+    const arrowDownCommand: Command = (state) => {
+      if (mentionKey.getState(state)?.active || hashKey.getState(state)?.active) {
+        return true;
+      }
       onMoveDownRef.current?.();
       return true;
     };
@@ -409,9 +444,14 @@ export const Editor = ({
   // F-Caret: when autoFocus flips to true on an already-mounted editor (e.g.
   // F-Nav arrow navigation flipping focusId on the Graph), the mount
   // effect does NOT re-run, so view.focus() is never called. Wire a
-  // dedicated effect that focuses the view AND places the PM selection at
-  // the start of the doc so the caret has a paintable position. The
-  // caret-fix decoration handles the case where the doc is empty.
+  // dedicated effect that focuses the view AND places the PM selection
+  // either at the start (default — Enter-split, F-Nav, empty-page
+  // autofocus) or at the end (`autoFocusAtEnd` — pending-child promote,
+  // where the user just typed the first character and wants the caret
+  // to continue from after it). The caret-fix decoration handles the
+  // case where the doc is empty (start and end are the same position).
+  const autoFocusAtEndRef = useRef(autoFocusAtEnd);
+  autoFocusAtEndRef.current = autoFocusAtEnd;
   useEffect(() => {
     if (!autoFocus) {
       return;
@@ -420,7 +460,10 @@ export const Editor = ({
     if (!view) {
       return;
     }
-    const tr = view.state.tr.setSelection(TextSelection.atStart(view.state.doc));
+    const selection = autoFocusAtEndRef.current
+      ? TextSelection.atEnd(view.state.doc)
+      : TextSelection.atStart(view.state.doc);
+    const tr = view.state.tr.setSelection(selection);
     view.dispatch(tr);
     view.focus();
   }, [autoFocus]);

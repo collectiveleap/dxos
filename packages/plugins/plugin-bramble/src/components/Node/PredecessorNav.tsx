@@ -24,24 +24,126 @@ export type PredecessorNavProps = {
   onShiftSelect: (target: Bramble.Node) => void;
 };
 
+// Max number of predecessors that render as inline controls. Above this
+// count the control collapses to a single dropdown trigger (per
+// F-DAG.Phase3e.predecessor-nav-inline vs -predecessor-nav-dropdown).
+const INLINE_PREDECESSOR_CAP = 3;
+
 // F-DAG.Phase3e.predecessor-nav-*: page-top control that lists every
 // structural predecessor of the page block. Replaces the legacy
 // F-Page-Header `← {parent label}` single-parent breadcrumb (which
 // could only represent one parent and read via the tree walk).
 //
-// Render strategy:
-// - When the page block has zero predecessors the control renders
-//   nothing (so the page-top region stays empty when there's no "up").
-// - When 1+, a small "↑ N" button shows. Clicking it toggles a list
-//   below the button with one row per predecessor; each row commits
-//   on `mousedown` so it wins over any blur the button might trigger.
+// Render strategy (per F-DAG.Phase3e.predecessor-nav-inline /
+// -predecessor-nav-dropdown, user clarification 2026-05-14):
+// - 0 predecessors: render nothing.
+// - 1 to 3 predecessors: render each as a SEPARATE inline control
+//   (`↑ {label}`), side-by-side, in the same sort order the dropdown
+//   uses. Click = switch in current pane; shift-click = open in new pane.
+// - 4 or more predecessors: render a SINGLE dropdown trigger (`↑ ▾`).
+//   Clicking opens the popup list; menu-item click/shift-click obey
+//   the same switch / open-pane semantics.
 export const PredecessorNav = ({ pageBlock, onSelect, onShiftSelect }: PredecessorNavProps) => {
   const predecessors = usePredecessors(pageBlock);
+
+  if (predecessors.length === 0) {
+    return null;
+  }
+
+  if (predecessors.length <= INLINE_PREDECESSOR_CAP) {
+    return <PredecessorInlineRow predecessors={predecessors} onSelect={onSelect} onShiftSelect={onShiftSelect} />;
+  }
+
+  return <PredecessorDropdown predecessors={predecessors} onSelect={onSelect} onShiftSelect={onShiftSelect} />;
+};
+
+// F-DAG.Phase3e.predecessor-nav-inline: each predecessor renders as a
+// stand-alone `↑ {label}` control. Shares the click vs shift-click
+// distinction with the dropdown variant.
+const PredecessorInlineRow = ({
+  predecessors,
+  onSelect,
+  onShiftSelect,
+}: {
+  predecessors: Bramble.Node[];
+  onSelect: (target: Bramble.Node) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
+}) => {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const unsubs = predecessors.map((predecessor) => Obj.subscribe(predecessor, () => setTick((value) => value + 1)));
+    return () => {
+      for (const unsub of unsubs) {
+        try {
+          unsub();
+        } catch {
+          /* noop */
+        }
+      }
+    };
+  }, [predecessors]);
+  const sorted = useMemo(() => sortPredecessors(predecessors), [predecessors, tick]);
+  return (
+    <div className='inline-flex flex-wrap items-baseline gap-x-3'>
+      {sorted.map((predecessor) => (
+        <PredecessorInlineControl
+          key={predecessor.id}
+          predecessor={predecessor}
+          onSelect={onSelect}
+          onShiftSelect={onShiftSelect}
+        />
+      ))}
+    </div>
+  );
+};
+
+const PredecessorInlineControl = ({
+  predecessor,
+  onSelect,
+  onShiftSelect,
+}: {
+  predecessor: Bramble.Node;
+  onSelect: (target: Bramble.Node) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
+}) => {
+  const [snapshot] = useObject(predecessor);
+  const label = getDisplayLabel(snapshot as any);
+  const display = label.length > 0 ? label : '(unnamed)';
+  const handleMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (event.shiftKey) {
+      onShiftSelect(predecessor);
+      return;
+    }
+    onSelect(predecessor);
+  };
+  return (
+    <button
+      type='button'
+      onMouseDown={handleMouseDown}
+      className='inline-flex items-baseline gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
+      title='Click to switch · Shift+click to open in new pane'
+    >
+      <span aria-hidden>↑</span>
+      <span>{display}</span>
+    </button>
+  );
+};
+
+// F-DAG.Phase3e.predecessor-nav-dropdown: single `↑ ▾` trigger that
+// opens a popup listing every predecessor. Used when the count exceeds
+// `INLINE_PREDECESSOR_CAP`.
+const PredecessorDropdown = ({
+  predecessors,
+  onSelect,
+  onShiftSelect,
+}: {
+  predecessors: Bramble.Node[];
+  onSelect: (target: Bramble.Node) => void;
+  onShiftSelect: (target: Bramble.Node) => void;
+}) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-
-  // Click-outside to close. Defer one tick so the button's own
-  // click that flipped `open=true` doesn't immediately re-close it.
   useEffect(() => {
     if (!open) {
       return;
@@ -59,25 +161,15 @@ export const PredecessorNav = ({ pageBlock, onSelect, onShiftSelect }: Predecess
       window.removeEventListener('mousedown', handle);
     };
   }, [open]);
-
-  if (predecessors.length === 0) {
-    return null;
-  }
-
   return (
     <div ref={rootRef} className='inline-block relative'>
       <button
         type='button'
         onClick={() => setOpen((value) => !value)}
         className='inline-flex items-baseline gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer'
-        title={
-          predecessors.length === 1
-            ? '1 predecessor — click to view list'
-            : `${predecessors.length} predecessors — click to view list`
-        }
+        title={`${predecessors.length} predecessors — click to view list`}
       >
-        <span>↑</span>
-        <span>{predecessors.length}</span>
+        <span aria-hidden>↑</span>
         <span aria-hidden>▾</span>
       </button>
       {open && (

@@ -2,27 +2,39 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 
 import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
-import { Node } from '../Node';
+import { Node, PendingChildRow } from '../Node';
 import { createEdge, getStructuralChildren, useStructuralChildren } from '../Node/edges';
 
 import { Bramble } from '#types';
 
 export type GraphProps = {
   rootBlock: Bramble.Node;
+  // F-Page-Header.7/.11/.12 + F-Nav: focusId is lifted to Article so the
+  // H1 PageHeader and the body's first bullet can target each other for
+  // arrow-nav crossings. Graph forwards it through to each Node child
+  // unchanged.
+  focusId: string | null;
+  focusAtEnd: boolean;
+  setFocusId: (id: string | null) => void;
+  // setFocusIdAtEnd: like setFocusId but the new focus places the caret
+  // at the end of the focused editor's content. Used by pending-child
+  // promote so the user can continue typing from after the just-typed
+  // character.
+  setFocusIdAtEnd: (id: string | null) => void;
 };
 
 // Increment 3b: top-level component that walks `rootBlock.children` and
-// renders a recursive Node for each. Owns `focusId` (preserved across
-// re-parenting on Tab/Shift+Tab) and the contextmenu listener that copies
-// a bullet's DXN to the clipboard.
-export const Graph = ({ rootBlock }: GraphProps) => {
+// renders a recursive Node for each. The `focusId` state lives at the
+// Article level (so it can be shared with the H1 PageHeader); Graph
+// passes it through and also drives setFocusId from its own
+// pending-child promote handler.
+export const Graph = ({ rootBlock, focusId, focusAtEnd, setFocusId, setFocusIdAtEnd }: GraphProps) => {
   const [snapshot] = useObject(rootBlock);
-  const [focusId, setFocusId] = useState<string | null>(null);
 
   // Migrate I1/I2 outlines: if root has content but no children, demote the
   // content into a single child Block. Also covers stale outlines lacking
@@ -55,12 +67,21 @@ export const Graph = ({ rootBlock }: GraphProps) => {
       return;
     }
     const contentArr = (snapshot.content ?? []) as readonly unknown[];
-    const seed = Bramble.makeNode(contentArr.length > 0 ? { content: [...contentArr] as any } : {});
-    if (contentArr.length > 0) {
-      Obj.update(rootBlock, (rootBlock) => {
-        (rootBlock as any).content = [];
-      });
+    // I1/I2 migration only: if the rootBlock has content but no
+    // children, demote the content into a single child Block. The
+    // prior "always seed an empty bullet" behaviour was removed — for
+    // empty rootBlocks, F-Pending-Child.page-root renders a faint
+    // pending-child at the page body, which is the universal "where
+    // to start typing" affordance (covers initial graph creation,
+    // shift-click-into-leaf new panes, and same-pane zoom alike).
+    if (contentArr.length === 0) {
+      return;
     }
+    // F-V2.12: new Nodes are created collapsed.
+    const seed = Bramble.makeNode({ content: [...contentArr] as any, state: { expanded: false } });
+    Obj.update(rootBlock, (rootBlock) => {
+      (rootBlock as any).content = [];
+    });
     if (db) {
       db.add(seed);
       createEdge(db, rootBlock, seed);
@@ -98,6 +119,12 @@ export const Graph = ({ rootBlock }: GraphProps) => {
     console.log('[plugin-blocks] copied DXN to clipboard:', dxn);
   };
 
+  // F-Pending-Child.page-root: always render a page-root pending-child
+  // at the END of the page body — after `childRefs.map` so it appears
+  // below the last real child (giving a visible "add another" affordance
+  // past the last bullet), or as the only body row when the page node
+  // has no children. Independent of `rootBlock.state.expanded`.
+
   return (
     <div className='space-y-1' onContextMenu={handleContextMenu}>
       {childRefs.map((ref) => {
@@ -108,10 +135,44 @@ export const Graph = ({ rootBlock }: GraphProps) => {
             block={child}
             parent={rootBlock}
             focusId={focusId}
+            focusAtEnd={focusAtEnd}
             setFocusId={setFocusId}
+            setFocusIdAtEnd={setFocusIdAtEnd}
           />
         );
       })}
+      <PendingChildRow
+        parent={rootBlock}
+        setFocusId={setFocusId}
+        onPromote={(initialText) => {
+          const db = Obj.getDatabase(rootBlock);
+          if (!db) {
+            return;
+          }
+          // F-V2.12: new Nodes are created collapsed.
+          const newChild = Bramble.makeNode({
+            content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
+            state: { expanded: false },
+          });
+          db.add(newChild);
+          createEdge(db, rootBlock, newChild);
+          // The user just typed the first character into the pending-
+          // child editable; the new bullet's caret needs to land AFTER
+          // that character so the next keystroke appends. Without
+          // `atEnd`, the caret lands at position 0 and subsequent
+          // characters get inserted before the typed one (typing "1234"
+          // produces "2341").
+          setFocusIdAtEnd(newChild.id);
+        }}
+        onAddExisting={(target) => {
+          const db = Obj.getDatabase(rootBlock);
+          if (!db) {
+            return;
+          }
+          createEdge(db, rootBlock, target as Bramble.Node);
+          setFocusId((target as any).id ?? null);
+        }}
+      />
     </div>
   );
 };
