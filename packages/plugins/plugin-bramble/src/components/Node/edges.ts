@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Filter, Obj, Relation } from '@dxos/echo';
 
+import { captureTargetVersion, isPinningEdgeKind } from './edge-pinning';
+
 import { Bramble } from '#types';
 
 // F-DAG Phase 5 / Bramble: edge-kind taxonomy. 'child' is the only kind
@@ -198,11 +200,18 @@ export const createEdge = (
     return undefined;
   }
   const order = options.order ?? nextOrderFor(db, parent);
+  // F-Versioning.auto-pin-on-create: when the kind is in
+  // PINNING_EDGE_KINDS, capture the target's current Automerge
+  // version into `targetVersion` as part of the same create
+  // transaction. Call sites pass only `kind` — pinning follows the
+  // kind's contract, not a separate per-call argument.
+  const targetVersion = isPinningEdgeKind(kind) ? captureTargetVersion(child) : undefined;
   const edge = Relation.make(Bramble.Edge, {
     [Relation.Source]: parent as any,
     [Relation.Target]: child as any,
     order,
     kind,
+    ...(targetVersion ? { targetVersion } : {}),
   });
   db.add(edge as any);
   return edge as any;

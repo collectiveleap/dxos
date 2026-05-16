@@ -50,13 +50,16 @@ export type RunLensShellProps = {
 // Q1 (recursive as far as needed) is honored — the wizard's
 // document-order traversal walks every Run-Node in the tree.
 //
-// Q2 (snapshot semantics, deferred to F-Step-Versioning) is
-// partially addressed here: while the Lens is active, Step
-// prompts are presented read-only — the user can't edit them
-// from inside the Lens, so accidental schema edits during a run
-// are impossible. The data itself is still live (a separate edit
-// from outside the Lens would still update past Runs' prompts);
-// only the editing surface is locked.
+// Q2 (snapshot semantics, resolved by F-Versioning — not yet
+// implemented in this code) is partially mitigated here: while
+// the Lens is active, Step prompts are presented read-only —
+// the user can't edit them from inside the Lens, so accidental
+// schema edits during a run are impossible. The data itself is
+// still live today (a separate edit from outside the Lens would
+// still update past Runs' prompts); once F-Versioning's pinned-
+// edge resolver lands, the prompt will be sourced from the
+// `'is-run-of'` edge's pinned snapshot and the "outside edit"
+// drift will be impossible too.
 export const RunLensShell = ({
   runNode,
   focusId,
@@ -65,7 +68,13 @@ export const RunLensShell = ({
   setFocusIdAtEnd,
   onExit,
 }: RunLensShellProps) => {
-  const stepNode = useRunStep(runNode);
+  // F-Versioning: the banner label is a live-tracking element (it
+  // reflects the current Step name in Composer, not the pinned
+  // snapshot at Run-creation time — renaming a Step should update
+  // the banner everywhere it's shown). Use the `live` target from
+  // the resolution; the pinned `rendered` is only for the runbook
+  // prompt inside RunExecutionView.
+  const stepNode = useRunStep(runNode).live;
   useObject(stepNode);
   const stepLabel = stepNode ? (getDisplayLabel(stepNode) || '(untitled step)') : '(no step)';
 

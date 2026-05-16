@@ -218,6 +218,17 @@ export const Edge = Schema.Struct({
   //   Run-Node. Mirrors `'child'` semantics but for run hierarchy.
   //   Not outline-rendered.
   kind: Schema.Literal('child', 'is-run-of', 'parent-run'),
+
+  // F-Versioning: when this edge's `kind` belongs to
+  // `PINNING_EDGE_KINDS`, `createEdge` auto-captures the target's
+  // Automerge version (via `Obj.encodeVersion(Obj.version(target))`)
+  // into this field at edge-creation time. `resolveEdgeTarget` reads
+  // this field to decide whether to return the live target or a
+  // time-traveled snapshot via `Obj.checkoutVersion`. Unset for
+  // non-pinning edges AND for pre-F-Versioning edges (greenfield —
+  // those render the live target per
+  // `F-Versioning.unpinned-edges-render-live`).
+  targetVersion: Schema.optional(Schema.String),
 }).pipe(
   Type.relation({
     typename: 'org.dxos.type.bramble.edge',

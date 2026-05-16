@@ -2962,11 +2962,10 @@ feat F-New-Run-On-Step: "+ New Run" action on Step-tagged pages, recursive spawn
 
     Out of scope: a "Choose Step" affordance on `#Run` pages
     (F-Set-Step-On-Run, iteration 2c.4); any list of past Runs
-    on a Step page (F-Step-Runs-List, iteration 2d); Step
-    versioning so Runs are bound to a snapshot of the Step they
-    executed against (F-Step-Versioning, iteration 2c.3 —
-    until then, the Run reads the live Step's narrative; this
-    is the known Q2 gap).
+    on a Step page (F-Step-Runs-List, iteration 2d). Pinning
+    the Run to a snapshot of the Step it was executed against
+    is handled by F-Versioning (the `'is-run-of'` edge created
+    here auto-pins per `F-Versioning.auto-pin-on-create`).
   req F-New-Run-On-Step.1: When the page Node carries a supertag
     instance of typename `org.dxos.type.bramble.step`, the
     Article surface renders a "+ New Run" button between
@@ -3015,13 +3014,16 @@ feat F-Run-Execution-View: structured runbook walkthrough for a Run-Node    # It
     parent." The recursive child rendering matches Q1's "recursive
     as far as needed" answer.
 
-    Versioning gap (Q2, deferred to F-Step-Versioning):
-    F-Run-Execution-View currently reads the LIVE Step's narrative
-    on every render. If the Step is edited after a Run is created,
-    the Run's view of the narrative changes too. This is wrong
-    per Q2 (a Run should be bound to the version it was executed
-    against). F-Step-Versioning will introduce `#StepVersion`
-    Nodes and retarget `'is-run-of'` edges accordingly.
+    Versioning (Q2 — resolved by F-Versioning):
+    F-Run-Execution-View resolves the Step's narrative via
+    `resolveEdgeTarget('is-run-of'-edge)`. The `'is-run-of'`
+    edge is auto-pinned at Run-creation per
+    `F-Versioning.auto-pin-on-create`, so the rendered Step
+    narrative reflects the moment the Run was created — not
+    subsequent live edits to the Step. Pre-F-Versioning Runs
+    (whose edges have no `targetVersion`) keep rendering the
+    LIVE Step per `F-Versioning.unpinned-edges-render-live`
+    (greenfield).
   req F-Run-Execution-View.1:
     when: the Article renders a page Node carrying `#Run`
     then:
@@ -3154,12 +3156,14 @@ feat F-Run-Lens: first instantiation of the Lens primitive (CONCEPTS.md §9)    
     `#Run` page with the Lens deactivated, a "Resume in Run
     Lens" button restores it (resets wizard state).
 
-    Q2 (Step Versioning, deferred to F-Step-Versioning):
-    partially addressed here — Step prompts are read-only
-    *inside* the Lens, so the user can't accidentally edit
-    the schema mid-run. The data is still live; F-Step-
-    Versioning will add snapshot binding so even an edit from
-    outside the Lens doesn't retroactively change past Runs.
+    Q2 (Versioning) — resolved by F-Versioning. The Run Lens
+    renders Step prompts via the Run's auto-pinned
+    `'is-run-of'` edge (per `F-Versioning.auto-pin-on-create`),
+    so an edit to the live Step from outside the Lens doesn't
+    retroactively change what past Runs display. The Lens's
+    own read-only-inside treatment prevents accidental in-
+    Lens edits to the Step; F-Versioning prevents external
+    drift.
 
     Connection to CONCEPTS.md: §9 talked about Lens-as-generative-
     P at length (observer substitution, ontology inheritance,
@@ -3415,6 +3419,151 @@ feat F-PDF-Upload: drop a PDF onto a page to become a Node   # Increment 2f
       - the rename propagates to every place N appears per
         F-4b (live-rename propagation), including inline
         @-mentions per T-PDF-Mention-renders-attachment.
+```
+
+```mdl
+feat F-Versioning: pinned-target edges preserve the target's snapshot at pin time
+  desc: |
+    Some Bramble.Edge kinds carry a contract that their target
+    should be observed as it was at the moment the edge was
+    created, not as it is now. The canonical case (today):
+    F-Run's `'is-run-of'` edge — when a Run is created against
+    a Step, editing the Step later shouldn't retroactively
+    change what that Run displays. The executor saw the Step
+    as it was; the Run records that bound moment.
+
+    F-Versioning generalises this via per-edge pinning. An Edge
+    of a "pinning" kind captures the target's current version
+    (an encoded Automerge heads vector from `Obj.version` /
+    `Obj.encodeVersion`) into a `targetVersion` field at edge-
+    creation time. At render time, a resolver returns either
+    the LIVE target (when `targetVersion` is unset — the legacy
+    case) or the TIME-TRAVELED snapshot (when set, via
+    `Obj.checkoutVersion`). The user always navigates the live
+    Node; the snapshot is only the visible content the resolver
+    chooses to render under a pinned edge.
+
+    Mechanism — what we build:
+      - `Bramble.Edge` gains optional `targetVersion?: string`
+        (encoded Automerge heads).
+      - A closed set of pinning `Edge.kind` values (today:
+        `'is-run-of'`; new kinds join the set by deliberate
+        spec change).
+      - `createEdge` auto-captures the heads when the kind is
+        in the set — call sites don't choose; the kind's
+        contract does.
+      - `resolveEdgeTarget(edge)` returns live OR snapshot per
+        the field.
+
+    Substrate alignment (substrate-principles §10 — identity is
+    mutable and consensual; the substrate retains its history):
+      - The pin survives any structural change to the target —
+        delete, retire, merge, split — because the substrate
+        is non-destructive. Targets get RETIRED, not
+        destructively removed; their history stays
+        reconstructable via `checkoutVersion`. The resolver
+        renders the pinned snapshot regardless of the live
+        target's deleted state.
+      - When a future "genuine privacy deletion" operation
+        lands (separate from normal flows) and removes a
+        target entirely, the resolver falls back to a
+        `[removed]` placeholder. v1 doesn't implement privacy-
+        deletion; the fallback fires only if `checkoutVersion`
+        itself fails on a target.
+      - Future merge / split (substrate §10) don't relocate
+        pins: a pinned edge to a pre-merge / pre-split
+        identity continues rendering the pre-event snapshot.
+        Re-pinning is an explicit user action, not automatic.
+
+    Use of existing ECHO capabilities:
+      - `Obj.version(entity)` reads the current Automerge
+        heads.
+      - `Obj.encodeVersion(v)` / `Obj.decodeVersion(str)`
+        serialise heads to a string suitable for a
+        Bramble.Edge field.
+      - `checkoutVersion(target, heads)` (from `@dxos/echo-db`)
+        time-travels to the target at the heads vector.
+        Returns raw data today; Bramble wraps in a local
+        hydration helper that exposes the fields the renderer
+        reads (`content`, `kind`, etc.) without setting up
+        live subscriptions (the snapshot is frozen — nothing
+        to subscribe to). Local helper now; promote upstream
+        later as the shape stabilises.
+
+    Greenfield migration: pre-versioning `'is-run-of'` edges in
+    test spaces have no `targetVersion`. They keep rendering
+    the LIVE Step (today's behavior). New edges pin.
+    R-Greenfield-Stance — no backfill code.
+
+    Out of scope for v1: a browseable history-of-Node timeline
+    UX (the `getEditHistory` walk is available but rendering
+    it is a separate increment); explicit re-pinning gestures;
+    merge / split operations (separate substrate-principles
+    work).
+
+  req F-Versioning.pinning-edge-kinds-set:
+    given: a code module that needs to know whether an
+      `Edge.kind` value triggers pinning
+    when: it consults the canonical set
+    then:
+      - the set is a single named constant in code (today:
+        `PINNING_EDGE_KINDS`) whose authoritative content for
+        v1 is exactly `{'is-run-of'}`;
+      - new kinds join the set by deliberate spec change (a
+        new feat / req entry that names the kind and reasons
+        about why pinning applies to it).
+
+  req F-Versioning.auto-pin-on-create:
+    given: `createEdge(db, parent, child, { kind })` is called
+      with a `kind` value that belongs to `PINNING_EDGE_KINDS`
+    when: the edge is created
+    then:
+      - `targetVersion = Obj.encodeVersion(Obj.version(child))`
+        is captured and stored on the Edge as part of the
+        same create transaction;
+      - call sites do not pass or check a separate "pin"
+        argument — the kind's contract is the only signal.
+
+  req F-Versioning.unpinned-edges-render-live:
+    given: a Bramble.Edge whose `targetVersion` is unset (the
+      kind is not in `PINNING_EDGE_KINDS`, OR the edge
+      predates F-Versioning)
+    when: `resolveEdgeTarget(edge)` is called
+    then:
+      - the LIVE target object is returned;
+      - reactive subscriptions to the target continue to
+        propagate per F-4b live-rename semantics (unchanged
+        from today).
+
+  req F-Versioning.pinned-edges-render-snapshot:
+    given: a Bramble.Edge whose `targetVersion` is set
+    when: `resolveEdgeTarget(edge)` is called
+    then:
+      - the resolver returns the target's state at the pinned
+        heads (via `checkoutVersion(target, decoded)`),
+        wrapped by a local hydration helper that exposes the
+        fields the renderer reads;
+      - the rendered fields reflect the moment the edge was
+        created, not the current live state;
+      - subsequent edits to the LIVE target produce new heads
+        but do not change what this pinned edge displays.
+
+  req F-Versioning.pin-survives-deletion:
+    given: a pinned Bramble.Edge points at a target whose live
+      state has been marked deleted (via `db.remove`,
+      retirement, etc. — non-destructive per
+      substrate-principles §10)
+    when: `resolveEdgeTarget(edge)` is called
+    then:
+      - the resolver returns the pinned snapshot — the
+        target's Automerge history is still reachable, and
+        `checkoutVersion` reads from it regardless of the
+        live object's deleted mark;
+      - if `checkoutVersion` itself fails (target has been
+        removed by an explicit privacy-deletion operation,
+        out of v1 scope), the resolver returns a sentinel
+        that the renderer surfaces as a `[removed]`
+        placeholder.
 ```
 
 ## Acceptance
@@ -4521,6 +4670,84 @@ test T-PDF-Mention-renders-attachment: an @-mention to a PDF-wrapping Node rende
   surfaces a blank node — the PDF chip is missing.
 ```
 
+```mdl
+test T-Versioning-pin-on-edge-create: creating a `'is-run-of'` edge captures the target's heads
+  given: a Step Node S exists in the space; a Run Node R is
+    being created (e.g. via F-New-Run-On-Step)
+  when: `createEdge(db, R, S, { kind: 'is-run-of' })` runs
+  then:
+    - the resulting Edge carries a `targetVersion` field
+      whose value equals `Obj.encodeVersion(Obj.version(S))`
+      at the moment of edge creation;
+    - call sites did not pass a separate "pin" argument —
+      the `kind: 'is-run-of'` membership in
+      `PINNING_EDGE_KINDS` was the sole trigger.
+```
+
+```mdl
+test T-Versioning-pinned-edge-renders-snapshot: a pinned edge resolves to the target at the pinned version
+  given: a Run R is `'is-run-of'` Step S, where the edge's
+    `targetVersion` was captured when S.content was
+    "Reconcile EOB"
+  when: the user opens R as the page node and
+    F-Run-Execution-View calls `resolveEdgeTarget` on the
+    `'is-run-of'` edge
+  then:
+    - the resolved target's `content` reads "Reconcile EOB"
+      (the pinned snapshot), regardless of any later edits
+      to the live S;
+    - the live S in the navigator still shows whatever its
+      latest content is (the pin doesn't shadow live-S
+      navigation).
+```
+
+```mdl
+test T-Versioning-live-target-edits-do-not-disturb-pinned-view: edits to the live target are invisible to pinned views
+  given: a Run R is `'is-run-of'` Step S, where the pinned
+    snapshot reads "Reconcile EOB"; R is open as the page
+    node
+  when: the user opens S in a second pane and edits S's
+    content to "Reconcile EOB (revised)"
+  then:
+    - S's chip in the navigator reflects the rename live;
+    - R's Run Execution View continues to render
+      "Reconcile EOB" (the pinned snapshot) — no
+      retroactive change;
+    - re-mounting R produces the same pinned-snapshot
+      render.
+```
+
+```mdl
+test T-Versioning-unpinned-edges-render-live: pre-versioning edges render live (greenfield)
+  given: a Run R is `'is-run-of'` Step S via an edge whose
+    `targetVersion` is unset (the edge predates
+    F-Versioning, or its kind is not in `PINNING_EDGE_KINDS`)
+  when: `resolveEdgeTarget` is called
+  then:
+    - the LIVE S is returned;
+    - subsequent edits to S propagate into R's render per
+      F-4b live-rename semantics — same behavior as before
+      F-Versioning shipped.
+```
+
+```mdl
+test T-Versioning-pin-survives-target-deletion: pinned edges keep rendering after the live target is marked deleted
+  given: a Run R `'is-run-of'` Step S with the edge pinned
+    at S's then-current heads; S is subsequently marked
+    deleted (`db.remove`, retirement, etc. — non-destructive
+    per substrate-principles §10)
+  when: the user opens R and `resolveEdgeTarget` runs on the
+    pinned edge
+  then:
+    - the pinned snapshot of S still renders (the snapshot
+      reads from S's Automerge history, which persists
+      regardless of the live `ObjectDeletedId` mark);
+    - if `checkoutVersion` itself fails on S (privacy-
+      deletion out of v1 scope), the resolver returns a
+      sentinel and the renderer surfaces a `[removed]`
+      placeholder — no crash.
+```
+
 ---
 
 ## Remaining
@@ -4614,29 +4841,6 @@ Branch:         `claude/agitated-nash-bd0b0f`
     affects every consumer of those primitives, not just Bramble);
     out of scope for this plugin. Workaround for users today: scroll
     + click directly.
-- **Step versioning so Runs are bound to a snapshot, not the
-  live Step (Iteration 2c.3, deferred).** Flagged 2026-05-15
-  during the F-Run-Execution-View design. User position (Q2):
-  "once presented to the user, [a Run] is linked to the version
-  (snapshot) shown to the user; the nodes should be versioned
-  such that the narrative might change over time and it's a new
-  version of the same step." Until this lands, F-Run-Execution-
-  View reads from the LIVE Step's content on every render — so
-  editing a Step's narrative after a Run has been created retro-
-  actively changes what that Run displays. Wrong, but the
-  workaround (don't edit Steps that have Runs against them)
-  holds for the seeding scenario.
-
-  Future shape: introduce `#StepVersion` supertag. On the first
-  edit of a Step that has any in-flight or past Run pointing at
-  it, copy-on-write: snapshot the old Step content into a
-  `#StepVersion` Node, retarget every dependent Run's
-  `'is-run-of'` edge to point at the version Node, then apply
-  the new content to the live Step. The Step Node itself
-  remains stable as the navigation target; version Nodes are
-  append-only sidecars. Future view: a Step's version history
-  is browsable via a `'previous-version'` edge chain from the
-  live Step back through its versions.
 - **Per-Node supertag-type uniqueness (write-time enforcement).**
   Flagged 2026-05-15 during F-New-Run-On-Step verification: nothing
   currently prevents a single Node from carrying multiple supertag
@@ -4686,6 +4890,34 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `F-Supertag.eager-materialization` says "outliner mount").
   No in-scope mechanism today catches an agent paraphrasing a
   predecessor-shaped shadow.
+- **Reconcile DXOS capabilities × what Bramble has built ×
+  what substrate-principles describes (flagged 2026-05-16).**
+  Three-way audit:
+
+  1. Survey the public surface of `@dxos/echo`,
+     `@dxos/echo-db`, `@dxos/app-toolkit`, and adjacent core
+     packages — what primitives exist that Bramble could be
+     using but is currently rebuilding? (F-PDF-Upload's
+     attachment-vs-Wnfs.File duplication and F-Versioning's
+     COW-sidecar-vs-Automerge-history duplication were both
+     instances of "Bramble didn't know the upstream capability
+     existed.")
+  2. Map substrate-principles doc's demands (Steps, Runs,
+     Contexts, Artifacts, Refinement, Executor, Engagement,
+     Translator, Demand, Provenance, merge / split / non-
+     destructive deletion) against what Bramble has shipped vs
+     what's spec'd vs what's missing entirely.
+  3. Cross the two maps. For each substrate-principles demand:
+     does an existing DXOS capability already provide the
+     mechanism? If yes, the Bramble feat should compose it
+     (not rebuild it). If no, it's a real Bramble-layer build.
+
+  Why: avoid the recurring duplication anti-pattern. A
+  finding pass before any new substrate-vocabulary feat saves
+  rewriting it later. Output shape probably a section in
+  CONCEPTS.md (parallel to §12.6 "Implications for next spec
+  increments") with one row per substrate demand mapping it
+  to ECHO capability + Bramble status + gap.
 
 ---
 

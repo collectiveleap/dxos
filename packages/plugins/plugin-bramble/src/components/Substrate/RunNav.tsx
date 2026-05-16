@@ -43,7 +43,11 @@ export type RunNavProps = {
 // direction, different edge-kind filter; a dedicated component is
 // clearer than overloading PredecessorNav.
 export const RunNav = ({ runNode, onSelect, onShiftSelect }: RunNavProps) => {
-  const stepNode = useRunStep(runNode);
+  // F-Versioning: navigation targets the LIVE Step (clicking goes
+  // to the current Step page, not a frozen snapshot). Use the live
+  // half of the resolution; pinned snapshots are only for runbook
+  // prompt rendering inside RunExecutionView.
+  const stepNode = useRunStep(runNode).live;
   const parentRunNode = useParentRunOf(runNode);
 
   if (!stepNode && !parentRunNode) {

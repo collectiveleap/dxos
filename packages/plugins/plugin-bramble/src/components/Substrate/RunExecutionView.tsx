@@ -8,6 +8,7 @@ import { useObject } from '@dxos/react-client/echo';
 
 import { Graph } from '../Graph';
 
+import { isRemoved } from '../Node/edge-pinning';
 import { useChildRunsOf, useRunStep } from './substrate-ops';
 
 import { Bramble } from '#types';
@@ -49,12 +50,16 @@ export type RunExecutionViewProps = {
 // Per Q1 (recursive as far as needed): renders child Run-Nodes
 // recursively, one level of indentation per depth.
 //
-// Per Q2 (deferred, F-Step-Versioning): currently reads from the
-// LIVE Step's content on every render. If the Step is edited after
-// the Run was created, the prompt the user sees changes too —
-// wrong but documented as a known gap until 2c.3 lands. The Run
-// Lens (F-Run-Lens, 2c.5) provides a partial workaround by making
-// the prompt UI-read-only while the Lens is active.
+// Per Q2 (resolved by F-Versioning, not yet implemented in this
+// code): once F-Versioning ships, this view will resolve the Step
+// via `resolveEdgeTarget` on the auto-pinned `'is-run-of'` edge
+// so the rendered prompt reflects the Step at Run-creation time,
+// not the live Step. Today, this view reads from the LIVE Step on
+// every render — pre-F-Versioning edges have no `targetVersion`,
+// so live-rendering is also the correct greenfield behavior for
+// them per `F-Versioning.unpinned-edges-render-live`. The Run
+// Lens (F-Run-Lens, 2c.5) UI-locks the prompt as a partial in-
+// flight mitigation.
 export const RunExecutionView = ({
   runNode,
   focusId,
@@ -67,7 +72,12 @@ export const RunExecutionView = ({
   // Subscribe to the Run-Node so child-Run additions / removals
   // re-render this branch.
   useObject(runNode);
-  const stepNode = useRunStep(runNode);
+  // F-Versioning: useRunStep returns BOTH the live target (for
+  // reactive subscription per F-4b — only relevant for unpinned
+  // greenfield edges) AND the resolved view (live for unpinned,
+  // pinned snapshot for `'is-run-of'` edges created post-
+  // F-Versioning). Subscribe to live; render rendered.
+  const stepResolution = useRunStep(runNode);
   const childRuns = useChildRunsOf(runNode);
 
   const indentClass = depth > 0 ? 'ml-6 mt-3 pl-3 border-l border-neutral-200 dark:border-neutral-700' : '';
@@ -82,11 +92,14 @@ export const RunExecutionView = ({
   return (
     <div className={`${indentClass} ${activeClass}`} data-run-view={runNode.id}>
       {/* Runbook prompt: the Step's content rendered as read-only
-          narrative. Sourced from the live Step Node (Q2 gap — see
-          F-Step-Versioning). Falls back to "(no Step found)" when
-          the `'is-run-of'` edge is missing or its target is
-          unresolvable. */}
-      <RunbookPrompt stepNode={stepNode} />
+          narrative. Sourced via F-Versioning's `resolveEdgeTarget`
+          on the `'is-run-of'` edge — pinned snapshot for edges
+          auto-pinned by F-Versioning.auto-pin-on-create; live
+          target for pre-versioning greenfield edges. Falls back to
+          "(no Step linked)" when the edge is missing, and to a
+          "[removed]" placeholder when a pinned target can't be
+          reconstructed (privacy-deletion edge case, v2). */}
+      <RunbookPrompt stepResolution={stepResolution} />
       {/* Response area: full Bramble outline rooted at the Run-Node.
           The user adds bullets, refs, marks, attachments here to
           journal the work of this step. Child Runs (for sub-Steps)
@@ -120,12 +133,24 @@ export const RunExecutionView = ({
 };
 
 // Read-only render of a Step Node's content as the runbook prompt.
-// Subscribes to the Step so edits during an in-flight Run propagate
-// live (Q2 gap; see F-Step-Versioning).
-const RunbookPrompt = ({ stepNode }: { stepNode: Bramble.Node | undefined }) => {
-  useObject(stepNode);
+// Subscribes to the LIVE Step so rename / content edits propagate
+// in real time when the `'is-run-of'` edge is UNPINNED (greenfield
+// pre-F-Versioning edges per F-Versioning.unpinned-edges-render-
+// live). For PINNED edges the rendered field set is frozen at pin
+// time — the subscription on `live` fires when the Step changes
+// upstream but `rendered` doesn't change (so the user sees no
+// drift), matching F-Versioning.live-target-edits-do-not-disturb-
+// pinned-view.
+const RunbookPrompt = ({ stepResolution }: { stepResolution: import('./substrate-ops').RunStepResolution }) => {
+  // Subscribe to the live target for greenfield reactivity. Safe on
+  // undefined (useObject is a no-op).
+  useObject(stepResolution.live);
+  const stepNode = stepResolution.rendered;
   if (!stepNode) {
     return <div className='text-xs italic text-neutral-400 dark:text-neutral-500'>(no Step linked)</div>;
+  }
+  if (isRemoved(stepNode)) {
+    return <div className='text-xs italic text-neutral-400 dark:text-neutral-500'>(Step removed)</div>;
   }
   const segments = ((stepNode.content ?? []) as readonly any[]).filter((seg) => seg?.kind === 'text');
   const text = segments.map((seg) => seg.text ?? '').join('');

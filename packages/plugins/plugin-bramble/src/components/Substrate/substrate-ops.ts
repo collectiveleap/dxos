@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Filter, Obj, Relation, Type } from '@dxos/echo';
 
 import { initialPropsForTag } from '../Editor/tag-types';
+import { type RemovedSentinel, resolveEdgeTarget } from '../Node/edge-pinning';
 import { createEdge, getStructuralChildren } from '../Node/edges';
 
 import { Bramble } from '#types';
@@ -105,10 +106,8 @@ export const createRunOfStep = (
   return runNode;
 };
 
-// Resolve the Step that `runNode` is a Run of by following the
-// outgoing `'is-run-of'` edge. Returns undefined if the Run has no
-// such edge or the edge's target Node has been deleted.
-export const getRunStep = (db: any, runNode: Bramble.Node): Bramble.Node | undefined => {
+// Find the `'is-run-of'` edge whose source is `runNode`, if any.
+export const getRunStepEdge = (db: any, runNode: Bramble.Node): any | undefined => {
   if (!db || !runNode) {
     return undefined;
   }
@@ -121,15 +120,37 @@ export const getRunStep = (db: any, runNode: Bramble.Node): Bramble.Node | undef
     if ((Relation.getSource(edge) as any)?.id !== (runNode as any)?.id) {
       continue;
     }
-    return Relation.getTarget(edge) as Bramble.Node | undefined;
+    return edge;
   }
   return undefined;
 };
 
-// React hook variant of `getRunStep`. Re-runs when any Edge in the
-// db changes — keeps the runbook view live when edges are added /
-// removed during a session.
-export const useRunStep = (runNode: Bramble.Node | null | undefined): Bramble.Node | undefined => {
+// Resolve the Step that `runNode` is a Run of by following the
+// outgoing `'is-run-of'` edge. Returns undefined if the Run has no
+// such edge or the edge's target Node has been deleted.
+// NOTE: returns the LIVE target — for F-Versioning-aware render
+// paths use `useRunStep` (or call `resolveEdgeTarget` directly on
+// the edge from `getRunStepEdge`).
+export const getRunStep = (db: any, runNode: Bramble.Node): Bramble.Node | undefined => {
+  const edge = getRunStepEdge(db, runNode);
+  return edge ? (Relation.getTarget(edge) as Bramble.Node | undefined) : undefined;
+};
+
+// React hook variant. Re-runs when any Edge in the db changes —
+// keeps the runbook view live when edges are added / removed during
+// a session. Returns BOTH the live target (for reactive
+// subscription per F-4b) AND the F-Versioning-resolved view (live
+// for unpinned edges; pinned snapshot for pinning kinds; REMOVED
+// sentinel when the snapshot can't be reconstructed). Callers
+// subscribe to `live` and render `rendered`.
+export type RunStepResolution = {
+  rendered: Bramble.Node | RemovedSentinel | undefined;
+  live: Bramble.Node | undefined;
+};
+
+export const useRunStep = (
+  runNode: Bramble.Node | null | undefined,
+): RunStepResolution => {
   const db = runNode ? Obj.getDatabase(runNode) : undefined;
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -146,11 +167,17 @@ export const useRunStep = (runNode: Bramble.Node | null | undefined): Bramble.No
       }
     };
   }, [db]);
-  return useMemo(() => {
-    if (!runNode) {
-      return undefined;
+  return useMemo<RunStepResolution>(() => {
+    if (!runNode || !db) {
+      return { rendered: undefined, live: undefined };
     }
-    return getRunStep(db, runNode);
+    const edge = getRunStepEdge(db, runNode);
+    if (!edge) {
+      return { rendered: undefined, live: undefined };
+    }
+    const live = Relation.getTarget(edge) as Bramble.Node | undefined;
+    const rendered = resolveEdgeTarget(edge);
+    return { rendered, live };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, runNode, tick]);
 };
