@@ -36,13 +36,19 @@ export type NodeProps = {
   // (when `parent` is the outline's invisible root).
   grandparent?: Bramble.Node;
   focusId: string | null;
+  focusAtEnd: boolean;
   setFocusId: (id: string | null) => void;
+  // setFocusIdAtEnd: like setFocusId but the new focus places the
+  // caret at the end of the focused editor's content. Used by
+  // pending-child promote so the caret continues from after the
+  // just-typed character.
+  setFocusIdAtEnd: (id: string | null) => void;
 };
 
 // Recursive renderer for a Block and its children. Tab/Shift+Tab/Enter
 // handlers live here so they can close over the parent + grandparent context.
 // Visual rules are owned by the Bullet and ExpandChevron sub-components below.
-export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodeProps) => {
+export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocusId, setFocusIdAtEnd }: NodeProps) => {
   const [snapshot] = useObject(block);
   // Per-row hover state — drives ExpandChevron visibility. Replaces a Tailwind
   // `group-hover:` approach that was lighting up multiple chevrons at once.
@@ -123,7 +129,8 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
       return;
     }
     ensureMigratedChildren(db, parent);
-    const newBlock = Bramble.makeNode({ content: initialContent });
+    // F-V2.12: new sibling Nodes are created collapsed.
+    const newBlock = Bramble.makeNode({ content: initialContent, state: { expanded: false } });
     db.add(newBlock);
     const edgesNow = childEdgesOf(db, parent);
     const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
@@ -145,7 +152,8 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
       return;
     }
     ensureMigratedChildren(db, parent);
-    const newBlock = Bramble.makeNode({ content: initialContent });
+    // F-V2.12: new sibling Nodes are created collapsed.
+    const newBlock = Bramble.makeNode({ content: initialContent, state: { expanded: false } });
     db.add(newBlock);
     const edgesNow = childEdgesOf(db, parent);
     const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
@@ -195,6 +203,13 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
       db.remove(edge);
     }
     createEdge(db, prevSibling, block);
+    // F-Indent.auto-expand-parent: ensure the new parent (prevSibling)
+    // is expanded so the indented block remains visible. Per F-V2.12
+    // new Nodes are collapsed by default — indenting under a freshly-
+    // created sibling would otherwise hide the indented block.
+    Obj.update(prevSibling, (node) => {
+      (node as any).state = { ...((node as any).state ?? {}), expanded: true };
+    });
     setFocusId(block.id);
   };
 
@@ -225,6 +240,13 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
       return;
     }
     createEdge(db, prevSibling, block);
+    // F-Indent.auto-expand-parent: ensure the new parent (prevSibling)
+    // is expanded so the linked occurrence remains visible (same
+    // rationale as handleIndent — without this, linking under a
+    // collapsed sibling hides the block).
+    Obj.update(prevSibling, (node) => {
+      (node as any).state = { ...((node as any).state ?? {}), expanded: true };
+    });
     // Note: we do NOT remove the existing parent → block edge.
     setFocusId(block.id);
   };
@@ -333,6 +355,7 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
             <Editor
               block={block}
               autoFocus={focusId === block.id}
+              autoFocusAtEnd={focusId === block.id && focusAtEnd}
               onEnter={handleEnter}
               onIndent={handleIndent}
               onDedent={handleDedent}
@@ -375,7 +398,9 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
                 parent={block}
                 grandparent={parent}
                 focusId={focusId}
+                focusAtEnd={focusAtEnd}
                 setFocusId={setFocusId}
+                setFocusIdAtEnd={setFocusIdAtEnd}
               />
             );
           })}
@@ -388,6 +413,7 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
           {!hasChildren && (
             <PendingChildRow
               parent={block}
+              setFocusId={setFocusId}
               onPromote={(initialText) => {
                 // F-DAG Phase 3a: the pending-child placeholder only
                 // shows on LEAVES (parent has no real children), so
@@ -398,12 +424,21 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
                 if (!db) {
                   return;
                 }
+                // F-V2.12: new Nodes promoted from the pending-child row are
+                // created collapsed.
                 const newChild = Bramble.makeNode({
                   content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
+                  state: { expanded: false },
                 });
                 db.add(newChild);
                 createEdge(db, block, newChild);
-                setFocusId(newChild.id);
+                // The user just typed the first character into the
+                // pending-child editable; the new bullet's caret needs
+                // to land AFTER that character so the next keystroke
+                // appends. Without `atEnd`, the caret lands at
+                // position 0 and subsequent characters get inserted
+                // before the typed one (typing "1234" produces "2341").
+                setFocusIdAtEnd(newChild.id);
               }}
               onAddExisting={(target) => {
                 // F-DAG.Phase3a.add-existing-via-picker: when the user
@@ -440,13 +475,30 @@ export const Node = ({ block, parent, grandparent, focusId, setFocusId }: NodePr
 // `TextSelection.atStart(doc)` and call `view.focus()`. PM then places the
 // DOM caret inside the first text node (or, for an empty paragraph, past
 // the zero-width-space widget injected by caret-fix-plugin).
-const moveToAdjacentVisibleBlock = (
+// F-Nav.pending-child: the pending-child placeholder editable also
+// counts as a navigation target so ArrowDown from a leaf bullet that's
+// expanded (showing its pending-child) lands the caret in the
+// pending-child instead of skipping past to the next sibling. Focusing
+// the pending-child does NOT promote it to a real Node — the promote
+// path only fires on `input` (the user typing a character).
+//
+// Multi-render note (F-DAG): a Node with multiple incoming edges
+// renders in multiple places in the outline (the multi-parent badge
+// surfaces on each occurrence). Each rendering carries the SAME
+// `[data-block-id]` attribute, so finding "the user's current
+// position" by id alone is ambiguous. We resolve the ambiguity using
+// `document.activeElement`: the focused editor's closest
+// `[data-block-id]` ancestor IS the rendering the user is in, so
+// `indexOf(activeHost)` gives an unambiguous current index. We only
+// fall back to id-match when the active element doesn't sit under
+// any `[data-block-id]` matching `currentId` (defensive).
+export const moveToAdjacentVisibleBlock = (
   currentId: string,
   direction: 'up' | 'down',
   setFocusId: (id: string | null) => void,
 ): boolean => {
-  const all = Array.from(document.querySelectorAll('[data-block-id]')) as HTMLElement[];
-  const currentIndex = all.findIndex((el) => el.dataset.blockId === currentId);
+  const all = queryFocusableElements();
+  const currentIndex = findActiveOccurrenceIndex(all, currentId);
   if (currentIndex < 0) {
     return false;
   }
@@ -454,14 +506,94 @@ const moveToAdjacentVisibleBlock = (
   if (targetIndex < 0 || targetIndex >= all.length) {
     return false;
   }
-  const targetEl = all[targetIndex];
-  const targetId = targetEl.dataset.blockId;
-  if (!targetId) {
+  focusFocusableElement(all[targetIndex], setFocusId);
+  return true;
+};
+
+// Find the index of the rendering of `currentId` that the user is
+// actually in, by checking `document.activeElement`. Falls back to
+// the first id-match if focus is somewhere unexpected.
+const findActiveOccurrenceIndex = (all: HTMLElement[], currentId: string): number => {
+  const activeEl = (typeof document !== 'undefined' ? document.activeElement : null) as HTMLElement | null;
+  const activeHost = activeEl?.closest?.('[data-block-id]') as HTMLElement | null;
+  if (activeHost && (activeHost as HTMLElement).dataset.blockId === currentId) {
+    const idx = all.indexOf(activeHost);
+    if (idx >= 0) {
+      return idx;
+    }
+  }
+  return all.findIndex((el) => el.dataset.blockId === currentId);
+};
+
+// F-Nav.pending-child: caller is the pending-child editable itself
+// (no `[data-block-id]`). Walk the same combined list of focusable
+// elements; navigate to the prev/next entry.
+export const moveFromPendingChild = (
+  pendingChildEl: HTMLElement,
+  direction: 'up' | 'down',
+  setFocusId: (id: string | null) => void,
+): boolean => {
+  const all = queryFocusableElements();
+  const currentIndex = all.indexOf(pendingChildEl);
+  if (currentIndex < 0) {
     return false;
   }
-  setFocusId(targetId);
-  targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= all.length) {
+    return false;
+  }
+  focusFocusableElement(all[targetIndex], setFocusId);
   return true;
+};
+
+// Both `[data-block-id]` (real Node editors) AND
+// `.block-pending-child-editable` (the placeholder editable in
+// F-Pending-Child) count as F-Nav targets in document order.
+const queryFocusableElements = (): HTMLElement[] => {
+  return Array.from(document.querySelectorAll('[data-block-id], .block-pending-child-editable')) as HTMLElement[];
+};
+
+// When the target is a real Node, route through `setFocusId` so the
+// Editor's `autoFocus` mechanism mounts the caret correctly AND
+// directly focus the inner ProseMirror editor. The direct focus is
+// load-bearing for two cases:
+//
+//   1) "Round-trip back to a previously-focused bullet": when
+//      `focusId` is already the target's id (because the user just
+//      arrowed away from it into a pending-child), `setFocusId` is a
+//      no-op for the autoFocus useEffect (no prop change → no useEffect
+//      re-run → no `view.focus()` call), so focus would stay stuck in
+//      the pending-child without the direct call.
+//
+//   2) "Multi-render F-DAG node": a Node with multiple incoming edges
+//      is rendered in multiple places (one per occurrence). All
+//      renderings share the same `[data-block-id]` and the same
+//      `autoFocus={focusId === block.id}` derivation, so `setFocusId`
+//      flips `autoFocus` true on ALL of them and ALL their F-Caret
+//      useEffects call `view.focus()` — the LAST-rendered occurrence
+//      wins, which is rarely the one the user navigated to. The
+//      direct `.focus()` must therefore run AFTER React commits, so
+//      we defer it via `setTimeout(0)`. That places our call last in
+//      the macrotask queue (after React's microtask-flushed effects),
+//      so the SPECIFIC target wins regardless of how many other
+//      occurrences also re-focused.
+//
+// When the target is a pending-child placeholder, focus its editable
+// directly — no Node id, no Node creation. The `scrollIntoView`
+// keeps the target in view for both kinds.
+const focusFocusableElement = (el: HTMLElement, setFocusId: (id: string | null) => void): void => {
+  const blockId = el.dataset.blockId;
+  if (blockId) {
+    setFocusId(blockId);
+    const editor = el.querySelector<HTMLElement>('.ProseMirror');
+    // Defer to after React commits + its autoFocus useEffects fire,
+    // so our explicit target wins the focus race on multi-render
+    // nodes (see case (2) above).
+    setTimeout(() => editor?.focus(), 0);
+  } else {
+    el.focus();
+  }
+  el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
 // True when a Block's content is exactly one Ref segment with no
@@ -583,7 +715,11 @@ const Bullet = ({ hasChildren, expanded, onClick, onShiftClick }: BulletProps) =
 // (with `#` prefix). Clicking the chip zooms into the tag Block;
 // shift-clicking opens it in a new pane. Field editing of the linked
 // typed instance lives in the FieldGroup (Phase 2).
-const TagChips = ({ block }: { block: any }) => {
+//
+// Exported so the page-level Article surface can render chips next
+// to the H1 (so the user can see when they're on a `#Step` / `#Run`
+// page).
+export const TagChips = ({ block }: { block: any }) => {
   const supertags = ((block?.supertags ?? []) as readonly any[]).filter((ref) => ref?.target);
   if (supertags.length === 0) {
     return null;
@@ -703,14 +839,21 @@ const TagChip = ({
 // child via a `ChildEdge` (no wrapper Block). Picker selection routes
 // through `onAddExisting`; the Node parent's handler calls
 // `createEdge(parent, target)` directly.
-const PendingChildRow = ({
+export const PendingChildRow = ({
   parent,
   onPromote,
   onAddExisting,
+  setFocusId,
 }: {
   parent: Bramble.Node;
   onPromote: (initialText: string) => void;
   onAddExisting: (target: any) => void;
+  // F-Nav.pending-child: when the user presses ArrowUp/ArrowDown from
+  // inside the pending-child editable (and no picker is intercepting
+  // the keystroke), we navigate to the prev/next focusable element in
+  // the DOM walk. Real-Node targets route through `setFocusId`;
+  // pending-child targets get focused directly via the helper.
+  setFocusId?: (id: string | null) => void;
 }) => {
   const editableRef = useRef<HTMLDivElement | null>(null);
   const [pickerState, setPickerState] = useState<
@@ -782,6 +925,25 @@ const PendingChildRow = ({
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
+        onKeyDown={(event) => {
+          // F-Nav.pending-child: ArrowUp/ArrowDown navigate to the
+          // prev/next focusable element (real Node or another pending-
+          // child). When MentionPicker is open it intercepts these
+          // keys via window-capture, so this branch only fires while
+          // the picker is closed.
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+            return;
+          }
+          if (!setFocusId || !editableRef.current) {
+            return;
+          }
+          const direction = event.key === 'ArrowUp' ? 'up' : 'down';
+          const moved = moveFromPendingChild(editableRef.current, direction, setFocusId);
+          if (moved) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
       />
       {pickerState && (
         <MentionPicker

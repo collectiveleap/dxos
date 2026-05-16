@@ -188,12 +188,21 @@ export const Edge = Schema.Struct({
   // `Node.state.expanded` off the Node. Not consumed yet.
   expanded: Schema.optional(Schema.Boolean),
 
-  // Edge kind — the agreed-upon Relationship semantics. Today the
-  // closed taxonomy contains exactly one entry: `'child'` (structural
-  // part-whole; source = whole, target = part). Future kinds expand
-  // the literal alternatives, each with declared role semantics; see
-  // CONCEPTS.md §8.1.
-  kind: Schema.Literal('child'),
+  // Edge kind — the agreed-upon Relationship semantics. The closed
+  // taxonomy grows by deliberate addition; each kind declares its
+  // source/target role semantics (see CONCEPTS.md §8.1 for planned
+  // expansions, §12.4 / §12.6 for the substrate-vocabulary set).
+  //
+  // - `'child'`: structural part-whole; source = whole, target = part.
+  //   Outline-rendered; cycle-checked at create time. The original
+  //   and only user-visible edge kind today.
+  // - `'is-run-of'`: source = Run-Node (`#Run`), target = Step-Node
+  //   (`#Step`). Cardinality: one Step has many Runs. Not outline-
+  //   rendered; appears in journal/run-list UX (F-Run, 2b).
+  // - `'parent-run'`: source = child Run-Node, target = parent
+  //   Run-Node. Mirrors `'child'` semantics but for run hierarchy.
+  //   Not outline-rendered.
+  kind: Schema.Literal('child', 'is-run-of', 'parent-run'),
 }).pipe(
   Type.relation({
     typename: 'org.dxos.type.bramble.edge',
@@ -204,6 +213,57 @@ export const Edge = Schema.Struct({
 );
 
 export interface Edge extends Schema.Schema.Type<typeof Edge> {}
+
+// ─── Step ───────────────────────────────────────────────────────────
+// F-Step (Iteration 2a; substrate-principles vocabulary, see
+// CONCEPTS.md §12.3): a Bramble.Node tagged with this supertag is a
+// Step — "a named piece of work, recursively composed." The Schema
+// starts empty: the marker alone is enough to mark a Node as a
+// substrate work-unit. Future fields (formalization,
+// description-conventions, etc.) are added as demand surfaces
+// (Principle #1).
+//
+// Registration alone is sufficient to make `#Step` appear in the
+// F-Supertag picker (per `collectTagTypes` in
+// `components/Editor/tag-types.ts`).
+export const Step = Schema.Struct({}).pipe(
+  Type.object({
+    typename: 'org.dxos.type.bramble.step',
+    version: '0.1.0',
+  }),
+  Annotation.IconAnnotation.set({
+    icon: 'ph--list-checks--regular',
+    hue: 'emerald',
+  }),
+);
+
+export interface Step extends Schema.Schema.Type<typeof Step> {}
+
+// ─── Run ────────────────────────────────────────────────────────────
+// F-Run (Iteration 2b; substrate-principles vocabulary, see
+// CONCEPTS.md §12.4): a Bramble.Node tagged with this supertag is a
+// Run — "an instance of a step being executed." Relations to the
+// Step the Run is of, and to a parent Run, are modelled as Edges of
+// kind 'is-run-of' / 'parent-run' respectively (see Edge below).
+//
+// The `completed` field (added 2c.5) is set when the user clicks
+// "Done" in the Run Lens — i.e. the journal-completion claim. Its
+// value is an ISO-8601 timestamp; absence means the Run is still
+// in progress or was Stopped without completing.
+export const Run = Schema.Struct({
+  completed: Schema.optional(Schema.String),
+}).pipe(
+  Type.object({
+    typename: 'org.dxos.type.bramble.run',
+    version: '0.1.0',
+  }),
+  Annotation.IconAnnotation.set({
+    icon: 'ph--play-circle--regular',
+    hue: 'sky',
+  }),
+);
+
+export interface Run extends Schema.Schema.Type<typeof Run> {}
 
 // ─── Graph ──────────────────────────────────────────────────────────
 // Navigator-openable container. Holds a reference to the root Node;

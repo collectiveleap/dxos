@@ -37,8 +37,32 @@ export const BramblePlugin = Plugin.define(meta).pipe(
       },
     },
   }),
+  // F-Supertag substrate-vocabulary: register friendly navigator
+  // metadata for the `#Step` / `#Run` supertag classes. No
+  // `createObject` — these types are created via the F-Supertag
+  // picker flow (typing `#step` on a bullet), not from the
+  // navigator's Add menu. The metadata just gives the sidebar a
+  // proper label + icon instead of the bare typename fallback.
+  AppPlugin.addMetadataModule({
+    metadata: {
+      id: Bramble.Step.typename,
+      metadata: {
+        icon: Annotation.IconAnnotation.get(Bramble.Step).pipe(Option.getOrThrow).icon,
+        iconHue: Annotation.IconAnnotation.get(Bramble.Step).pipe(Option.getOrThrow).hue ?? 'emerald',
+      },
+    },
+  }),
+  AppPlugin.addMetadataModule({
+    metadata: {
+      id: Bramble.Run.typename,
+      metadata: {
+        icon: Annotation.IconAnnotation.get(Bramble.Run).pipe(Option.getOrThrow).icon,
+        iconHue: Annotation.IconAnnotation.get(Bramble.Run).pipe(Option.getOrThrow).hue ?? 'sky',
+      },
+    },
+  }),
   AppPlugin.addSchemaModule({
-    schema: [Bramble.Node, Bramble.Edge, Bramble.Graph],
+    schema: [Bramble.Node, Bramble.Edge, Bramble.Graph, Bramble.Step, Bramble.Run],
   }),
   AppPlugin.addSurfaceModule({ activate: ReactSurface }),
   AppPlugin.addTranslationsModule({ translations }),

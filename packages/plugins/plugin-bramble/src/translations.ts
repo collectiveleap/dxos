@@ -23,6 +23,20 @@ export const translations = [
         'object-deleted.label': 'Bramble deleted',
       },
 
+      [Type.getTypename(Bramble.Step)]: {
+        'typename.label': 'Step',
+        'typename.label_zero': 'Steps',
+        'typename.label_one': 'Step',
+        'typename.label_other': 'Steps',
+      },
+
+      [Type.getTypename(Bramble.Run)]: {
+        'typename.label': 'Run',
+        'typename.label_zero': 'Runs',
+        'typename.label_one': 'Run',
+        'typename.label_other': 'Runs',
+      },
+
       [meta.id]: {
         'plugin.name': 'Bramble',
         // F-Open-Pane.deck-disabled-fallback

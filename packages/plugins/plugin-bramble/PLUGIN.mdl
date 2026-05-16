@@ -205,6 +205,80 @@ rule R-Greenfield-Stance:
     a first-class concern.
 ```
 
+```mdl
+rule R-Step-Is-Tagged-Node:
+  desc: |
+    A "Step" (per substrate-principles; see CONCEPTS.md §12.3) is
+    a Bramble.Node carrying the `#Step` supertag. NOT a separate
+    ECHO type; NOT a sub-struct on `Node.state` (which is
+    reserved for transient UI state like `expanded` and
+    `checked`). The Step supertag's instance Schema starts empty
+    and grows as demand pulls fields in.
+
+    Why: CONCEPTS.md §12.3. Bramble has one kind of thing
+    (the Node), and F-Supertag is the established
+    typing-as-X mechanism (see R-Edges-First-Class for the
+    structural-relations counterpart). Putting semantic typing
+    into a different slot — a `state.step` sub-struct, or a
+    parallel non-Node ECHO type — violates "one kind of thing,
+    recursively composed" (substrate-principles, Key terms).
+
+    How to apply: new substrate-vocabulary primitives that name
+    a "kind of work-unit" or "kind of executor" attach to Nodes
+    via supertag. Spec entries that propose `Node.state.<X>`
+    for typing-like data, or that propose a parallel non-Node
+    ECHO type for a Step-shaped concept, MUST cite §12.3 and
+    justify the deviation.
+```
+
+```mdl
+rule R-Run-Is-Tagged-Node-Linked-Via-Edge:
+  desc: |
+    A "Run" (per substrate-principles; see CONCEPTS.md §12.4) is
+    a Bramble.Node carrying the `#Run` supertag. Its relationship
+    to its Step is an Edge of `kind: 'is-run-of'`. Its
+    relationship to its parent Run (if any) is an Edge of
+    `kind: 'parent-run'`.
+
+    Why: CONCEPTS.md §12.4. Edges give bidirectional traversal
+    cheaply (list-runs-of-a-step vs. step-of-a-run). The Run's
+    supertag-instance Schema starts empty; what fields it gains
+    emerges from iteration on concrete scenarios.
+
+    How to apply: do not add `Run.of` or `Run.parent` as Refs on
+    the supertag instance — use the edges. Do not add an event-
+    sourcing layer outside what ECHO provides natively
+    (Principle #15). When implementing UX that creates these
+    edges, see F-Edge-Creation-Gesture (the new-edge gesture is
+    a downstream concern and is intentionally not yet
+    user-exposed in iteration 2b).
+```
+
+```mdl
+rule R-Substrate-Types-Are-Plugin-Bramble-Local:
+  desc: |
+    Supertag classes introduced under CONCEPTS.md §12 — `#Step`,
+    `#Run`, and the determinism-gradient kinds `#Person`,
+    `#LLM`, `#Classifier`, `#Rule` — live in
+    `plugin-bramble/src/types/`. They are NOT added to
+    `@dxos/echo` core. New `Edge.kind` values
+    (`'is-run-of'`, `'parent-run'`, `'available-executor'`,
+    `'executed-by'`) follow the same rule.
+
+    Why: R-No-Echo-Changes — plugin-bramble is a strict
+    consumer of the `@dxos/echo` surface. New types and edge
+    kinds for substrate vocabulary belong in plugin-bramble's
+    own type module, not in core ECHO.
+
+    How to apply: when adding a substrate-vocabulary type or
+    edge kind, create or extend a schema under
+    `plugin-bramble/src/types/`. If the `Edge.kind` enum lives
+    in a core package such that new entries require core-
+    package edits, that is a coordination point with
+    `@dxos/types` that MUST be raised before implementation —
+    not after.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -488,6 +562,69 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
   req F-4.5:
     when: user presses Escape while picker is open
     then: picker closes; the @ trigger remains as plain text
+  req F-4.6:
+    given: the @-mention picker is open
+    when: the user presses Shift+Enter, Cmd+Shift+Enter, or any other
+      Enter chord with shiftKey or metaKey held
+    then:
+      - the picker swallows the keypress as a no-op
+        (preventDefault + stopPropagation; picker stays open; the
+        editor's F-Shift-Enter / F-Cmd-Shift-Enter handlers do
+        NOT fire — no sibling is created)
+      - the rationale matches F-6.Phase1.keyboard-nav: a
+        sibling-creation gesture mid-`@`-query would silently insert
+        a new bullet while the user's attention is on the picker.
+        The user must dismiss the picker (Escape, click outside, or
+        commit a target) before sibling-creation gestures take
+        effect.
+      - Cmd+ArrowUp / Cmd+ArrowDown (F-V2.8 / F-V2.9 collapse-expand)
+        are NOT intercepted — they fall through to the editor's
+        keymap.
+    Note: this req is symmetric with F-6.Phase1.keyboard-nav's
+    modifier-swallow clause for the `#` (TagPicker) picker. Both
+    pickers share the same `bareKey` gate (no modifiers) for arrow
+    nav and commit; modifier-Enter chords are always swallowed while
+    the picker is open.
+  req F-4.7:
+    given: the @-mention picker is open with one or more matching
+      candidates (e.g. user typed `@happy` and an existing Node
+      labelled `happy` is visible)
+    when: the user presses ArrowDown, ArrowUp, or bare Enter
+    then:
+      - ArrowDown advances the active item by one, wrapping from the
+        last entry to the first.
+      - ArrowUp moves the active item back by one, wrapping from the
+        first entry to the last.
+      - the active item renders with a visible highlight (distinct
+        from the hover background) so the keyboard cursor is always
+        findable.
+      - moving the mouse over an entry sets the active item to that
+        entry — keyboard and mouse share a single highlight.
+      - if the active item is outside the picker's scroll viewport
+        after a nav move, the list scrolls so the active item is in
+        view.
+      - bare Enter commits the active item (same path as a mouse
+        click: `onSelect(item)` → caller's `handleSelectTarget` for
+        the editor body case, or `onAddExisting(target)` for the
+        pending-child case). The editor does NOT split the bullet
+        and the pending-child does NOT promote a new Node.
+      - when the picker filters down to zero matches, bare Enter is
+        a no-op (the picker stays open and the editor still does not
+        split / promote). Escape dismisses per the existing F-4.5.
+    Note: F-4.7 closes the bug reported 2026-05-14 where typing
+    `@happy` in a pending-child and pressing Enter (without clicking
+    a picker entry) eventually led to duplicate Nodes being created.
+    Root cause: the MentionPicker had no keyboard handler, so Enter
+    fell through to the plain `<div contenteditable>`'s native
+    behaviour (insert newline), making the picker filter fail; users
+    then backspaced back to a state where the pending-child's
+    `handleInput` saw text that didn't start with `@` and routed
+    through `onPromote`, creating a new Node with the typed label.
+    F-4.7 closes this gap by giving the picker keyboard ownership of
+    Enter (commit) and Arrow keys (nav), preventing the fall-through
+    that triggered the misroute. The fix matches F-6.Phase1.keyboard-
+    nav's pattern exactly — window-capture keydown listener with the
+    same modifier gate from F-4.6.
 ```
 
 ```mdl
@@ -593,6 +730,29 @@ feat F-V2: Collapse / expand parents         # Increment V2 (current)
   req F-V2.11:
     when: user hovers the chevron
     then: a tooltip displays "Collapse ⌘ ↑" or "Expand ⌘ ↓" matching the available action.
+  req F-V2.12:
+    given: a new Node is created via the outline UI (initial graph seed,
+      Enter / Shift+Enter / Cmd+Shift+Enter sibling, or pending-child
+      promote)
+    when: it is rendered
+    then:
+      - the Node renders collapsed: `state.expanded === false` is set
+        explicitly at creation time (NOT left undefined), so subsequent
+        renders treat the Node as collapsed without relying on the
+        "undefined = expanded" default that F-V2.4 establishes for
+        legacy Nodes.
+      - the pending-child placeholder row (F-Pending-Child.expand) is
+        NOT rendered until the user explicitly expands the Node.
+      - if the Node carries supertags (F-6), the field group is NOT
+        rendered until the user explicitly expands it (the chip itself
+        still renders inline per F-6.Phase1.chip).
+      - the user expands by clicking the chevron or pressing
+        Mod+ArrowDown (F-V2.9), at which point pending-child /
+        field group surface normally.
+    Note: this applies to user-facing creation paths only — system
+    Nodes (library, schema, tag wrappers, query nodes) retain their
+    existing default-expanded behaviour so their pre-materialised
+    children remain visible on first navigation.
 ```
 
 ```mdl
@@ -668,6 +828,43 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
     width and the same line-height as the editor's text, so
     `items-baseline` on the row's flex container aligns the caret
     to the bullet baseline.
+  req F-Pending-Child.page-root:
+    given: a Node N is the pane's page node (rooted via F-Open-Pane's
+      shift-click, F-Zoom's regular click, or via the initial graph
+      subject)
+    when: the pane renders
+    then:
+      - a pending-child row is ALWAYS mounted at the END of the page
+        body — i.e. AFTER any real children when N has children
+        (so the user can always extend the list past the last bullet
+        without first pressing Enter on it), or as the only thing
+        in the body when N has no children (so a freshly-zoomed
+        leaf has a place to start typing). Same indented column
+        real children occupy. Sits below the H1 PageHeader (and
+        below any page-level FieldGroups for tagged page nodes).
+      - this page-root pending-child row is INDEPENDENT of
+        `N.state.expanded` — it appears even when N was created
+        collapsed by F-V2.12.
+      - typing into the page-root pending-child promotes a new
+        Node and appends it as N's last child (via `createEdge`),
+        following the same semantics as the row-level
+        F-Pending-Child.type — the new Node is created collapsed
+        per F-V2.12.
+      - typing `@` opens the MentionPicker so an existing Node can be
+        added as a structural child via a fresh ChildEdge, identical
+        to the row-level pending-child's F-DAG.Phase3a.add-existing-
+        via-picker behaviour.
+      - the page-root pending-child does NOT double-render with the
+        row-level pending-child of F-Pending-Child.expand: the row-
+        level one only renders when N appears AS A ROW (in its
+        parent's body), never when N is the page itself.
+    Note: this closes the empty-page UX hole reported 2026-05-14
+    (zooming into a leaf showed a completely blank pane with no
+    affordance for adding content) AND the always-end-of-page
+    affordance reported 2026-05-14 (a page with bullets had no
+    visible "add another" pending row). Distinct from
+    F-Pending-Child.expand, which is about ROW-level rendering
+    gated by state.expanded.
 ```
 
 ```mdl
@@ -863,8 +1060,76 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
   req F-Page-Header.4:
     given: the page node X has empty content
     when: the article is rendered
-    then: the H1 renders an empty editable area (no "(empty)" placeholder text);
-      typing into it populates `X.content`
+    then:
+      - the H1 area renders the placeholder text "Untitled" in a
+        muted (low-contrast) color, overlaid in the same baseline
+        position as the editor's first character would sit.
+      - the placeholder is purely visual: it is NOT stored in
+        `X.content`, NOT selectable, NOT accessible to focus
+        (pointer-events: none and aria-hidden) — keyboard/mouse
+        events pass through to the editor underneath.
+      - the placeholder remains visible WHEN THE H1 HAS FOCUS
+        (per user clarification 2026-05-14: caret and overlay
+        co-exist; the blinking caret IS the focus indicator,
+        there is no other visual focus state such as an outline
+        or ring around the H1). The caret paints at position 0
+        of the empty paragraph; the placeholder "Untitled"
+        appears at the same baseline, and the user sees the
+        blinking caret either against / through the placeholder
+        glyphs.
+      - the moment the user types any character, the placeholder
+        disappears (the H1 re-renders on the content mutation).
+      - clearing the H1 back to empty restores the "Untitled"
+        placeholder.
+    Note: revised 2026-05-14. The prior version of this req
+    explicitly forbade any placeholder text ("no '(empty)'
+    placeholder text"). User feedback: an empty H1 with no
+    visible marker reads as "the pane failed to load" rather
+    than "this page has no title yet." The new placeholder is
+    purely an affordance — typing replaces it — so the underlying
+    "content stays in `X.content`" invariant from the original
+    req is preserved.
+  req F-Page-Header.7:
+    given: any pane whose page node N has empty content
+      (`hasContent(N) === false`) — fresh Bramble.Graph from the
+      navigator, freshly-zoomed leaf in the current pane,
+      Bramble.Node opened in a new pane via F-Open-Pane shift-click,
+      or any other path that lands a content-empty Node as the
+      page node
+    when: the pane renders (initial mount OR a subsequent pageNode
+      change via F-Zoom / F-DAG.Phase3e.predecessor-nav-switch)
+    then:
+      - the H1 editor receives focus automatically; the native
+        browser caret blinks at position 0 of the empty paragraph
+      - per F-Page-Header.4, the "Untitled" placeholder is ALSO
+        visible at the same position — the caret and the placeholder
+        co-exist (the placeholder is `pointer-events: none` so the
+        caret remains the active editing target). The blinking
+        caret IS the focus indicator; no additional focus ring is
+        drawn around the H1
+      - typing immediately appears in the H1 (the caret is in
+        position 0 of the paragraph; F-Caret.1 ensures the empty
+        paragraph has min-width so the caret is paintable)
+    given: any pane whose page node N has non-empty content
+    when: the pane renders
+    then:
+      - the H1 editor does NOT receive autofocus — the user is
+        likely arriving to read existing content, and a stolen
+        focus would be disruptive. The user can click the H1 to
+        edit the title at any time
+    Note: revised 2026-05-14. The prior version restricted
+    autofocus to the INITIAL mount of the Article only — this
+    missed the "zoom into an empty sub-node" case (regular click
+    on an empty bullet kept Article mounted but changed pageNode
+    state, so autofocus did not re-fire and the empty pane had
+    no visible cursor). The new rule keys off `hasContent(pageNode)`
+    so every empty page autofocuses; every content-full page
+    doesn't.
+    Implementation: `Article` derives
+    `autoFocusHeader = pageNode ? !hasContent(pageNode) : false`
+    and forwards it to `PageHeader`. The Editor's mount effect
+    depends on `block`, so re-evaluation fires on every pageNode
+    change. No `useRef` initial-mount gate is used.
   req F-Page-Header.5:
     given: an outline whose root Node has empty content but `outline.name` is set
     when: the outline mounts for the first time after this feature ships
@@ -876,6 +1141,91 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     when: the change commits to ECHO
     then: `outline.name` is updated to match the rendered text of `root.content`
       within one tick, so the navigator label stays in step
+  req F-Page-Header.8:
+    given: the cursor is in the H1 editor of page node P
+    when: the user presses Enter
+    then:
+      - the H1 splits at the caret: P.content retains the BEFORE-cursor
+        segments; a new Node Z is created whose `content` is the
+        AFTER-cursor segments
+      - Z is inserted as P's FIRST structural child (a new ChildEdge
+        with `order` less than every existing child edge, i.e.
+        `orderBetween(undefined, firstExistingEdge)`)
+      - focus moves to Z; the caret lands at position 0 of Z (per
+        F-Caret.1)
+      - the F-Pending-Child.page-root row (which sits AFTER children)
+        is not disturbed
+    Note: this req revises the prior implicit F-Page-Header behaviour
+    (the headlineMode editor swallowed Enter without splitting,
+    per the now-obsolete F-Page-Header desc claim that "the header
+    has no parent in the outline tree, so sibling-creation via
+    Enter doesn't apply"). User clarification 2026-05-14: the H1
+    behaves identically to a node-in-page; Enter on the H1
+    creates a new child at position 0, mirroring how Enter on a
+    body bullet creates a new sibling immediately below.
+  req F-Page-Header.9:
+    given: the cursor is in the H1 editor of page node P
+    when: the user presses Shift+Enter
+    then:
+      - a new empty Node Z is created with empty content (no split
+        of P.content; P retains all its current text/refs)
+      - Z is inserted as P's FIRST structural child (same insertion
+        rule as F-Page-Header.8)
+      - focus moves to Z; the caret lands inside the empty Z
+      - the F-Pending-Child.page-root row is undisturbed
+    Note: mirrors F-Shift-Enter.1 (empty-sibling-after) translated
+    to the page-header context: the H1's "next sibling in the
+    visible flow" IS its first child, since the page renders the
+    H1 above its child column.
+  req F-Page-Header.10:
+    given: the cursor is in the H1 editor of page node P
+    when: the user presses Cmd+Shift+Enter (Mod+Shift+Enter)
+    then:
+      - the keystroke is consumed as a no-op: no Node is created;
+        P.content is unchanged; focus and caret stay in the H1
+    Note: F-Cmd-Shift-Enter.1 in body bullets means "create empty
+    sibling ABOVE me." For the H1, "above" doesn't exist within the
+    page-view scope (the predecessor-nav control covers cross-page
+    upward movement; predecessors are NOT siblings). Rather than
+    invent a special "create sibling of the page node" semantic,
+    the H1 simply consumes Cmd+Shift+Enter without effect.
+  req F-Page-Header.11:
+    given: the cursor is in the H1 editor of page node P
+    when: the user presses ArrowDown
+    then:
+      - the caret moves to the FIRST visible body bullet of the page
+        (the next `[data-block-id]` element in DOM order — same
+        F-Nav walk that body bullets use)
+      - if the page has no body bullets and only the
+        F-Pending-Child.page-root row, ArrowDown is a no-op (the
+        pending-child row is not an editor target for arrow nav —
+        it's promoted only by typing or click)
+      - if the body's first bullet has its own children that are
+        collapsed (state.expanded === false), the caret still lands
+        on the first bullet (not its hidden descendants); collapsed
+        children don't appear in the DOM walk per F-Nav
+    given: the cursor is in the H1 editor of page node P
+    when: the user presses ArrowUp
+    then:
+      - ArrowUp from the H1 is a no-op (nothing above the H1 within
+        the page-view; the predecessor-nav control covers upward
+        movement to a different page node)
+  req F-Page-Header.12:
+    given: the cursor is in the TOPMOST visible body bullet of the
+      current page — i.e. the first row beneath the H1
+    when: the user presses ArrowUp
+    then:
+      - the caret moves UP into the H1's editor (the previous
+        `[data-block-id]` element in DOM order is the H1, since
+        Article renders PageHeader before the Graph body)
+      - the user is now editing the page node's content from the H1
+    Note: this completes the symmetry of F-Page-Header.11 — Down
+    from H1 reaches the first body bullet; Up from the first body
+    bullet reaches the H1. Body-bullet ArrowUp uses the existing
+    F-Nav `moveToAdjacentVisibleBlock` walk; no special-casing
+    needed at the bullet end — it just works as soon as the H1's
+    `[data-block-id]` is part of the DOM walk and the H1 honours
+    `focusId === pageNode.id` as an autoFocus trigger.
 ```
 
 ```mdl
@@ -1016,6 +1366,50 @@ feat F-Nav: Arrow-key navigation between bullets   # Increment Nav (current)
     given: cursor is in Node X, and there is no visible Node below X
     when: user presses ArrowDown
     then: caret does not move; the page does not scroll.
+  req F-Nav.pending-child:
+    given: cursor is in Node X, AND X is an expanded leaf (no real
+      children) so F-Pending-Child.expand has rendered a pending-
+      child placeholder editable directly below X's row in the
+      indented child column
+    when: user presses ArrowDown
+    then:
+      - the caret moves into the pending-child's editable area
+        (the `.block-pending-child-editable` `<div contenteditable>`
+        belonging to X). The DOM-walking F-Nav helper now treats
+        `.block-pending-child-editable` as a focusable target
+        alongside `[data-block-id]` elements, so the pending-child
+        is reachable in document order from X.
+      - the pending-child is focused via `editable.focus()` — NOT
+        through `setFocusId`. No `Bramble.makeNode` call fires. No
+        `db.add`. The pending-child remains a visual placeholder;
+        navigating into it does NOT cause a real Node to exist.
+      - the user can subsequently type a character to promote the
+        pending-child to a real Node per F-Pending-Child.type, or
+        press ArrowUp / ArrowDown to navigate further without
+        leaving any persisted state behind.
+    given: cursor is inside a pending-child editable
+    when: the user presses ArrowUp or ArrowDown
+    then:
+      - the focus moves to the prev/next focusable element in DOM
+        order (a real Node's editor or another pending-child),
+        identical to F-Nav.up / F-Nav.down's walk but starting from
+        the pending-child element instead of a `[data-block-id]`.
+      - when MentionPicker is open inside the pending-child (the
+        user typed `@`), ArrowUp/ArrowDown are intercepted by the
+        picker's window-capture handler (F-4.7) and used for picker
+        nav. The pending-child's own ArrowUp/Down handler only
+        fires when no picker is intercepting.
+    Note: F-Nav.pending-child closes a UX gap reported 2026-05-14:
+    pressing ArrowDown from a leaf with a visible pending-child
+    skipped past the placeholder to the next sibling, leaving the
+    pending-child unreachable via keyboard. Implementation: the
+    F-Nav helper queries both `[data-block-id]` AND
+    `.block-pending-child-editable`, walks the merged list in
+    document order, and routes focus through `setFocusId` (real
+    Nodes) or `editable.focus()` (pending-child) accordingly.
+    The pending-child receives focus but is NOT promoted — the
+    promote path is gated on the editable's `input` event, which
+    only fires when the user types a character.
 ```
 
 ```mdl
@@ -1073,6 +1467,69 @@ feat F-Caret: cursor visible after focus      # Increment Caret (current)
         DIV or paragraph element)
       - the empty-paragraph rectangle is exactly one line tall (no
         Safari double-cursor)
+  req F-Caret.3:
+    given: a pending-child row is focused; the user types a single
+      character (the first character to enter that pending-child's
+      editable area)
+    when: the pending-child's `handleInput` fires `onPromote(typedText)`
+      and a new `Bramble.Node` is created whose `content` is the typed
+      character, then the new bullet's `Editor` receives autofocus via
+      the `focusId === block.id` mechanism
+    then:
+      - the caret lands at the END of the new bullet's content, AFTER
+        the typed character (not at position 0, which is BEFORE the
+        typed character).
+      - subsequent keystrokes append normally: typing `1234` into a
+        pending-child produces a bullet whose content is exactly
+        `"1234"` — the `1` from the pending-child promote, followed by
+        `2`, `3`, `4` typed into the new bullet's editor.
+    Note: implemented as the `autoFocusAtEnd` boolean prop on
+    `Editor`, paired with a `focusAtEnd` boolean in `Article`'s focus
+    state. The pending-child promote path (both the row-level one in
+    `Node.tsx` and the page-root one in `Graph.tsx`) calls
+    `setFocusIdAtEnd(newChild.id)` instead of `setFocusId(newChild.id)`
+    so the new bullet's F-Caret useEffect uses
+    `TextSelection.atEnd(doc)` instead of `TextSelection.atStart(doc)`.
+    All other focus paths (Enter-split, F-Nav arrow nav, F-Page-Header.7
+    empty-page autofocus) continue to use `atStart` because their
+    semantics call for the caret at the new bullet's beginning. The
+    pre-fix bug surfaced as the user typing `1234` and seeing `2341`
+    appear instead — the `1` got promoted into a new bullet, the
+    cursor landed at position 0 of `"1"`, and the `2`, `3`, `4` then
+    inserted at position 0 each time, producing `2341`.
+  req F-Caret.2:
+    given: any Bramble ProseMirror editor — the H1 PageHeader's editor
+      (per F-Page-Header), a body bullet's editor (per F-V1), the
+      F-Pending-Child row's editable, or the headlineMode editor used
+      for tagged-node titles
+    when: the editor is focused (by any means: real mouse click,
+      programmatic `view.focus()`, F-Nav arrow navigation,
+      sibling-creation autofocus per F-Caret.1, F-Page-Header.7
+      empty-page autofocus)
+    then:
+      - the blinking native browser caret is the ONLY visual focus
+        indicator. There is NO outline, ring, border, halo, or
+        background-color change drawn around the focused editor.
+      - the rule applies regardless of how focus arrived: Chrome's
+        default `:focus-visible` outline (a 1px outline in the OS
+        accent color) is suppressed by the
+        `.ProseMirror:focus, .ProseMirror:focus-visible { outline:
+        none }` rule in `block-editor.css`.
+      - the F-Page-Header.4 "Untitled" placeholder, when shown,
+        remains visible alongside the blinking caret (the placeholder
+        is `pointer-events: none` + `aria-hidden`; the caret paints at
+        the editor's first-character position regardless of the
+        placeholder overlay).
+    Note: captured 2026-05-14 from user clarification. Prior to the
+    `block-editor.css` rule, Chrome painted a 1-pixel orange/amber
+    outline (`outline: rgb(229, 151, 0) auto 1px`) around every
+    focused ProseMirror editor — the OS accent color happens to be
+    amber on the developer's machine. Per the clarified visual:
+    "the blinking cursor is the visual indicator for focus … there is
+    no other visual indicator of focus (e.g. there is no orange
+    bounding box)." The CSS suppression is plugin-scoped (lives in
+    `block-editor.css`) so other Composer surfaces keep their
+    focus rings; only Bramble's outliner editors are bare.
 ```
 
 ```mdl
@@ -1309,6 +1766,48 @@ feat F-6: Tags as ECHO-typed instances       # Increment 6 (in progress, Phase 2
         position of the same `#`) do NOT re-open the picker — the
         picker stays dismissed for that specific `#` until the cursor
         moves before it or the `#` itself is deleted.
+  req F-6.Phase1.keyboard-nav:
+    given: the tag picker is open with one or more entries listed
+    when: I press ArrowDown, ArrowUp, or Enter
+    then:
+      - ArrowDown advances the active item by one, wrapping from the
+        last entry to the first.
+      - ArrowUp moves the active item back by one, wrapping from the
+        first entry to the last.
+      - the active item renders with a visible highlight (distinct
+        from the hover background) so the keyboard cursor is
+        always findable.
+      - moving the mouse over an entry sets the active item to that
+        entry — keyboard and mouse share a single highlight.
+      - if the active item is outside the picker's scroll viewport
+        after a nav move, the list scrolls so the active item is
+        in view.
+      - Enter commits the active item (same path as a mouse click)
+        and closes the picker; the editor does NOT split the bullet
+        (Enter is consumed while the picker is open). Same applies
+        when the active item is the first/only entry just after
+        opening — the user can type `#ta<Enter>` to pick `#Task`
+        without reaching for the mouse.
+      - typing more characters after `#` re-filters the list; the
+        active item resets to the first entry (so the highlight
+        never points outside the now-smaller list).
+      - when the picker filters down to zero entries, Enter is a
+        no-op (the picker stays open showing "No matching tag
+        types"); Escape still closes per `F-6.Phase1.escape`.
+      - Shift+Enter and Cmd+Shift+Enter (and any meta-Enter chord)
+        are N/A while the picker is open — the picker swallows
+        them as no-ops (preventDefault + stopPropagation, picker
+        stays open, no sibling created). Rationale (user
+        clarification 2026-05-14): a sibling-creation gesture
+        mid-`#`-query would silently insert a new bullet in the
+        outline while the user's attention is on the picker,
+        which is disorienting. The user must dismiss the picker
+        (Escape, click outside, or commit a tag) before
+        sibling-creation gestures take effect.
+      - Cmd+ArrowUp / Cmd+ArrowDown (F-V2.8 / F-V2.9
+        collapse/expand) are NOT intercepted — bare-arrow nav is
+        for the picker's active item only, modified arrows fall
+        through to the editor's keymap.
   req F-6.Phase1.apply:
     given: the tag picker is open with a selectable type
     when: user clicks an entry
@@ -2071,6 +2570,60 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - the control replaces the single-parent `← {parent label}`
         breadcrumb from F-Page-Header.2 / .3 (which assumed at
         most one parent in the legacy tree model).
+  req F-DAG.Phase3e.predecessor-nav-inline:
+    given: the page node has between 1 and 3 structural predecessors
+      (inclusive) — i.e. `parentEdgesOf(pageNode).length <= 3`
+    when: the predecessor-navigation control region renders
+    then:
+      - each predecessor renders as a SEPARATE inline control,
+        side-by-side, in the same sort order as
+        F-DAG.Phase3e.predecessor-nav-list
+      - each inline control has the visual form: `↑` (an up-arrow
+        glyph), then a space, then the predecessor's display label
+        resolved via the same `getDisplayLabel` pipeline the H1
+        uses (text + refs; `(unnamed)` for empty content)
+      - clicking an inline control (regular click) commits as
+        F-DAG.Phase3e.predecessor-nav-switch: the current pane's
+        page node switches to that predecessor
+      - shift-clicking an inline control commits as
+        F-DAG.Phase3e.predecessor-nav-open-pane: a new pane opens
+        to the right rooted at that predecessor
+      - the inline controls share the click-vs-shift-click
+        distinction and the `(unnamed)` fallback with the dropdown
+        variant — they are a rendering variant only, not a
+        semantic divergence
+    Note: user clarification 2026-05-14. The previous behaviour
+    rendered a single "↑ N ▾" trigger that opened a dropdown for
+    every N >= 1. For small predecessor sets (the common case in
+    practice), the dropdown is over-machinery: an extra click and
+    extra screen state to surface what could be presented inline.
+    The ≤3 threshold is the bound at which inline controls
+    visually crowd the page-top region — pick a deterministic cap
+    so users always know whether to expect inline labels vs a
+    dropdown.
+  req F-DAG.Phase3e.predecessor-nav-dropdown:
+    given: the page node has 4 or more structural predecessors
+      (`parentEdgesOf(pageNode).length > 3`)
+    when: the predecessor-navigation control region renders
+    then:
+      - a SINGLE dropdown trigger renders. Visual form: `↑` (up-arrow
+        glyph), a `▾` chevron indicating "click to open list".
+        The trigger does NOT show the predecessor count number,
+        and does NOT show any predecessor labels.
+      - clicking the trigger opens a popup listing every
+        predecessor in sort order (per
+        F-DAG.Phase3e.predecessor-nav-list)
+      - clicking a menu item (regular click) commits as
+        F-DAG.Phase3e.predecessor-nav-switch
+      - shift-clicking a menu item commits as
+        F-DAG.Phase3e.predecessor-nav-open-pane
+      - clicking outside the popup dismisses it (same mousedown-
+        deferred click-outside pattern the inline picker uses)
+    Note: user clarification 2026-05-14 revised the prior single-
+    universal "↑ N ▾" trigger. Above 3 predecessors, inline
+    rendering becomes visually unwieldy — collapse to a dropdown
+    so the page-top region stays compact. Below or equal to 3,
+    F-DAG.Phase3e.predecessor-nav-inline applies.
   req F-DAG.Phase3e.predecessor-nav-switch:
     given: the predecessor-navigation control is open and listing
       the page node's predecessors
@@ -2150,6 +2703,38 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
       - if the expected parent edge in grandparent can't be
         found, dedent is a no-op (avoids orphan edges).
       - no `Node.children` array is written from either path.
+  req F-Indent.auto-expand-parent:
+    given: a bullet Y is being indented (Tab) under its previous
+      sibling X, OR linked (Cmd+Tab, F-DAG.Phase3e.link-via-cmd-tab)
+      under X, AND X is currently collapsed (`X.state.expanded` is
+      false or undefined)
+    when: the indent / link handler fires
+    then:
+      - the handler ALSO mutates X to set `X.state.expanded = true`
+        in the same write batch as the edge creation. Without this,
+        Y becomes invisible because X's collapsed-children column
+        doesn't render the new edge.
+      - Y remains focused (via `setFocusId(block.id)`) and its caret
+        stays where it was — the auto-expand is silent from the
+        user's perspective; they just see X open up.
+    given: the user is editing X (which has no children yet, so X is
+      a leaf with `state.expanded = false` per F-V2.12), creates a
+      sibling Y below via Enter / Shift+Enter, places the caret in Y,
+      then presses Tab to indent Y under X
+    when: the handler runs
+    then:
+      - Y becomes a child of X (per
+        F-DAG.Phase3c.indent-dedent-as-edge-move)
+      - X expands; Y is rendered as the first child of X
+      - the user's caret stays in Y; they can continue typing
+        immediately
+    Note: F-V2.12 makes every new Node collapsed by default, which
+    is the right behaviour for the OTHER places new bullets appear
+    (no auto-expansion of long lists), but it would break the
+    indent flow without this auto-expand rule. Documented as a
+    distinct req so future feature work (e.g. cmd+tab-link, drag-
+    and-drop reparenting, paste-as-child) inherits the same
+    "indent into a collapsed parent must expand it" guarantee.
   req F-DAG.Phase3b.sibling-insert-via-edge:
     given: the user presses Enter, Shift+Enter, or Cmd+Shift+Enter
       on a bullet whose parent may still hold pre-existing
@@ -2282,6 +2867,382 @@ feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Pa
 feat F-7: Tana Paste import     # Increment 7
   req F-7.1: Pasting a payload starting with %%tana%% into a Graph imports the structure as Nodes.
   req F-7.2: Supertags, fields, references, and dates are preserved using a stable-ID translation table.
+```
+
+```mdl
+feat F-Step: #Step supertag — type marker for substrate work units    # Iteration 2a
+  desc: |
+    Registers `#Step` as a supertag class in plugin-bramble's
+    type module. A Bramble.Node carrying this supertag is a
+    Step per CONCEPTS.md §12.3: "a named piece of work,
+    recursively composed" (substrate-principles, Key terms).
+
+    The supertag's instance Schema starts empty — the marker
+    alone is enough to start. Fields (formalization,
+    description-conventions, etc.) get added as demand pulls
+    them in (per Principle #1; see CONCEPTS.md §12.3 schema
+    sketch for the field candidates).
+
+    Out of scope for F-Step: the F-Run / F-Edge-Creation-Gesture
+    sequence (2b/2c) that lets a tagged Step accumulate Runs;
+    executor-availability edges (2e); any journal UX over Steps
+    (2d).
+  req F-Step.1: A `Step` ECHO Schema is exported as `Bramble.Step`
+    from `plugin-bramble/src/types/Bramble.ts` with typename
+    `org.dxos.type.bramble.step`, version `0.1.0`, and an empty
+    Schema body (no fields).
+  req F-Step.2: `BramblePlugin` registers `Bramble.Step` so the
+    existing F-Supertag machinery picks it up:
+      - `#` picker offers "Step" as a tag option
+        (per T-Supertag-picker-lists-types)
+      - selecting it creates a typed Step instance
+        (per T-Supertag-picker-creates-fresh-instance)
+      - chip renders per F-Supertag chip behaviors
+```
+
+```mdl
+feat F-Run: #Run supertag + edge kinds for run-relations    # Iteration 2b
+  desc: |
+    Registers `#Run` as a supertag class and extends the
+    `Edge.kind` literal union with two new values:
+    `'is-run-of'` (Run → Step) and `'parent-run'`
+    (child Run → parent Run). A Bramble.Node carrying `#Run`
+    is a Run per CONCEPTS.md §12.4 — "an instance of a step
+    being executed."
+
+    The supertag's instance Schema starts empty, mirroring
+    F-Step (per CONCEPTS.md §12.4: what fields a Run carries
+    on day one is not yet decided and emerges from iteration).
+
+    Out of scope for F-Run: any UX gesture for creating
+    `'is-run-of'` / `'parent-run'` edges between two Nodes
+    (deferred to F-Edge-Creation-Gesture, iteration 2c); any
+    journal UX over Runs (2d). Edges of the new kinds can be
+    created programmatically via `createEdge(db, source,
+    target, { kind: 'is-run-of' })` once F-Run lands; this
+    will be the substrate for the 2c UX work.
+  req F-Run.1: A `Run` ECHO Schema is exported as `Bramble.Run`
+    from `plugin-bramble/src/types/Bramble.ts` with typename
+    `org.dxos.type.bramble.run`, version `0.1.0`, and an empty
+    Schema body (no fields).
+  req F-Run.2: `BramblePlugin` registers `Bramble.Run` so the
+    existing F-Supertag machinery picks it up, identically to
+    F-Step.2.
+  req F-Run.3: `Bramble.Edge.kind`'s literal union is extended
+    from `'child'` to `'child' | 'is-run-of' | 'parent-run'`.
+    Existing `childEdgesOf` / `useStructuralChildren` continue
+    to filter to `'child'`-kind edges so the outline read path
+    is unaffected. `createEdge`'s `options.kind` type is
+    widened to accept the new values; cycle detection remains
+    `'child'`-only.
+```
+
+```mdl
+feat F-New-Run-On-Step: "+ New Run" action on Step-tagged pages, recursive spawn    # Iteration 2c.1 (revised)
+  desc: |
+    First user gesture that creates a non-`child` edge. When the
+    page Node carries the `#Step` supertag, a "+ New Run" button
+    renders between PageHeader and the Graph body. Clicking it
+    creates a *tree* of Run-Nodes: one parent Run for the Step,
+    plus one child Run for every `#Step`-tagged structural
+    descendant (recursive, full depth). The pane then zooms into
+    the parent Run, which renders as the runbook-execution view
+    (see F-Run-Execution-View).
+
+    Per substrate-principles "Run, key term": "A run of a parent
+    step may spawn child runs of its sub-steps; the parent-child
+    relationship is recorded in the log." Per S2: "the substrate
+    shows him the parent description, and within it, the
+    `extract_amount` sub-step is visible. He fills in the amount
+    as part of doing the parent." The recursive spawn is what
+    makes that view possible.
+
+    Stance (substrate-principles): the "Steve runs the step"
+    flow (S1, S2). Pacing test (Principle #18): a one-click
+    "do the work" affordance.
+
+    Out of scope: a "Choose Step" affordance on `#Run` pages
+    (F-Set-Step-On-Run, iteration 2c.4); any list of past Runs
+    on a Step page (F-Step-Runs-List, iteration 2d); Step
+    versioning so Runs are bound to a snapshot of the Step they
+    executed against (F-Step-Versioning, iteration 2c.3 —
+    until then, the Run reads the live Step's narrative; this
+    is the known Q2 gap).
+  req F-New-Run-On-Step.1: When the page Node carries a supertag
+    instance of typename `org.dxos.type.bramble.step`, the
+    Article surface renders a "+ New Run" button between
+    PageHeader and the Graph body. On Nodes without `#Step` the
+    button is absent.
+  req F-New-Run-On-Step.2:
+    when: user clicks "+ New Run" on a Step-tagged page
+    then:
+      - a parent Bramble.Node is created and tagged `#Run` per the
+        F-Supertag application path
+      - an Edge with kind `'is-run-of'` is created from the new
+        parent Run-Node (source) to the Step-Node (target)
+      - for every `#Step`-tagged structural child of the Step,
+        a child Run-Node is created recursively (the same shape:
+        new Node + `#Run` supertag + `'is-run-of'` edge to the
+        sub-Step), linked to its parent Run-Node via an Edge of
+        kind `'parent-run'`
+      - recursion continues to full depth — a `#Step`'s sub-sub-
+        steps also get Run-Nodes, etc.
+      - the current pane zooms into the parent Run-Node
+      - the parent Run-Node renders as the F-Run-Execution-View
+        (structured runbook walkthrough), not as a blank outline
+```
+
+```mdl
+feat F-Run-Execution-View: structured runbook walkthrough for a Run-Node    # Iteration 2c.2
+  desc: |
+    Renders a Run-Node as a guided walkthrough of its Step's
+    narrative. Replaces the Graph (outline) body on pages whose
+    page Node carries `#Run`.
+
+    For each Run-Node, the view shows:
+      - The corresponding Step's content as a read-only "runbook
+        prompt" (sourced by following the `'is-run-of'` edge from
+        Run → Step and reading `Step.content`).
+      - An editable bound to the Run-Node's body content — this is
+        where the user types their fill-in for this sub-Step.
+      - The Run's child Run-Nodes (located by following incoming
+        `'parent-run'` edges where this Run is the target), rendered
+        recursively, indented one level per depth.
+
+    Per substrate-principles S1: "the substrate shows him the
+    description and a text box." S2: "the substrate shows him the
+    parent description, and within it, the `extract_amount` sub-
+    step is visible. He fills in the amount as part of doing the
+    parent." The recursive child rendering matches Q1's "recursive
+    as far as needed" answer.
+
+    Versioning gap (Q2, deferred to F-Step-Versioning):
+    F-Run-Execution-View currently reads the LIVE Step's narrative
+    on every render. If the Step is edited after a Run is created,
+    the Run's view of the narrative changes too. This is wrong
+    per Q2 (a Run should be bound to the version it was executed
+    against). F-Step-Versioning will introduce `#StepVersion`
+    Nodes and retarget `'is-run-of'` edges accordingly.
+  req F-Run-Execution-View.1:
+    when: the Article renders a page Node carrying `#Run`
+    then:
+      - the Graph (outline) body is NOT rendered for this page
+      - in its place, F-Run-Execution-View renders rooted at the
+        page Run-Node
+  req F-Run-Execution-View.2: For each Run-Node rendered, the
+    view shows: (a) the Step's content as read-only narrative
+    text (the "runbook prompt"), (b) an editable bound to the
+    Run-Node's body content (the user's fill-in), (c) zero or
+    more child Run-Nodes, rendered recursively with one level of
+    indentation per depth.
+  req F-Run-Execution-View.3: Child Run-Nodes are located by
+    querying incoming Edges of `kind: 'parent-run'` where the
+    current Run-Node is the target. Order among siblings follows
+    the Edge `order` field. (No `useChildRunsOf` migration is
+    needed because `'parent-run'` edges were introduced in 2b.)
+```
+
+```mdl
+feat F-Run-Nav: page-top navigation for Run-Nodes via outgoing edges    # Iteration 2c.2 follow-up
+  desc: |
+    Closes a gap exposed during F-Run-Execution-View verification:
+    a Run page has no UI back-navigation because every navigation
+    primitive in Bramble today (`PredecessorNav`, chip-click,
+    bullet-zoom) walks `'child'` edges, and Runs have no `'child'`
+    predecessors. Their navigable edges are OUTGOING — to the
+    Step (`'is-run-of'`) and to the parent Run (`'parent-run'`).
+
+    `F-Run-Nav` renders a small inline row above the Run
+    Execution View showing:
+      - "← Step: {label}" — always (every Run has exactly one
+        `'is-run-of'` edge)
+      - "↑ Parent run: {label}" — only when the Run is nested
+        (top-level Runs have no `'parent-run'` edge)
+
+    Click switches the pane to the target (zoom). Shift-click
+    opens it in a new pane. Mirrors PredecessorNav semantics for
+    consistency.
+
+    Why a new component rather than extending PredecessorNav?
+    PredecessorNav reads INCOMING `'child'` edges; Run-Nav reads
+    OUTGOING non-`'child'` edges. Different reverse direction and
+    different edge-kind filter. A dedicated component is clearer
+    than overloading PredecessorNav, especially given future
+    substrate edges (`'available-executor'`, `'executed-by'`,
+    `'in-context'`) will likely each want their own surface.
+  req F-Run-Nav.1: When the page Node carries `#Run`, an inline
+    nav row renders between the supertag chip row and the
+    F-Run-Execution-View, surfacing the Run's outgoing
+    `'is-run-of'` and `'parent-run'` edges as click-to-navigate
+    controls.
+  req F-Run-Nav.2: The Step link ("← Step: {label}") is rendered
+    iff the Run has an `'is-run-of'` edge whose target exists.
+    The parent-run link ("↑ Parent run: {label}") is rendered
+    iff the Run has an outgoing `'parent-run'` edge whose target
+    exists.
+  req F-Run-Nav.3: Click on a link calls the same
+    `handleSelectPredecessor` Article uses for PredecessorNav
+    (zoom in current pane). Shift-click calls the same
+    `handleOpenPane` (open target in new pane). Mouse-down
+    handling rather than click to avoid editor-blur races.
+```
+
+```mdl
+feat F-Step-Runs-List: list of Runs on a `#Step` page    # Iteration 2d
+  desc: |
+    Surfaces every Run-Node that has an `'is-run-of'` edge
+    pointing at the current Step. Renders between the
+    "+ New Run" button and the outline body. Click a row to
+    zoom into that Run's F-Run-Execution-View; shift-click to
+    open it in a new pane.
+
+    Per substrate-principles Principle #17 ("the substrate must
+    be useful as a journal alone"): this is the journal payoff.
+    Steve reviews his past Runs of `reconcile_line` here. The
+    list is the entry point for journal-mode review of past
+    work.
+
+    Order: chronological (ULID Node.id sort = creation-time sort).
+    Row label: the Run's display label if non-empty; otherwise a
+    fallback "Run N" indexed by position in the list. (Parent
+    Run-Nodes typically have no body content because the user
+    fills in their child Runs; the index fallback keeps rows
+    scannable.)
+
+    Out of scope: filtering (by date, by outcome, by executor) —
+    deferred until usage signals demand. Aggregated summary view
+    (e.g. "30 runs, script agreed with Steve 28 times") — same.
+  req F-Step-Runs-List.1: When the page Node carries `#Step` and
+    has one or more `'is-run-of'` edges pointing at it (i.e. one
+    or more Runs reference this Step), the Article surface
+    renders a Runs list between the StepActions row and the
+    Graph outline body.
+  req F-Step-Runs-List.2: When the page Node carries `#Step` but
+    has zero Runs, the list renders nothing (no empty-state
+    panel — "+ New Run" sits above as the call-to-action).
+  req F-Step-Runs-List.3: Click on a row calls
+    `handleSelectPredecessor` (zoom in current pane).
+    Shift-click calls `handleOpenPane`. Mouse-down handling
+    rather than click for editor-blur consistency with the
+    rest of Bramble's navigation controls.
+```
+
+```mdl
+feat F-Run-Lens: first instantiation of the Lens primitive (CONCEPTS.md §9)    # Iteration 2c.5
+  desc: |
+    The Run Lens is the FIRST CONCRETE instantiation of the Lens
+    primitive that CONCEPTS.md §9 introduced and §11 named as
+    "first-class — unified language is one option, not the
+    default." A Lens (per Cabrera's POV-2 / substrate-principles
+    Principle #11) is a named perspective on the substrate that
+    maps its own vocabulary, property schemas, and visibility
+    rules onto shared underlying identities.
+
+    The Run Lens, applied to a Run-Node, transforms the view
+    into a guided runbook walkthrough:
+      - Step prompts render read-only (the schema as seen by the
+        executor)
+      - Each Run-Node has a read/write response area that is a
+        full Bramble outline rooted at the Run-Node — the user
+        can add bullets, refs, marks, and (when 2f lands) PDF
+        attachments
+      - A wizard surface controls progression: Start / Next /
+        Previous / Stop / Done
+
+    Activation: per-pane in-session state (not persisted to
+    ECHO yet). "+ New Run" on a Step page creates the Run-Node
+    tree AND activates the Lens. Stop / Done deactivate. On a
+    `#Run` page with the Lens deactivated, a "Resume in Run
+    Lens" button restores it (resets wizard state).
+
+    Q2 (Step Versioning, deferred to F-Step-Versioning):
+    partially addressed here — Step prompts are read-only
+    *inside* the Lens, so the user can't accidentally edit
+    the schema mid-run. The data is still live; F-Step-
+    Versioning will add snapshot binding so even an edit from
+    outside the Lens doesn't retroactively change past Runs.
+
+    Connection to CONCEPTS.md: §9 talked about Lens-as-generative-
+    P at length (observer substitution, ontology inheritance,
+    generative response, attribution, composition). The Run Lens
+    exercises a subset:
+      - Observer substitution: the user is viewing the graph
+        through the "actively running" perspective
+      - Visibility rules: Steps shown read-only; responses
+        editable; non-#Step children invisible to wizard
+      - Composition: not yet (no Lens-on-Lens composition until
+        a second Lens exists)
+    Attribution and generative response are deferred to
+    subsequent Lenses (Cabrera-P style content generation, etc.).
+  req F-Run-Lens.1: Article carries per-pane state `runLensActive:
+    boolean`. Default false. Set true when "+ New Run" fires
+    (via the StepActions `onCreateRun` callback). Set false on
+    Stop / Done. Restored to true on Resume.
+  req F-Run-Lens.2: When the page Node carries `#Run` AND
+    `runLensActive` is true, Article renders `<RunLensShell>`
+    around the RunExecutionView. The shell provides:
+      - a top banner ("Run Lens · {Step label}") with the
+        sky-tinted visual treatment that signals "you are in
+        the Lens"
+      - the wizard control row (Start / Next / Previous / Stop
+        / Done)
+  req F-Run-Lens.3: Wizard controls:
+      - "Start" is visible before the user has clicked it; on
+        click, the wizard begins with active focus on the
+        first Run-Node (depth-first traversal of the tree).
+      - "Next" advances the active focus to the subsequent
+        Run-Node; disabled at the last Run.
+      - "Previous" retreats; disabled at the first Run.
+      - "Stop" deactivates the Lens; the Run-Node tree is
+        preserved as-is (partial responses are fine).
+      - "Done" only enabled when every Run-Node in the tree
+        has at least one structural child with non-empty text
+        content. On click: writes an ISO timestamp to the
+        Run supertag instance's `completed` field, then
+        deactivates the Lens.
+  req F-Run-Lens.4: The active Run-Node section is visually
+    distinguished by a sky-tinted ring around the corresponding
+    `[data-run-view]` element. The wizard scrolls the active
+    section into view on Start / Next / Previous.
+  req F-Run-Lens.5: Each Run-Node's response area inside the
+    Lens is a full Bramble outline (the existing `<Graph>`)
+    rooted at the Run-Node. The user gets the standard outline
+    editing affordances (Enter/Tab/Shift+Tab, refs, marks,
+    future attachments).
+  req F-Run-Lens.6: The Run supertag schema (Bramble.Run) gains
+    a `completed?: string` optional field. Set by F-Run-Lens.3's
+    Done action. Absence means "in progress or stopped without
+    completing."
+```
+
+```mdl
+feat F-Supertag-Chips-On-Page-Header: supertag chips render alongside the H1    # Iteration 2c.1 follow-up
+  desc: |
+    When a Bramble Node is opened as the page node and carries one
+    or more supertags (`#Step`, `#Run`, etc.), the Article surface
+    renders the `TagChips` row directly beneath the H1 — same
+    component used to render chips inline next to body bullets,
+    hoisted to the page level via `export` from
+    `components/Node/Node.tsx`. This makes "what kind of page is
+    this?" visible without having to zoom back out to the bullet
+    view.
+
+    Discovered during F-New-Run-On-Step verification (Iteration
+    2c.1): the new Run-Node's page rendered as a generic
+    "Untitled" with no indication it was a Run. Hoisting the
+    chips closes that gap and applies to all supertag types
+    (not Step / Run specific).
+  req F-Supertag-Chips-On-Page-Header.1:
+    when: the Article surface renders a page Node that carries
+      any supertags
+    then: `TagChips` is rendered between the PageHeader (H1) and
+      FieldGroups, showing one chip per supertag, with the same
+      F-Supertag chip-gestures (click → zoom into the tag-Node,
+      shift-click → open in new pane).
+  req F-Supertag-Chips-On-Page-Header.2:
+    when: the page Node has zero supertags
+    then: no chip row is rendered (TagChips returns null;
+      layout collapses).
 ```
 
 ## Acceptance
@@ -2798,6 +3759,520 @@ test T-Create-Filter-And-Pick: typing into the create-object dialog narrows the 
     upstream fixes land.
 ```
 
+```mdl
+test T-Add-Existing-Via-At-Picker-Edges-Not-Duplicates: @-picker selection of an existing Node adds an edge, never creates a new Node
+  given: a Bramble outline at the page root with three sibling
+    Nodes — `happy`, `111`, and `222` — all collapsed (per F-V2.12)
+  when: the user expands `111` (chevron click) and types `@happy`
+    into the row-level pending-child of `111`, then commits the
+    selection of the `happy` entry by either:
+      (a) clicking the entry with the mouse (mousedown), OR
+      (b) pressing Enter while the entry is the picker's active item
+        (per F-4.7 keyboard nav)
+  then:
+    - a single `Bramble.Edge` is created with source=`111` and
+      target=the EXISTING `happy` Node (no `Bramble.makeNode` call;
+      no new Node)
+    - the `happy` Node now has two structural predecessors
+      (the page root and `111`) and renders with the multi-parent
+      badge "2" everywhere it appears in the outline (per
+      F-DAG.Phase3e.multi-parent-badge)
+    - the pending-child of `111` is cleared and the page-root
+      pending-child below `111`'s subtree continues to render per
+      F-Pending-Child.page-root
+  when: the user expands `222` and repeats the gesture (`@happy` +
+    commit)
+  then:
+    - a second edge is created with source=`222` and target=the
+      same existing `happy` Node — STILL no new Node is created
+    - the badge on every `happy` instance now reads "3" (root, 111,
+      222 all point at the same target)
+  when: the user zooms into any `happy` bullet
+  then:
+    - the predecessor-nav control shows three predecessors: the
+      page root (label `(unnamed)`), `111`, and `222` —
+      rendered inline per F-DAG.Phase3e.predecessor-nav-inline
+      (count ≤ 3)
+  desc: |
+    Bug reported 2026-05-14:
+    > "has created a new node for each instance I added @happy …
+    >  so that when I zoom into happy that is a child of 111, i see
+    >  the only incoming node as '111' … also when I open the @
+    >  menu I see multiple 'happy' nodes in the menu items"
+
+    Root cause (verified empirically on the worktree): the
+    MentionPicker had no keyboard navigation. The intended commit
+    path was a mouse click on the picker entry, which routes
+    through `onSelect` → `onAddExisting` → `createEdge` (correct:
+    no new Node). But users habitually press Enter after typing the
+    query, and pressing Enter inside a plain `<div contenteditable>`
+    (the pending-child's editable) inserted a newline into the
+    text instead of committing. The picker's substring filter then
+    failed to match (because the text included the newline);
+    typically users backspaced back to a state where the
+    pending-child's `handleInput` saw text WITHOUT a leading `@`
+    and routed through `onPromote` — which DOES create a new Node.
+
+    Reproduction with mouse-click on `worktree@2026-05-14`: works
+    correctly — `@happy` + click → edge added, multi-parent badge
+    increments, no duplicate Nodes. The bug manifests only on the
+    Enter-without-click path.
+
+    Fix: F-4.7 adds keyboard nav to MentionPicker (Arrow + Enter
+    via window-capture, mirroring F-6.Phase1.keyboard-nav for the
+    `#` picker), so pressing Enter while the picker is open
+    commits the active item through the same `onSelect` path the
+    mouse-click flow uses. The fall-through to native
+    contenteditable Enter handling is now closed. F-4.6 already
+    swallows modifier-Enter chords so they don't accidentally
+    create siblings.
+```
+
+```mdl
+test T-Sibling-Above-Lands-Between: Cmd+Shift+Enter on Y places the new empty Z between X and Y
+  given: a fresh Bramble outline at the page root with exactly two
+    bullets in document order — X with content "XXX" and Y with
+    content "YYY"; both are direct children of the page node and
+    have no children of their own
+  when: the cursor is in Y's editor and the user presses
+    Cmd+Shift+Enter (Mod+Shift+Enter)
+  then:
+    - a new empty Node Z is created as Y's PREVIOUS sibling (per
+      F-Cmd-Shift-Enter.1)
+    - the page body now renders three bullets in this exact order:
+      ● XXX, ● (empty Z), ● YYY (immediately followed by the
+      F-Pending-Child.page-root row at the end)
+    - focus is on Z and Z's editor shows a visible caret
+      (F-Caret.1)
+    - X.content === "XXX" and Y.content === "YYY" are unchanged
+  desc: |
+    Reported 2026-05-14 to clarify the multi-sibling placement of
+    Cmd+Shift+Enter. The existing T-Cmd-Shift-Enter test only
+    covered a single-bullet outline (and asserted
+    `parent.children === [Y, X]`); this test adds the
+    between-X-and-Y case.
+
+    Verified on this worktree against a brand-new graph (fresh
+    "+ → Bramble" creation): pressing Cmd+Shift+Enter on YYY
+    produced exactly [XXX, ●empty, YYY] at the page root, with
+    focus on the new empty bullet.
+
+    Caveat for legacy outlines: when a parent's children are
+    still mixed between `Node.children` (legacy array) and
+    `Bramble.Edge` relations during the F-DAG transition,
+    `getStructuralChildren` renders all legacy children FIRST
+    and edges AFTER (see edges.ts comment, F-DAG Phase 3d).
+    `insertSiblingBefore` calls `ensureMigratedChildren` to port
+    the parent's legacy children to edges before placing the new
+    edge, but in a polluted test space the migration can leave
+    the new edge sorted after pre-existing legacy entries. The
+    test is therefore stated against a fresh outline; the legacy-
+    mixed case is a transitional concern documented separately.
+```
+
+```mdl
+test T-Sibling-Below-Lands-Between: Shift+Enter on X places the new empty Z between X and Y
+  given: a fresh Bramble outline at the page root with exactly two
+    bullets in document order — X with content "XXX" and Y with
+    content "YYY"; both are direct children of the page node
+  when: the cursor is in X's editor and the user presses
+    Shift+Enter
+  then:
+    - a new empty Node Z is created as X's NEXT sibling (per
+      F-Shift-Enter.1)
+    - the page body now renders three bullets in this exact order:
+      ● XXX, ● (empty Z), ● YYY (immediately followed by the
+      F-Pending-Child.page-root row at the end)
+    - focus is on Z and Z's editor shows a visible caret
+      (F-Caret.1)
+    - X.content === "XXX" and Y.content === "YYY" are unchanged
+  desc: |
+    Reported 2026-05-14 alongside T-Sibling-Above-Lands-Between.
+    Mirrors that test for the "below" direction.
+
+    Verified on this worktree against a brand-new graph: pressing
+    Shift+Enter on XXX produced exactly [XXX, ●empty, YYY] at the
+    page root with focus on the new empty bullet. The same
+    legacy-vs-edges caveat from T-Sibling-Above-Lands-Between
+    applies.
+```
+
+```mdl
+test T-New-Sibling-Focus-And-Caret: Shift+Enter / Cmd+Shift+Enter create an empty sibling with focus and a visible caret
+  given: a Bramble outline contains a Node X that is being edited
+    (the cursor is inside X's ProseMirror editor)
+  when: the user presses Shift+Enter
+  then:
+    - a new empty sibling Node Y is created as X's NEXT sibling
+      (F-Shift-Enter.1), with the same parent as X and empty
+      `content`
+    - focus shifts from X to Y: Y's editor's
+      `autoFocus={focusId === Y.id}` flips true on the same render,
+      so the Editor's mount effect calls `view.focus()` and
+      ProseMirror sets the selection to `TextSelection.atStart`
+    - the empty Y editor renders a single visible caret per
+      F-Caret.1 (the `min-width: 1rem` rule in `block-editor.css`
+      gives the empty paragraph somewhere to paint)
+  when: the user presses Cmd+Shift+Enter instead (Mod+Shift+Enter)
+  then:
+    - same outcome but Y is X's PREVIOUS sibling (F-Cmd-Shift-Enter.1)
+  when: X has a trailing `#` so the hash picker is visibly OPEN at
+    the time of keypress
+  then:
+    - Shift+Enter / Cmd+Shift+Enter are N/A (per user
+      clarification 2026-05-14 and the modifier clause in
+      F-6.Phase1.keyboard-nav): the picker swallows them as
+      no-ops. No sibling Y is created. No tag is applied. The
+      picker remains open with the active item unchanged. The
+      user dismisses the picker (Escape / click outside / commit
+      a tag), THEN the sibling-creation gestures take effect.
+  desc: |
+    Reported 2026-05-14 as a basic sibling-creation scenario.
+    Existing reqs F-Shift-Enter.1, F-Cmd-Shift-Enter.1, and
+    F-Caret.1 already cover the bare case end-to-end; this test
+    captures the combined behavior plus the user's clarification
+    that sibling-creation gestures are N/A while a picker is
+    open. Two-step bug discovery on the same day: (1) earlier in
+    the day, `TagPicker`'s keydown handler matched
+    `event.key === 'Enter'` without checking modifiers, so
+    Shift+Enter / Cmd+Enter / etc. all committed the picker's
+    active item — pressing Shift+Enter on `alpha #` silently
+    applied `#AccessToken`. (2) An intermediate fix was made to
+    let modified-Enter chords fall through to the editor's
+    keymap so siblings COULD be created mid-picker; the user
+    clarified this was the wrong direction — the correct UX is
+    to N/A those chords while the picker is open. Final fix:
+    in `TagPicker`'s keydown handler, swallow Enter with
+    `shiftKey || metaKey` (preventDefault + stopPropagation, no
+    commit); commit only on bare Enter; bare ArrowUp/Down still
+    nav, Cmd+ArrowUp/Down still pass through.
+```
+
+```mdl
+test T-Page-Last-Node-Has-Pending-Child-Below: a page with bullets shows a pending-child after the last one
+  given: a Bramble outline whose page node has 1 or more real
+    children rendered as bullets (e.g. a top-level outline with
+    a few notes, OR a sub-node that has been zoomed into and
+    already has at least one child)
+  when: the pane renders
+  then:
+    - a faint pending-child row is present immediately below the
+      last real child, at the same indent level (the page body's
+      indented column)
+    - typing into the pending-child promotes a new Node and
+      appends it as the LAST child of the page node (the new
+      Node becomes the new "last bullet" and the pending-child
+      slides down beneath it on the next render — so there is
+      always a pending-child at the end of the list)
+    - the existing in-list bullets are unaffected (no re-order,
+      no focus disruption); only the pending-child position
+      shifts to below the new last child
+  desc: |
+    Reported 2026-05-14 with a Tana-style reference screenshot
+    showing `● this is the last node on a page` followed by a
+    faint `○` underneath. Current behavior on this worktree:
+    after my F-Pending-Child.page-root landed earlier today,
+    the page-root pending-child only appeared when childRefs was
+    EMPTY (`childRefs.length === 0`). A page with bullets had
+    no visible "add another bullet" affordance — the user had
+    to press Enter on the last bullet to extend the list. The
+    fix flips `showPageRootPendingChild` to always true in
+    `Graph.tsx`, so the pending-child renders after `.map`-ed
+    children and before the page's bottom edge.
+```
+
+```mdl
+test T-Zoom-Empty-Node-New-Pane-Untitled-And-Autofocus: shift-click an empty node → new pane with cursor in header, Untitled placeholder, and pending child as only body content
+  given: a Bramble outline contains a Node X with no content
+    (X.content is empty / has only an empty text segment) and
+    no children
+  when: the user shift-clicks X's bullet (F-Open-Pane.1) so a
+    new pane P' opens rooted at X
+  then:
+    - the H1 area of P' displays the placeholder "Untitled" in
+      a muted color (per F-Page-Header.4 revised); the placeholder
+      is not in X.content (verifiable: `X.content` remains empty)
+    - the H1 editor has FOCUS — the caret is inside the H1, in
+      front of/behind the "Untitled" placeholder, so the user
+      can immediately start typing (per F-Page-Header.7)
+    - the body of P' contains exactly ONE row: a pending-child
+      placeholder (the faint ○ in the same indented column real
+      children would occupy), per F-Pending-Child.page-root
+    - typing any character into the H1 replaces the "Untitled"
+      placeholder with the typed text; X.content is updated;
+      the page-root pending-child remains in the body
+  desc: |
+    Reported 2026-05-14 with a screenshot showing an "Untitled"
+    H1 in grey and a single faint bullet beneath it. Current
+    behavior on this worktree: zooming into an empty node (via
+    same-pane click; deck mode state not exhaustively verified
+    on the smoke build) renders the H1 as a completely blank
+    line and does NOT auto-focus the editor — the user sees a
+    confusingly empty pane with no obvious where-to-click.
+    The fix combines three pieces: (a) revising F-Page-Header.4
+    to render a muted "Untitled" placeholder, (b) adding
+    F-Page-Header.7 to autofocus the H1 editor on initial
+    Article mount, and (c) ensuring F-Pending-Child.page-root
+    fires (already in place from earlier today).
+```
+
+```mdl
+test T-Zoom-Leaf-Shows-Pending-Child-In-Pane: zooming into a leaf surfaces a pending child at the top of the pane
+  given: a Bramble outline contains a Node L that has no children
+    (e.g. a freshly-created leaf per F-V2.12)
+  when: the user shift-clicks L's bullet (F-Open-Pane.1) so a new
+    pane P' opens rooted at L
+  then:
+    - P' renders L as the page node (H1 from `getDisplayLabel(L)`)
+    - immediately below the H1 (and below any page-level field
+      groups for tagged L), a faint pending-child row appears in
+      the indented column where real children would render
+    - the pending-child row's editable area accepts focus and
+      typing exactly like the row-level pending-child of
+      F-Pending-Child.type — first keystroke creates a real child
+      Node (collapsed, per F-V2.12), appends it to L's children via
+      a ChildEdge, and transfers focus to the new child
+  when: the user clicks L's bullet (no shift) instead — F-Zoom in
+    the current pane
+  then:
+    - the same affordance appears in the current pane's body
+      (the rule is page-rendering-conditioned, not pane-conditioned)
+  desc: |
+    Reported 2026-05-14 alongside the F-V2.12 "new nodes are
+    collapsed" change. Current behavior on this worktree (port 5188
+    smoke): zooming into a leaf renders a completely blank pane
+    body — the H1 shows the (empty) label, the predecessor-nav
+    control shows ↑1 ▾, and the rest of the page is white space.
+    There is no obvious affordance for the user to start typing.
+    The fix wires a pending-child row at the top of `<Graph>`'s
+    body whenever `rootBlock` has no structural children, gated
+    only on `childRefs.length === 0` (not on
+    `rootBlock.state.expanded`), so it appears even when the
+    page-root Node was created collapsed.
+```
+
+```mdl
+test T-New-Node-Collapsed: a newly created Node renders collapsed
+  given: a Bramble outline with at least one bullet B containing some
+    text; the bullet has no children of its own
+  when: the cursor is at the end of B and the user presses Enter to
+    create a new sibling C
+  then:
+    - C is created with `state.expanded === false` (explicitly, not
+      undefined) — verifiable via `Obj.getMeta` or by rendering: C
+      shows no pending-child placeholder row beneath it and, if
+      tagged, no field group
+    - clicking C's Expand control (chevron) toggles state.expanded to
+      true; the pending-child placeholder appears as in
+      F-Pending-Child.expand
+  when: the user presses `#`, picks a type, applies the tag to C
+  then:
+    - the supertag chip renders inline on C (F-6.Phase1.chip)
+    - the field group does NOT render automatically — C remains
+      collapsed; the user must expand C before the field group
+      surfaces (per F-V2.12 and F-6.Phase2.group's "render only when
+      expanded" clause)
+  desc: |
+    Reported 2026-05-14 as: "given: a new node is created, when: it
+    is rendered, then: the node is collapsed."
+    Current behavior on this worktree (port 5188 smoke): every newly
+    created Node is rendered as if `state.expanded` were true —
+    `Bramble.makeNode({ content })` leaves `state` undefined, F-V2.4
+    treats undefined as expanded, and so each fresh Node immediately
+    shows a faint pending-child dot beneath it (and, for tagged
+    Nodes, the entire FieldGroup). Visually confirmed in preview:
+    the initial graph seed and an `alpha`-with-#Trigger Node both
+    rendered with their pending-child placeholders and field group
+    visible without any user action.
+    The fix sets `state: { expanded: false }` explicitly at the four
+    user-facing creation sites: the initial seed in `Graph.tsx`,
+    `insertSiblingAfter` and `insertSiblingBefore` in `Node.tsx`,
+    and the pending-child promote handler in `Node.tsx`. System
+    Nodes (library, schema, tag wrappers, query nodes) are
+    deliberately not changed.
+```
+
+```mdl
+test T-Tag-Picker-Keyboard-Nav: arrow keys + Enter pick a tag without a mouse
+  given: a Bramble outline with at least three registered tag-eligible
+    ECHO types (e.g. Task, Person, Organization) and a Node being
+    edited
+  when: I type `#` to open the tag picker
+  then:
+    - the picker renders with the first entry highlighted (the
+      keyboard cursor lands somewhere visible, not on nothing)
+  when: I press ArrowDown
+  then:
+    - the second entry becomes the active item; the first loses its
+      highlight; only one entry is highlighted at a time
+  when: I press ArrowDown until I wrap past the last entry
+  then:
+    - the highlight wraps to the first entry (no off-by-one where the
+      list "runs off the bottom" and shows nothing highlighted)
+  when: I press ArrowUp from the first entry
+  then:
+    - the highlight wraps to the last entry
+  when: I press Enter with an entry active
+  then:
+    - the active entry is applied (same outcome as
+      `F-6.Phase1.apply`): a typed instance is created, the
+      `#`-and-query range is removed from the bullet, `Node.supertags`
+      gets a new ref, and the picker closes
+    - the editor does NOT split the bullet (Enter while picker is
+      open is consumed; pressing Enter in the same bullet immediately
+      after the picker closes splits normally)
+  when: I type `#t` (filtering to fewer matches) then ArrowDown then Enter
+  then:
+    - the highlight starts on the first filtered match (it was reset
+      when the list narrowed), advances to the second, and Enter
+      commits the second filtered match — not whichever entry was
+      active before the filter narrowed
+  when: I hover the mouse over a different entry while the picker is open
+  then:
+    - hovering sets the active item to the hovered entry (single
+      shared highlight); pressing Enter after the hover commits the
+      hovered entry
+  desc: |
+    Quality-of-life polish that makes the picker fully usable from
+    the keyboard. Before this change the picker comments explicitly
+    deferred keyboard nav to a polish increment ("keyboard
+    navigation can land in a polish increment"); Enter while the
+    tag picker was open also split the bullet because the editor's
+    `enterCommand` only checked the mention plugin state, not the
+    hash plugin state. Both gaps are closed here.
+```
+
+```mdl
+test T-Step-Picker-Lists: #Step appears in the supertag picker    # Iteration 2a
+  given: a Bramble graph with at least one bullet; plugin-bramble registered with the Bramble.Step schema
+  when: user places cursor in a bullet and types `#`
+  then:
+    - the supertag picker opens
+    - "Step" is among the listed tag options
+    - selecting "Step" creates a fresh typed Step instance per T-Supertag-picker-creates-fresh-instance
+    - the bullet renders a `#Step` chip per F-Supertag chip semantics
+```
+
+```mdl
+test T-Run-Picker-Lists: #Run appears in the supertag picker    # Iteration 2b
+  given: a Bramble graph with at least one bullet; plugin-bramble registered with the Bramble.Run schema
+  when: user places cursor in a bullet and types `#run`
+  then:
+    - the supertag picker opens and narrows to "Run"
+    - "Run" is offered as a tag option
+    - selecting "Run" creates a fresh typed Run instance per T-Supertag-picker-creates-fresh-instance
+    - the bullet renders a `#Run` chip per F-Supertag chip semantics
+```
+
+```mdl
+test T-Run-Edge-Kinds-Accepted: createEdge accepts 'is-run-of' and 'parent-run'    # Iteration 2b
+  given: a Bramble graph; the Run + Step supertag classes are registered
+  when: code calls `createEdge(db, stepNode, runNode, { kind: 'is-run-of' })` and `createEdge(db, parentRun, childRun, { kind: 'parent-run' })`
+  then:
+    - both edges persist with the requested `kind`
+    - neither edge appears in `childEdgesOf(parentNode)` (kind filter still 'child'-only)
+    - cycle detection is skipped for non-'child' kinds (verified by creating a cycle that would be rejected if `kind: 'child'`)
+```
+
+```mdl
+test T-New-Run-On-Step: "+ New Run" creates a Run-tree + zooms into the parent    # Iteration 2c.1 (revised)
+  given: a Bramble graph with a Node S tagged `#Step` carrying N >= 0 `#Step`-tagged structural descendants (sub-Steps, sub-sub-Steps, …); the user is viewing S as the page node
+  when: user clicks the "+ New Run" button
+  then:
+    - exactly 1 + N new Bramble.Nodes are added, all tagged `#Run`
+    - the parent Run-Node has an Edge `kind: 'is-run-of'` → S
+    - for every `#Step`-tagged descendant D of S, exactly one child Run-Node exists with `kind: 'is-run-of'` → D and `kind: 'parent-run'` → the Run-Node of D's parent Step
+    - the current pane's page-node is the parent Run-Node
+    - F-Run-Execution-View renders (NOT the Graph outline); the runbook prompt for S is visible at the top
+    - "+ New Run" does NOT appear on the new Run-Node's page (gated on `#Step`)
+```
+
+```mdl
+test T-Run-Lens-Lifecycle: full Start → Next → Done lifecycle    # Iteration 2c.5
+  given: a Bramble graph with a Step S and `#Step`-tagged sub-Steps S1 / S2 / S3
+  when: user clicks "+ New Run" on S's page
+  then:
+    - a parent Run-Node and three child Run-Nodes are spawned (per F-New-Run-On-Step)
+    - the pane zooms into the parent Run-Node
+    - Article's `runLensActive` is true (Lens activates automatically)
+    - RunLensShell renders with sky-tinted banner + "Start / Stop / Done" controls visible
+    - "Done" is disabled (no responses filled in yet)
+  when: user clicks "Start"
+  then:
+    - "Start" button disappears; "Previous / Next" buttons appear
+    - the active Run-Node is the parent Run-Node (depth-first first), highlighted with a sky ring
+    - "Previous" is disabled (at index 0)
+  when: user clicks "Next" three times
+  then:
+    - the active Run-Node advances through S1, S2, S3
+    - the sky ring follows the active Run-Node
+    - at index 3 (the last), "Next" is disabled
+  when: user types responses into each Run-Node's outline body (adds bullets with text)
+  then:
+    - "Done" becomes enabled reactively as the database changes
+  when: user clicks "Done"
+  then:
+    - the Run supertag instance gains a `completed` field with an ISO-8601 timestamp
+    - `runLensActive` becomes false
+    - a "Resume in Run Lens" button replaces the wizard banner
+    - the RunExecutionView still renders below in plain (non-Lens) mode
+  when: user clicks "Stop" instead of Done at any point
+  then: same as Done EXCEPT the `completed` field is NOT set
+```
+
+```mdl
+test T-Step-Runs-List: `#Step` page lists every Run linked to it    # Iteration 2d
+  given: a Bramble graph with a Node S tagged `#Step` and three top-level Run-Nodes R1 / R2 / R3, each with an `'is-run-of'` edge → S
+  when: the user opens S as the page node
+  then:
+    - between the "+ New Run" button and the outline body, a "Runs (3)" list appears
+    - the list has three rows in chronological order (oldest first; R1 before R2 before R3)
+    - clicking R2's row zooms the pane into R2 (its F-Run-Execution-View renders)
+    - shift-clicking R3's row opens R3 in a new pane
+  when: the Step has zero Runs
+  then:
+    - no Runs list panel renders (the "+ New Run" button is the only call-to-action)
+```
+
+```mdl
+test T-Run-Nav: page-top nav surfaces 'is-run-of' and 'parent-run' edges    # Iteration 2c.2 follow-up
+  given: a top-level Run-Node R linked via `'is-run-of'` to Step S, with at least one child Run R' linked via `'parent-run'` → R
+  when: the user opens R as the page node
+  then:
+    - a nav link "← Step: {S.label}" appears above the runbook view
+    - no "↑ Parent run" link appears (R is top-level, has no `'parent-run'` edge)
+    - clicking the Step link zooms the pane into S
+    - shift-clicking the Step link opens S in a new pane
+  when: the user opens R' as the page node
+  then:
+    - both "← Step: {sub-Step label}" AND "↑ Parent run: {R.label or '(untitled run)'}" links appear
+    - clicking the parent-run link zooms the pane into R
+```
+
+```mdl
+test T-Run-Execution-View-Renders: page Node tagged `#Run` shows a structured walkthrough    # Iteration 2c.2
+  given: a Run-Node R that is `'is-run-of'` Step S, where S has content "Reconcile EOB" and 2 sub-Steps S1 / S2 (with their own content and their own child Run-Nodes R1 / R2 linked via `'parent-run'` → R)
+  when: the user opens R as the page node
+  then:
+    - the page H1 renders R per existing PageHeader rules
+    - the Graph outline view is NOT rendered
+    - F-Run-Execution-View renders: S's content as a read-only narrative; an editable bound to R's body; below it, the two child Runs R1 / R2 indented one level, each showing their respective sub-Step's content as read-only narrative and an editable bound to their body
+    - typing into R1's editable updates `R1.content` (persistent)
+    - typing into R2's editable updates `R2.content`
+    - recursion continues: if a sub-Step has its own sub-Step (a #Step-tagged grandchild), the corresponding grandchild Run-Node would render indented one further level
+```
+
+```mdl
+test T-Supertag-Chips-On-Page-Header: page H1 shows chips for the page Node's supertags    # Iteration 2c.1 follow-up
+  given: a Bramble graph with a Node tagged `#Step` (and zoomed into so it is the page node)
+  when: the Article renders
+  then:
+    - a `#Step` chip is visible directly beneath the H1 (above the body bullets)
+    - clicking the chip navigates to the per-space Step tag-Node (zoom into Schema → Step)
+    - shift-clicking the chip opens the tag-Node in a new pane
+    - on a page node with no supertags, no chip row is rendered
+```
+
 ---
 
 ## Remaining
@@ -2876,7 +4351,6 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `TagChip` is already in `## Components`; the others are
   referenced from tests and reqs but never had their own
   component block authored.
-- Picker keyboard navigation (arrow keys + Enter to select; Esc already wired).
 - `add object label` translation key shows raw on hover for the create-Node-Outline affordance.
 - BacklinksPanel reactivity to a *source* Node's label rename — counts and refs update reactively, but the panel's "source label" column hasn't been verified for live rename propagation. Likely already works via Obj.subscribe.
 - Editor's Storybook story (referenced as standard practice but not yet authored).
@@ -2892,6 +4366,52 @@ Branch:         `claude/agitated-nash-bd0b0f`
     affects every consumer of those primitives, not just Bramble);
     out of scope for this plugin. Workaround for users today: scroll
     + click directly.
+- **Step versioning so Runs are bound to a snapshot, not the
+  live Step (Iteration 2c.3, deferred).** Flagged 2026-05-15
+  during the F-Run-Execution-View design. User position (Q2):
+  "once presented to the user, [a Run] is linked to the version
+  (snapshot) shown to the user; the nodes should be versioned
+  such that the narrative might change over time and it's a new
+  version of the same step." Until this lands, F-Run-Execution-
+  View reads from the LIVE Step's content on every render — so
+  editing a Step's narrative after a Run has been created retro-
+  actively changes what that Run displays. Wrong, but the
+  workaround (don't edit Steps that have Runs against them)
+  holds for the seeding scenario.
+
+  Future shape: introduce `#StepVersion` supertag. On the first
+  edit of a Step that has any in-flight or past Run pointing at
+  it, copy-on-write: snapshot the old Step content into a
+  `#StepVersion` Node, retarget every dependent Run's
+  `'is-run-of'` edge to point at the version Node, then apply
+  the new content to the live Step. The Step Node itself
+  remains stable as the navigation target; version Nodes are
+  append-only sidecars. Future view: a Step's version history
+  is browsable via a `'previous-version'` edge chain from the
+  live Step back through its versions.
+- **Per-Node supertag-type uniqueness (write-time enforcement).**
+  Flagged 2026-05-15 during F-New-Run-On-Step verification: nothing
+  currently prevents a single Node from carrying multiple supertag
+  Refs whose instances share the same typename (e.g. `[#Step, #Step]`
+  on one Node). Substrate-principles "Steps nest" via children, not
+  via multiple typings on one Node — same logic applies to every
+  supertag class (a Node is one Run, not two; one Person, not two).
+
+  Existing `F-Supertag.uniqueness` enforces the *complementary*
+  invariant — one Node per (instance, typename) — but not this one
+  (one (typename) per Node). `T-Supertag-uniq-sweep` already
+  collapses duplicates at mount via normalisation, so the corrupted
+  state shown in the F-Step screenshots (two `#Step` chips on one
+  bullet) self-heals on next mount. But write-time prevention is
+  still missing.
+
+  Future fix: a small guard in the F-Supertag apply path
+  (`Editor.handleSelectTag`) and in any other supertag-write helper
+  (`createRunOfStep`, future `applySupertag`) that rejects (or
+  silently drops) an apply when a Ref to an instance of the same
+  typename already exists in `node.supertags`. Then promote
+  `R-Supertag-Type-Uniqueness` to a real rule citing both
+  invariants (instance-uniqueness AND typename-uniqueness).
 
 ---
 

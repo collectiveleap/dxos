@@ -22,8 +22,20 @@ import {
   FieldGroups,
   OpenPaneContext,
   PredecessorNav,
+  RunExecutionView,
+  RunLensShell,
+  RunNav,
+  StepActions,
+  StepRunsList,
+  TagChips,
   ZoomContext,
+  childEdgesOf,
+  createEdge,
+  ensureMigratedChildren,
   getDisplayLabel,
+  hasSupertagOfTypename,
+  moveToAdjacentVisibleBlock,
+  orderBetween,
   useBacklinks,
   useEnsureAllSupertagNodes,
   useNormalizeSupertagUniqueness,
@@ -78,6 +90,11 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // The "page node" within this pane is the current zoom target. `null`
   // means "at pane root".
   const [pageNodeId, setPageNodeId] = useState<string | null>(null);
+  // F-Run-Lens (Iteration 2c.5): per-pane Lens activation state.
+  // Default false; "+ New Run" sets it to true (the user is about
+  // to do the work). Stop / Done deactivates. Resume re-activates.
+  // Not persisted to ECHO yet — per-session state per F-Run-Lens.
+  const [runLensActive, setRunLensActive] = useState<boolean>(false);
   const pageNode = useMemo(() => {
     if (!paneRootNode) {
       return null;
@@ -114,8 +131,125 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // (guard via WeakMap) so concurrent panes are safe.
   useNormalizeSupertagUniqueness(paneRootNode ? Obj.getDatabase(paneRootNode) : undefined);
 
+  // F-Page-Header.7 + F-Page-Header.11/12: focusId is lifted here so
+  // BOTH the H1 PageHeader and the body Graph can target each other
+  // for arrow-nav crossings (Up from first body bullet → H1; Down from
+  // H1 → first body bullet) and so the H1's autofocus is reactive to
+  // setFocusId rather than to a separate `autoFocus` derivation.
+  // The H1 Editor reads `autoFocus={focusId === pageNode.id}` and the
+  // useEffect below sets `focusId` to `pageNode.id` whenever the page
+  // node is empty (replacing the prior `autoFocusHeader` derivation).
+  // Focus is tracked as { id, atEnd }: `atEnd === true` places the
+  // caret at the END of the focused editor's content (used after the
+  // pending-child promote path, since the user just typed the first
+  // character into the pending-child and expects to keep typing after
+  // it). The default `atEnd === false` puts the caret at the START
+  // (correct for Enter-split, F-Nav arrow nav, empty-page autofocus).
+  const [focusId, setFocusIdState] = useState<string | null>(null);
+  const [focusAtEnd, setFocusAtEnd] = useState<boolean>(false);
+  // `setFocusId(id)` always places the caret at the START — same
+  // semantics it had before this refactor. Callers that need the
+  // caret at the END (currently: pending-child promote) call
+  // `setFocusIdAtEnd(id)` instead.
+  const setFocusId = useCallback((id: string | null) => {
+    setFocusIdState(id);
+    setFocusAtEnd(false);
+  }, []);
+  const setFocusIdAtEnd = useCallback((id: string | null) => {
+    setFocusIdState(id);
+    setFocusAtEnd(true);
+  }, []);
+  useEffect(() => {
+    if (pageNode && !hasContent(pageNode)) {
+      setFocusId(pageNode.id);
+    }
+  }, [pageNode, setFocusId]);
+
+  // F-Page-Header.8: Enter on the H1 splits at the caret. The before-cursor
+  // segments stay in `pageNode.content` (the editor's own dispatch deletes
+  // the after-cursor range before this fires). We create a new first child
+  // Z with the `afterText` as a single text segment, attach it via an Edge
+  // whose `order` slots in BEFORE every existing child's order, and move
+  // focus to Z.
+  const handleHeaderEnter = useCallback(
+    (_beforeText: string, afterText: string) => {
+      if (!pageNode) {
+        return;
+      }
+      const db = Obj.getDatabase(pageNode);
+      if (!db) {
+        return;
+      }
+      ensureMigratedChildren(db, pageNode);
+      const newChild = Bramble.makeNode({
+        content: afterText.length > 0 ? [{ kind: 'text', text: afterText }] : [],
+        state: { expanded: false },
+      });
+      db.add(newChild);
+      const edgesNow = childEdgesOf(db, pageNode);
+      createEdge(db, pageNode, newChild, { order: orderBetween(undefined, edgesNow[0]) });
+      setFocusId(newChild.id);
+    },
+    [pageNode],
+  );
+
+  // F-Page-Header.9: Shift+Enter on the H1 creates an empty new first child
+  // without splitting the H1's content. Same insertion semantics as
+  // handleHeaderEnter, just with empty content.
+  const handleHeaderShiftEnter = useCallback(() => {
+    if (!pageNode) {
+      return;
+    }
+    const db = Obj.getDatabase(pageNode);
+    if (!db) {
+      return;
+    }
+    ensureMigratedChildren(db, pageNode);
+    const newChild = Bramble.makeNode({ content: [], state: { expanded: false } });
+    db.add(newChild);
+    const edgesNow = childEdgesOf(db, pageNode);
+    createEdge(db, pageNode, newChild, { order: orderBetween(undefined, edgesNow[0]) });
+    setFocusId(newChild.id);
+  }, [pageNode]);
+
+  // F-Page-Header.11: ArrowDown on the H1 moves the caret into the first
+  // visible body bullet via the same F-Nav DOM walk body bullets use.
+  // ArrowUp on the H1 is a no-op (handled by moveToAdjacentVisibleBlock
+  // returning false when there's no previous `[data-block-id]`).
+  const handleHeaderMoveDown = useCallback(() => {
+    if (!pageNode) {
+      return;
+    }
+    moveToAdjacentVisibleBlock(pageNode.id, 'down', setFocusId);
+  }, [pageNode]);
+  const handleHeaderMoveUp = useCallback(() => {
+    if (!pageNode) {
+      return;
+    }
+    moveToAdjacentVisibleBlock(pageNode.id, 'up', setFocusId);
+  }, [pageNode]);
+
   const handleZoom = useCallback((nodeId: string) => {
     setPageNodeId(nodeId);
+  }, []);
+
+  // F-Run-Lens (2c.5): "+ New Run" navigates to the new Run AND
+  // activates the Lens — the user just asked to do the work, so
+  // the wizard should be on.
+  const handleCreateRun = useCallback((runNodeId: string) => {
+    setPageNodeId(runNodeId);
+    setRunLensActive(true);
+  }, []);
+
+  // F-Run-Lens (2c.5): Stop / Done exit the Lens but leave the
+  // user on the same Run page (so they can review what they did,
+  // or click Resume to re-enter).
+  const handleExitRunLens = useCallback(() => {
+    setRunLensActive(false);
+  }, []);
+
+  const handleResumeRunLens = useCallback(() => {
+    setRunLensActive(true);
   }, []);
 
   // F-DAG.Phase3e.predecessor-nav-switch: select a predecessor from
@@ -230,17 +364,118 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
               onSelect={handleSelectPredecessor}
               onShiftSelect={handleOpenPane}
             />
-            <PageHeader node={pageNode} />
+            <PageHeader
+              node={pageNode}
+              focused={focusId === pageNode.id}
+              focusedAtEnd={focusId === pageNode.id && focusAtEnd}
+              onEnter={handleHeaderEnter}
+              onShiftEnter={handleHeaderShiftEnter}
+              onMoveUp={handleHeaderMoveUp}
+              onMoveDown={handleHeaderMoveDown}
+            />
+            {/* F-6 Phase 1+3: render `#Step` / `#Run` / other supertag
+                chips alongside the H1 so the user can see what KIND of
+                page they're on (without needing to zoom out to the bullet
+                view). Chips click-navigate to the per-space tag-Node;
+                shift-click opens it in a new pane. */}
+            <div className='-mt-2 mb-3 flex flex-wrap items-center gap-2'>
+              <TagChips block={pageNode} />
+            </div>
+            {/* F-Run-Nav (Iteration 2c.2 follow-up): when the page Node
+                is a Run, surface its outgoing navigable edges
+                (`'is-run-of'` → Step, `'parent-run'` → parent Run) as
+                inline navigation controls. Closes the back-nav gap
+                Runs otherwise have — they have no `'child'` predecessors
+                so `PredecessorNav` doesn't fire for them. */}
+            {hasSupertagOfTypename(pageNode, Bramble.Run.typename) && (
+              <RunNav
+                runNode={pageNode}
+                onSelect={handleSelectPredecessor}
+                onShiftSelect={handleOpenPane}
+              />
+            )}
             {/* F-Supertag Phase 3b: when the page node is itself a wrapper
                 (carries `supertags`), surface its FieldGroups at the
                 page level — they otherwise only mount as part of a
                 Node child row, which never happens for a
                 zoomed-in wrapper. */}
             <FieldGroups block={pageNode} />
+            {/* F-New-Run-On-Step (Iteration 2c.1): when the page Node
+                carries `#Step`, render a "+ New Run" action between
+                supertag fields and the body bullets. The button
+                creates a parent Run-Node + recursive child Runs +
+                'is-run-of' / 'parent-run' edges, then zooms the
+                pane into the parent Run. */}
+            <StepActions node={pageNode} onCreateRun={handleCreateRun} />
+            {/* F-Step-Runs-List (Iteration 2d): on `#Step` pages,
+                surface every Run linked to this Step via an
+                `'is-run-of'` edge. Click a Run row → zoom into its
+                F-Run-Execution-View. Principle #17 payoff — the
+                substrate's journal value made visible. */}
+            {hasSupertagOfTypename(pageNode, Bramble.Step.typename) && (
+              <StepRunsList
+                stepNode={pageNode}
+                onSelect={handleSelectPredecessor}
+                onShiftSelect={handleOpenPane}
+              />
+            )}
+            {/* F-Run-Execution-View (2c.2, revised 2c.5) + F-Run-Lens
+                (2c.5). Three render branches:
+                  - page is `#Run` AND Lens is active → RunLensShell
+                    wraps the runbook walkthrough with the wizard
+                    banner (Start / Next / Previous / Stop / Done).
+                  - page is `#Run` AND Lens is INactive → plain
+                    runbook view + a "Resume in Run Lens" button so
+                    the user can re-enter the wizard.
+                  - otherwise → the standard outline body.
+                All branches share the Zoom / OpenPane /
+                BacklinkCount providers because the nested Graphs
+                inside RunExecutionView / RunLensShell depend on
+                them. */}
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>
-                  <Graph rootBlock={pageNode} />
+                  {hasSupertagOfTypename(pageNode, Bramble.Run.typename) ? (
+                    runLensActive ? (
+                      <RunLensShell
+                        runNode={pageNode}
+                        focusId={focusId}
+                        focusAtEnd={focusAtEnd}
+                        setFocusId={setFocusId}
+                        setFocusIdAtEnd={setFocusIdAtEnd}
+                        onExit={handleExitRunLens}
+                      />
+                    ) : (
+                      <div>
+                        <div className='mb-3'>
+                          <button
+                            type='button'
+                            onClick={handleResumeRunLens}
+                            className='inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm bg-sky-100 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition-colors select-none'
+                            data-action='resume-run-lens'
+                          >
+                            <span aria-hidden>▶</span>
+                            <span>Resume in Run Lens</span>
+                          </button>
+                        </div>
+                        <RunExecutionView
+                          runNode={pageNode}
+                          focusId={focusId}
+                          focusAtEnd={focusAtEnd}
+                          setFocusId={setFocusId}
+                          setFocusIdAtEnd={setFocusIdAtEnd}
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <Graph
+                      rootBlock={pageNode}
+                      focusId={focusId}
+                      focusAtEnd={focusAtEnd}
+                      setFocusId={setFocusId}
+                      setFocusIdAtEnd={setFocusIdAtEnd}
+                    />
+                  )}
                 </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
@@ -263,7 +498,33 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
 // - system node (`systemNode` set): read-only header — Schema /
 //   Library aren't user-renameable.
 // - any other Node: standard inline-editable H1 (current behaviour).
-const PageHeader = ({ node }: { node: Bramble.Node }) => {
+type PageHeaderProps = {
+  node: Bramble.Node;
+  // F-Page-Header.7: when true, the H1 editor receives autofocus on
+  // mount or when this prop flips false→true. Article derives this
+  // from `focusId === node.id`.
+  focused?: boolean;
+  // When true (paired with `focused`), the autofocus places the caret
+  // at the END of the editor's content. Default places at the start.
+  focusedAtEnd?: boolean;
+  // F-Page-Header.8/.9: split-on-Enter / empty-Shift-Enter handlers
+  // make the H1 behave as a regular node-in-page (Enter creates a
+  // new first child of `node`, Shift+Enter creates an empty first
+  // child).
+  onEnter?: (beforeText: string, afterText: string) => void;
+  onShiftEnter?: () => void;
+  // F-Page-Header.11/.12: arrow nav crossings between the H1 and
+  // the body's topmost bullet.
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+};
+
+const PageHeader = ({ node, focused, focusedAtEnd, onEnter, onShiftEnter, onMoveUp, onMoveDown }: PageHeaderProps) => {
+  // F-Page-Header.4: re-render this header on `node.content` mutations so
+  // the "Untitled" placeholder appears/disappears live as the user types.
+  // The parent Article subscribes to the pane-root / subject but doesn't
+  // necessarily subscribe to a zoomed-in sub-node — subscribe locally here.
+  useObject(node);
   const tagTypename = (node as any).tagTypename as string | undefined;
   const systemNode = (node as any).systemNode as string | undefined;
 
@@ -289,15 +550,48 @@ const PageHeader = ({ node }: { node: Bramble.Node }) => {
           #
         </span>
         <span className='flex-1 min-w-0'>
-          <Editor block={node} headlineMode />
+          <Editor
+            block={node}
+            headlineMode
+            autoFocus={focused}
+            autoFocusAtEnd={focusedAtEnd}
+            onEnter={onEnter}
+            onShiftEnter={onShiftEnter}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+          />
         </span>
       </h1>
     );
   }
 
+  // F-Page-Header.4: when `node.content` is empty, render a muted
+  // "Untitled" overlay aligned to the same baseline as the editor's
+  // first character. `pointer-events: none` + `aria-hidden` keep the
+  // overlay purely visual — clicks and focus pass through to the
+  // editor underneath, so the user can immediately start typing.
+  const empty = !hasContent(node);
+
   return (
-    <h1 className='mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
-      <Editor block={node} headlineMode />
+    <h1 className='relative mt-2 mb-4 text-2xl font-bold text-neutral-900 dark:text-neutral-100'>
+      {empty && (
+        <span
+          aria-hidden
+          className='pointer-events-none absolute inset-0 text-neutral-400 dark:text-neutral-600 select-none'
+        >
+          Untitled
+        </span>
+      )}
+      <Editor
+        block={node}
+        headlineMode
+        autoFocus={focused}
+        autoFocusAtEnd={focusedAtEnd}
+        onEnter={onEnter}
+        onShiftEnter={onShiftEnter}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+      />
     </h1>
   );
 };

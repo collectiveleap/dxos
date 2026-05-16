@@ -8,6 +8,7 @@ export * from './Editor';
 export * from './Node';
 export * from './Graph';
 export * from './MentionPicker';
+export * from './Substrate';
 export * from './TagPicker';
 export * from './backlinks';
 export * from './labels';

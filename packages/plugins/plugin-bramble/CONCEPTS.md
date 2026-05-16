@@ -1278,8 +1278,6 @@ high-leverage:
   capacity *grows*, rather than being re-discovered each
   session.
 
----
-
 ## 10. Sources
 
 Web-search-verified during the conversation that produced this doc:
@@ -1404,3 +1402,607 @@ Web-search-verified during the conversation that produced this doc:
   wins for vocabulary; this doc updates. The reverse holds for
   philosophical framings (the doc wins for stance; the spec text
   updates to match).
+
+---
+
+## 12. Substrate principles — vocabulary mapping
+
+The `docs/substrate-principles-and-scenarios.md` document (drafted
+2026-05-15 from an adjacent Claude conversation, captured in
+`docs/conversation.md`) introduces a parallel vocabulary for what
+Bramble is meant to become: a *substrate that supports the gradual
+evolution of sociotechnical systems from informal, human-executed
+practice toward formal, partially or fully automated
+implementation*. The doc is explicitly domain-general — it claims
+to serve home medical-claim reconciliation, services-business
+operations, legal case management — not knowledge-graph use alone.
+
+**Bramble is intended to be that substrate.** The substrate-
+principles doc is not a *different* artifact from Bramble; it is
+the forward-looking design vocabulary for Bramble itself. (User
+position confirmed 2026-05-15.) Where this CONCEPTS.md §1-§11
+established Bramble's stance and data-model footing, §12 absorbs
+substrate-principles' vocabulary onto that footing — it is *not* a
+bridge between two different things, it is a vocabulary
+reconciliation within one thing.
+
+The substrate vocabulary's stance ("pace, then lead") is consonant
+with Bramble's honour-the-mess stance (§1) and Snowden's
+wayshaping (§2). Its core mechanic — *demand-driven emergent
+structure, never pre-declared* — is consonant with §3 (POV-2
+constructivism) and §6 (Bramble's data-model fit). Where the two
+vocabularies diverge, it is in surface terminology, not in stance.
+
+This section is the *Rosetta stone* between substrate-principles
+vocabulary and the Bramble-internal vocabulary the spec uses
+(`Bramble.Node`, `Bramble.Edge`, `Lens`, etc.). Without it, every
+future spec increment that draws on the substrate-principles doc
+has to re-resolve the same three tensions identified during the
+2026-05-15 read.
+
+### 12.1 The three tensions
+
+The substrate-principles doc introduces ten new primitives —
+`Step`, `Run`, `Context`, `Artifact`, `Refinement`, `Executor`,
+`Engagement`, `Translator`, `Demand`, `Provenance` — plus a
+*determinism gradient over executor types* (human / LLM /
+classifier / encoded rule). Three of these new primitives, plus
+the doc's separate use of the word `Lens`, collide with vocabulary
+this document already established.
+
+The collisions are surfaced once here so the spec doesn't have to
+re-litigate them per feature.
+
+### 12.2 Tension: "Lens" is overloaded
+
+**The two definitions on paper:**
+
+- *CONCEPTS.md §9 — Lens-as-generative-P.* Five operations
+  (§9.2): observer substitution, ontology inheritance, generative
+  response, attribution, composition. A Lens is the operational
+  surface of Cabrera's `P := (ρ ↔ v)` — a point co-implying a
+  view, with the view *generated* under the point's stance. The
+  emphasis is on producing new content (annotations, judgments,
+  predicaments) the underlying graph did not previously hold.
+- *substrate-principles Principle #11 — Lens-as-mapping.* "A
+  named perspective on the substrate that maps its own
+  vocabulary, property schemas, and visibility rules onto shared
+  underlying identities. Different operators or roles may use
+  different lenses; mappings between lenses are explicit and
+  revisable." The emphasis is on cooperative coherence in a
+  multi-operator setting without forcing vocabulary unification.
+
+**Resolution:** these are the same primitive viewed through
+different demands. There is one Lens.
+
+A Lens, fully spelled out, carries (a) an identity (who or what
+is observing — Steve, Kathy, Steve-the-future-auditor,
+the-mountain, the-customer), (b) a vocabulary of relevance (what
+terms it uses, what it foregrounds, what it dims), (c) visibility
+rules (what it can see, what it cannot), (d) attribution (every
+claim or annotation produced under the Lens is tagged with the
+Lens as source), and (e) composition (Lenses apply to outputs of
+other Lenses).
+
+- The CONCEPTS §9 emphasis on *generative-P* exercises (a)+(b)+(c)
+  to produce new (d)-attributed content. The single-operator,
+  cognitive-amplification use case.
+- The substrate-principles §11 emphasis on *cooperative mapping*
+  exercises (a)+(b)+(c)+(d) to keep multi-operator work coherent
+  without forcing one operator's vocabulary on another. Same
+  fields; different load.
+
+Resolutions in practice:
+
+1. **One schema, one primitive.** When the Perspective Node lands
+   (§8.2, §9.6), it carries the union of fields from both
+   emphases. The cooperative-mapping case is a strict subset of
+   the generative-P case — the (e)-composition isn't used, the
+   (d)-attribution becomes the cross-operator coherence
+   mechanism. A multi-operator deployment is *Lenses-without-
+   the-generative-engine*.
+2. **One user-facing name.** "Lens" remains the user-facing label
+   (§9 already commits to this). The substrate-principles doc's
+   reuse of the word is not a collision but a confirmation.
+3. **Discipline against the obvious failure mode.** Future
+   substrate-principles work that emphasizes per-operator
+   mapping should *not* invent a second primitive ("View", "Pane",
+   "Translator-of-Vocabularies") — that would re-split what is
+   actually one thing. If a §9-style Lens schema lands first
+   (the harder direction), the multi-operator mapping case
+   inherits from it freely.
+
+The substrate-principles doc's word "Lens" should be updated to
+point to §9 / §9.6 for the schema, with a note that the doc's
+emphasis is the cooperative-mapping subset. That edit can happen
+in the substrate doc; it does not require an edit here.
+
+### 12.3 Tension: Step vs Bramble.Node
+
+**The two definitions on paper:**
+
+- *substrate-principles — Step.* "A named piece of work. Steps
+  are the only first-class unit of work in the substrate. Every
+  piece of work — extracting a value, checking a condition,
+  reconciling a line, reconciling a visit — is a step. Steps
+  nest: a step's work may involve sub-steps, which are themselves
+  steps with their own definitions, executors, and runs. There is
+  one kind of thing, recursively composed."
+- *PLUGIN.mdl + §6 — Bramble.Node.* The free-form fold-in-the-mess
+  primitive that already exists. Content-bearing, edge-connected,
+  recursively-nested-via-edges, optionally typed by supertags,
+  optionally tagged as a system / tag / query node.
+
+**Resolution: a Step is a Bramble.Node carrying a `#Step`
+supertag.** Not a separate type, not a new sub-struct on
+`Bramble.Node`. The Node *is* the step; the supertag-instance is
+the marker that says so.
+
+Three independent reasons converge here.
+
+*First, the substrate-principles doc itself argues against
+separation.* Its own slogan is *"there is one kind of thing,
+recursively composed."* Introducing a Step type alongside Node
+would violate that slogan within Bramble's own model. The Node
+already is the one kind of thing; a Step is an additional *role*
+it can take, signalled by a tag.
+
+*Second, F-Supertag is the established extension point for
+"this Node is typed as X."* The mechanism already exists:
+`Node.supertags: Ref<Instance>[]` points at typed ECHO instances,
+and each supertag-instance can carry its own typed fields (F-6
+Phase 2 — typed field group). Tag-nodes (F-Supertag.tag-node,
+`tagTypename: string`) name the supertag class itself in the
+graph, so the user can rename "Step" to "Procedure" in one space
+without forking the schema — which is exactly §12.2's
+*cooperative-vocabulary* requirement in action. This pattern
+shouldn't be parallelised with a separate `state.step` sub-struct;
+that would put semantic typing into the same place where
+*transient UI state* (`state.expanded`, `state.checked`) lives.
+Different concerns, different mechanisms.
+
+*Third, this aligns with substrate-principles Principle #1
+(structure emerges from work in response to demand).* A Node can
+be tagged `#Step` from day one with **zero fields** on the Step
+ECHO Schema. The marker alone is enough to start: "this Node
+plays the role of a step." Fields get added to the Schema as
+demand pulls them in — primary-executor when the first hand-off
+happens, demand-text when articulation gets called out, executors
+list when more than one party is engaged. The supertag mechanism
+*embodies* the principle in a way that a pre-defined sub-struct
+does not.
+
+*The DSRP/multi-parent inheritance remains load-bearing.*
+Step-Nodes get F-DAG multi-parent rendering for free (a step can
+show under multiple contexts), F-Zoom and F-Open-Pane (steps zoom
+and open in new panes the same way notes do), F-Page-Header (a
+step's narrative description IS its content), F-Pending-Child
+(you can refine a step in place by typing a sub-step into its
+pending-child slot — that IS the refinement operation from
+substrate-principles Principle #3), F-DAG.Phase3e predecessor-nav
+(a step can have multiple parents). None of that changes when
+the typing mechanism is supertag rather than sub-struct.
+
+**Tentative schema delta:**
+
+```ts
+// F-Substrate (proposed): the Step supertag class. Starts empty;
+// the Node carrying `supertags: [Ref(stepInstance)]` IS the step.
+// The typed instance is just the marker.
+export const Step = Schema.Struct({
+  // No fields yet. The supertag itself is the type signal.
+}).pipe(Type.object({ typename: 'org.dxos.type.bramble.step', version: '0.1.0' }));
+
+// Later, as demand surfaces (one field per demand episode):
+//   formalization: Schema.optional(Schema.Literal('narrative', 'articulated', 'structured', 'executable'))
+// (No `demand` field — see §12.5: Demand is not graph data.)
+// (No `executors` / `primary` fields — see §12.5: availability
+//  is an `'available-executor'` edge, not a Step-field; the
+//  Step supertag stays free of executor-machinery.)
+```
+
+Nodes without the `#Step` supertag are pure thinking-nodes
+(today's Bramble). Nodes with the `#Step` supertag are work-
+bearing steps. Both recursively nest via the same edges.
+Refinement of a step is exactly the existing operation of
+*adding a child* — no new primitive.
+
+**Cardinality note.** Substrate-principles says "Steps nest" via
+children, not via multiple typings on one Node. A Node probably
+should carry `#Step` at most once. (The F-Supertag schema allows
+multiple supertags per Node — `Editor` + `Step` is meaningful,
+for instance — but `Step` + `Step` is not.) Worth a `req` when
+this becomes implementable.
+
+### 12.4 Tension: Run vs Edge
+
+**The new primitive on paper:**
+
+- *substrate-principles — Run.* "An instance of a step being
+  executed. Runs are immutable records of what happened: when,
+  by which executor, with what inputs and outputs, in what
+  context. A run of a parent step may spawn child runs of its
+  sub-steps; the parent-child relationship is recorded in the
+  log."
+
+This collides with the question: *where does the event log live
+in Bramble's data model?* Bramble's existing Edges (§8.1
+taxonomy) are structural-relational (`child`, future `reference`,
+`cause`, `co-occurs-with`, …). None of them is event-temporal. A
+Run is *a moment in time attached to a Step* — neither a free-
+floating typing nor an existing edge kind.
+
+**Resolution: a Run is a Bramble.Node carrying a `#Run` supertag,
+linked to its Step via a new Edge kind `'is-run-of'`, and to its
+parent Run (if any) via a new Edge kind `'parent-run'`.** Same
+pattern as Step itself for the typing; new edge-taxonomy entries
+for the relations.
+
+*Choice of edge over Ref-on-supertag.* The edge representation
+gives bidirectional traversal cheaply: "list all Runs of this
+Step" is a standard edge query, "the Step this Run is of" is a
+standard edge query. A Ref-on-supertag would have made the
+forward direction cheap but the reverse direction a reverse-Ref
+scan. Confirmed 2026-05-15.
+
+*Schema shape: deferred.* Substrate-principles describes a Run as
+"an immutable record of what happened: when, by which executor,
+with what inputs and outputs, in what context." Beyond the typing
+itself, what fields a `#Run` supertag instance needs on day one is
+**not yet decided** — it will emerge as we iterate on concrete
+scenarios. The minimum-viable Run supertag is therefore:
+
+```ts
+// F-Substrate (proposed): the Run supertag class. Starts empty —
+// the supertag is the type signal. Fields (started, completed,
+// executor, input-refs, output-refs) get added as demand pulls
+// them in.
+export const Run = Schema.Struct({
+  // No fields yet. The Node carrying `supertags: [Ref(runInstance)]`
+  // IS the run; relations to its Step and parent Run go through
+  // edges of kind 'is-run-of' and 'parent-run' respectively.
+}).pipe(Type.object({ typename: 'org.dxos.type.bramble.run', version: '0.1.0' }));
+```
+
+**This requires new types in the Bramble type module.** Scoping
+note (per the plugin-bramble feedback memory): new types and edge-
+kinds for the substrate vocabulary live in plugin-bramble's own
+type module, *not* in `@dxos/echo` core. Specifically:
+
+- `org.dxos.type.bramble.step` and `org.dxos.type.bramble.run`
+  supertag classes — new types under plugin-bramble.
+- `Edge.kind` enum values `'is-run-of'` and `'parent-run'` — new
+  entries in §8.1's taxonomy. Whether `Edge.kind` is a
+  Bramble-local or core enum determines where these literally
+  live; if the kind set is core, this is the one place that
+  needs a core-types coordination; if it's a Bramble-local
+  string union, additions stay in-plugin. *To be checked when
+  implementation begins.*
+
+Some payoffs of this shape:
+
+- *The event log is the population of Run-Nodes, queryable.*
+  Substrate Principle #15 says "the substrate's state is an
+  append-only log of events." In Bramble, that log is the set of
+  Nodes carrying the `#Run` supertag, plus ECHO's own immutable
+  event history of edge-additions and node-mutations. We do not
+  add a parallel event-sourcing layer.
+- *Runs can be zoomed-into, edited, refined.* A Run is just a
+  Node — F-Zoom, F-Open-Pane, F-Page-Header all work. The user
+  can navigate to a specific run, see its inputs as the Node's
+  content, see its child Runs as structural children.
+- *Provenance is reachable from any Run-Node via edges.*
+  "Provenance everywhere" (Principle #13) lights up by following
+  the edges out from any Run-Node: what Step produced this
+  content (`is-run-of` → Step-Node), in what run hierarchy
+  (`parent-run` → ancestor Run-Node). Executor linkage is part of
+  §12.5's open executor-shape question.
+
+### 12.5 What §12 does NOT settle
+
+Carried forward for subsequent design conversations:
+
+- **Demand is not graph data.** (User position confirmed
+  2026-05-15.) The substrate-principles doc names Demand as a key
+  term and uses it as the test for every substrate change
+  (Principle #2), but the demand itself sits *outside* the
+  substrate, in the operator's experience: their repeated need
+  for a value (pull demand), their wish to delegate (push
+  demand). The substrate is *shaped by* demand; it does not
+  *store* demand. Demand is what drives the substrate's
+  evolution; the substrate's job is to respond to demand, not to
+  catalog it.
+
+  Where Demand appears to surface as data in the source doc, on
+  closer read it does not:
+
+  - *Scenarios.* "Demand driving the change: pull demand — Steve
+    keeps needing the amount." This is exegesis for the human
+    reader of the doc, explaining *why* the substrate was
+    modified; it is not a field stored alongside the
+    modification.
+  - *Principle #12 ("inferred demand").* The substrate may
+    *infer* demand from accumulated traces (recurring usage,
+    repeated workarounds, repeated free-text patterns).
+    Inference is a computation over traces, not retrieval of a
+    stored Demand object.
+  - *Principle #14 ("proposals frame the demand they're
+    responding to").* When the substrate proposes a change, the
+    proposal carries a natural-language demand-statement as
+    framing for the operator. That string is part of the
+    proposal artifact's prose; it is not a typed handle to a
+    Demand-Node.
+
+  Implication for spec: there is no `#Demand` supertag, no
+  Demand-Node, no `demand` enum on Step. Where the substrate
+  needs to *show* demand to the operator (in proposals,
+  summaries, "why does this Step exist"), that's text / UI
+  copy, not a typed graph field. The discipline of "what
+  demand is this responding to?" remains a *design and
+  proposal discipline*, exercised by the substrate's authors
+  and by its inference-time proposal-framing — never something
+  the user is asked to fill in as a form field.
+
+- **Executor associates with Step.** Each Step has *its own*
+  list of available Executors. The list starts with at least one
+  Executor (typically a human — Steve, in every scenario S1-S8)
+  and *may* evolve over time: Executors can be added (S4 adds
+  the script), engagement among them can change without changing
+  availability (S5-S7), and Steps can be retired with their
+  availability list preserved in the log (S8). Many Steps may
+  stay at one Executor indefinitely if no delegation demand
+  surfaces. Per Principle #9's determinism gradient, the
+  envisioned upper bound is four kinds of Executor coexisting on
+  a single Step: human / LLM / classifier / rule. (Principle #5
+  also allows removal of an Executor from availability — not
+  exemplified in the scenarios but not forbidden either.)
+
+  Engagement on any given Run picks among the available set;
+  availability and engagement are separate concerns (Principle
+  #5's three independent categories).
+
+  *One evolution path — `extract_amount`:*
+
+  - **S2** — `extract_amount` created as a sub-step of
+    `reconcile_line`. Available executors on it: { **Steve**
+    (human) }.
+  - **S4** — Steve's son writes the extractor script and adds it
+    *as an available executor on the sub-step*. Available
+    executors on `extract_amount`: { **Steve, script** }.
+    Engagement on next Run unchanged: Steve sole.
+  - **S5** — script engaged as secondary. *Availability set
+    unchanged* — still { Steve, script }. Engagement on next
+    Run: Steve primary, script secondary.
+  - **S6** — primary swapped. *Availability set unchanged.*
+    Engagement on next Run: script primary, Steve secondary.
+  - **S7** — hand-back triggered by new EOB layout. *Availability
+    set unchanged.* Engagement on next Run: Steve primary, script
+    secondary (or disengaged).
+  - **S8** — sub-step retired. *Availability set preserved in
+    log* — still { Steve, script } as a historical fact. New
+    Runs of `reconcile_line` simply do not show the sub-step.
+
+  Three load-bearing observations:
+
+  1. **Each Step has its own list.** Executor-availability is a
+     per-Step fact; Steps don't share lists. (Whether a sub-Step
+     *inherits* its parent's list on creation is a UI/UX
+     question — see open issues below.)
+  2. **Step ↔ Executor is many-to-many at the graph level, but
+     reuse-cardinality varies by Executor kind in practice.**
+     Humans (Steve, Kathy) are general-purpose — one human
+     identity tends to serve *many* Steps wherever that human's
+     skills/role apply. Purpose-built scripts and rules
+     (Steve's son's `extract_billed_amount.py`) are written for
+     one specific Step and typically serve only that Step.
+     LLMs and classifiers may go either way depending on
+     specialisation. The graph supports M:N edges uniformly;
+     the *typical* cardinality is a consequence of the
+     Executor's kind, not a graph constraint. This shapes the
+     "add executor" UX: humans want a picker over an existing
+     small set; purpose-built scripts/rules want
+     create-in-context-of-this-Step.
+  3. **Engagement is separable from availability.** S5-S7
+     change engagement without changing the available set.
+     This is Principle #5's "three independent categories of
+     change" in practice.
+
+  *Proposed shape — executor-hood is relational; kind is a
+  supertag.*
+
+  A Node becomes "an executor for a Step" by being the *target*
+  of an `'available-executor'` edge from that Step. There is no
+  `#Executor` supertag — executor-hood is not an intrinsic
+  typing of the Node, it is a relation expressed by the edge.
+  The Node's *intrinsic* typing — what KIND of thing it is — is
+  carried by a supertag drawn from Principle #9's determinism-
+  gradient set:
+
+  - `#Person` — a human (Steve, Kathy).
+  - `#LLM` — an LLM configuration.
+  - `#Classifier` — a classifier configuration.
+  - `#Rule` — encoded determinism broadly: scripts (e.g. a
+    Python extractor), declarative if/then rules, etc.
+
+  Each kind-supertag is its own ECHO Schema, starting empty and
+  growing on its own demand cycle — §12.3's pattern applied
+  recursively. Sketch:
+
+  ```ts
+  export const Person = Schema.Struct({
+    // No fields yet. Future: name, email, etc., as demand surfaces.
+  }).pipe(Type.object({ typename: 'org.dxos.type.bramble.person', version: '0.1.0' }));
+
+  export const LLM = Schema.Struct({
+    // Future: model, prompt (likely a Ref to a Prompt-Node), determinism.
+  }).pipe(Type.object({ typename: 'org.dxos.type.bramble.llm', version: '0.1.0' }));
+
+  // #Classifier and #Rule similarly — empty Schemas at first.
+  ```
+
+  The **Step ↔ Executor relation** is an Edge of kind
+  `'available-executor'` from Step-Node to the kind-tagged Node.
+  A Step has zero or more such edges. The **Run ↔ Executor
+  relation** is a separate Edge of kind `'executed-by'` from
+  Run-Node to the kind-tagged Node, carrying the engagement-
+  role (primary/secondary) as an edge property. Two distinct
+  relations, two distinct edge kinds.
+
+  Worth naming: the same `#Person` Steve-Node referenced by his
+  Step-availability edges is *also* the Node that any unrelated
+  notes, contact-lists, or Lenses-attributing-claims-to-Steve
+  might reference. "Is Steve an executor of X right now?" is a
+  question about edges, not about Steve's intrinsic typing.
+
+  *Mapping the scenarios via edges:*
+
+  - **S1-S3:** `Steve: #Person` exists once as a Node. Edges:
+    `reconcile_line --available-executor→ Steve` and (after S2)
+    `extract_amount --available-executor→ Steve`. Same
+    Steve-Node referenced by two edges from two Steps — M:N
+    materialised at the graph level via the Person Node's
+    intrinsic identity, with the per-Step lists being separate
+    edge sets.
+  - **S4:** The script becomes a new Node tagged `#Rule` (with
+    whatever field captures the script path — deferred; the
+    `#Rule` schema starts empty). New edge `extract_amount
+    --available-executor→ script`. The Steve-edge persists;
+    the available set on `extract_amount` is now
+    {Steve-`#Person`, script-`#Rule`}.
+  - **S5-S7:** No new `'available-executor'` edges. Each Run-Node
+    on `extract_amount` carries `'executed-by'` edges to
+    whichever Nodes engaged on that Run, with role
+    (primary/secondary) as edge property.
+  - **S8:** `extract_amount` Step-Node gains a retirement
+    marker. The `'available-executor'` edges remain in the log;
+    new Runs of `reconcile_line` simply do not surface this
+    Step.
+  - **Principle #9 future:** an LLM executor as a new `#LLM`
+    Node (with `model`, `prompt: Ref(promptNode)` as supertag
+    fields when those land); the `prompt` being a Ref to a Node
+    gives prompts their own provenance, refinement history, and
+    Lens-attribution.
+
+  *What this leaves open:*
+
+  - Whether availability propagates from parent Step to
+    sub-Step automatically (so S2's "Executors on sub-step:
+    Steve" is implicit) or is added explicitly per sub-Step.
+    Substrate doc doesn't say; either is consistent. *Lean:*
+    explicit edges with a UI affordance for "inherit from
+    parent" rather than implicit propagation, so availability
+    history is auditable per Principle #15.
+  - Whether availability could alternatively be a Ref-array on
+    the `#Step` supertag rather than an edge. Mirrors §12.4's
+    field-vs-edge trade-off; leaning Edge for symmetry with
+    `'is-run-of'`/`'parent-run'` and because additive evolution
+    is naturally an edge-append (which §12.6's edge-creation
+    UX gesture will handle uniformly).
+  - Whether multiple `'executed-by'` edges with a `role`
+    property is preferable to multiple Run-Nodes per executor.
+    Connects to Engagement-parallelism below.
+  - "Replay semantics, confidence-capture, hand-back triggers"
+    from Principle #9 — these are operational features that
+    per-kind-supertag-specific fields will gate (e.g., `#LLM`'s
+    `model` determines replay semantics), but the features
+    themselves are not §12 work.
+
+  Strong enough to seed a `req`/`test` increment when the user
+  is ready.
+
+- **Translator on edges.** Substrate-principles introduces
+  *Translator* as "an executor on an edge between steps,
+  responsible for transforming upstream output into the shape
+  downstream input expects." Edges in Bramble don't currently
+  carry refs at all. Adding e.g. `Edge.translator:
+  Ref<Obj.Unknown>` (pointing at a `#Person` / `#LLM` / `#Rule`
+  / `#Classifier` Node) is trivially possible but premature;
+  the substrate-principles doc itself barely uses translators
+  in its scenarios. Deferred.
+
+- **Context.** Substrate-principles' Context is "a first-class
+  handle representing a coherent piece of work — a particular
+  case, client, event." The closest existing Bramble primitive is
+  `Bramble.Graph` (the per-topic container). But a Context that
+  "can overlap" (multiple Contexts can share a Step) is closer
+  to a multi-parent edge structure than to a single Graph
+  container. Probably: Context = a Bramble.Node tagged
+  `#Context`, with Steps/Runs linking to Contexts via
+  `Edge.kind: 'in-context'`. But the exact shape needs its own
+  conversation — the substrate's *value as a journal alone*
+  (Principle #17) depends on Context being usable on day one.
+
+- **Engagement parallelism.** Substrate Principle #8's
+  *parallel-engagement run* — a single step with multiple
+  engaged executors, one primary, one or more secondaries —
+  needs to model "two Runs of the same Step in parallel, with
+  one designated primary." Two Run-Nodes (both tagged `#Run`),
+  both pointing at the same Step-Node via `'is-run-of'` edges,
+  both pointing at the same parent-Run via `'parent-run'`. A
+  separate `primary: Boolean` field on the Run supertag? Or
+  `role: 'primary' | 'secondary'`? Or a property on the
+  `'executed-by'` edge from §12.5's Executor sketch? Deferred to
+  first feature increment that actually exercises parallel-
+  engagement.
+
+*The strategic-positioning question is no longer open.* It was
+resolved in §12's preamble: Bramble is intended to be the
+domain-general substrate that the substrate-principles doc
+describes. There is one shipping artifact, not two.
+
+### 12.6 Implications for next spec increments
+
+§12 settles vocabulary, not features. Three concrete consequences
+for what `PLUGIN.mdl` could absorb next without further design
+work, plus one new-UX-question flagged for downstream:
+
+1. **A new rule `R-Step-Is-Tagged-Node`** capturing §12.3's
+   resolution: any work-bearing Step is a Bramble.Node carrying
+   Bramble's existing `#tag` notation, specifically `#Step`. The
+   `#Step` supertag-instance Schema may be empty on day one;
+   fields are added as demand pulls them in. New "Step" features
+   build on top of the existing Node infrastructure (F-DAG,
+   F-Zoom, F-Page-Header, F-Pending-Child) rather than
+   introducing a parallel UI. Spec entries that reach for a new
+   primitive when a tagged-Node would do should be flagged
+   against this rule. Spec entries that reach for a new
+   sub-struct on `Node.state` (transient UI state) for what is
+   actually *semantic typing* should also be flagged.
+
+2. **A new rule `R-Run-Is-Tagged-Node-Linked-Via-Edge`**
+   capturing §12.4. Runs are Bramble.Nodes carrying the `#Run`
+   supertag; their relationship to Steps is an Edge of kind
+   `'is-run-of'` and to parent Runs `'parent-run'`. No
+   event-sourcing layer outside what ECHO provides natively.
+
+3. **A new rule `R-Substrate-Types-Are-Plugin-Bramble-Local`**
+   capturing the scope discipline: the supertag classes
+   introduced under §12 — `#Step`, `#Run`, and the determinism-
+   gradient kinds `#Person`, `#LLM`, `#Classifier`, `#Rule` —
+   live in plugin-bramble's own type module. They do not get
+   added to `@dxos/echo` core. New `Edge.kind` enum values
+   (`'is-run-of'`, `'parent-run'`, `'available-executor'`,
+   `'executed-by'`) follow the same rule, *with one exception* —
+   if the kind set turns out to be a core enum rather than a
+   Bramble-local union, that's a coordination point with
+   @dxos/types that must be raised before implementation, not
+   after.
+
+4. **New UX surface flagged: edge-creation gesture.** Bramble
+   today creates only `'child'` edges, implicitly, via outline
+   typing. Both `'is-run-of'` and `'parent-run'` (and the
+   eventual executor-availability/engagement edges from §12.5)
+   require *designating an edge of a non-`child` kind between
+   two specific Nodes* — a UX gesture that doesn't yet exist.
+   This is a real new feature ask, not a rule. Adjacent
+   precedents: the `@`-mention popover already wires a *Ref*,
+   but a Ref is not an Edge.kind. Carried as an open thread for
+   the next operational design conversation; should be drafted
+   into PLUGIN.mdl as an `F-` feature placeholder *before* the
+   `R-Run-...` rule is implementable.
+
+The first three are rules to add to `## Rules`. The fourth is an
+`F-` feature to draft into `## Features`. None lands until the
+user signs off on §12; without that, all four are premature.
+
+---
