@@ -11,9 +11,16 @@
 // this way the editor underneath keeps its normal pointer-events and
 // the user can still click / select text freely. The returned element
 // is positioned ABSOLUTELY inside the same container and is purely
-// visual (pointer-events: none); it lights up the dashed drop-zone
-// border while dragActive and surfaces a transient status line after
-// each drop.
+// visual (pointer-events: none); it renders a per-row highlight that
+// snaps to the bullet (or pending-child placeholder) under the cursor
+// while dragActive, and surfaces a transient status line after each
+// drop.
+//
+// 2026-05-16: switched to the Wnfs.File-via-supertag model (see
+// `pdf-upload.ts` for the orchestration). Visual affordance widened
+// to per-row drop targets (F-PDF-Upload.drop-target-per-row) and the
+// pending-child placeholder is now a recognised drop site (via
+// `[data-bramble-pending-child]`).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -21,13 +28,14 @@ import { useCapabilities } from '@dxos/app-framework/ui';
 import { AppCapabilities } from '@dxos/app-toolkit';
 import { Obj } from '@dxos/echo';
 
-import { attachAsChild, uploadPdfWithDedup } from './pdf-upload';
+import { attachAsChild, ensurePdfBrambleNode } from './pdf-upload';
 
 import { Bramble } from '#types';
 
 export type UsePdfDropTargetOptions = {
   // The current page node — used as the default drop-site parent when
-  // the drop didn't land over a specific bullet row.
+  // the drop didn't land over a specific bullet row or pending-child
+  // placeholder.
   pageNode: Bramble.Node | null;
 };
 
@@ -78,28 +86,63 @@ const extractPdfFiles = (event: React.DragEvent): File[] => {
   return out;
 };
 
-// Find the Bramble.Node id of the bullet row at the given screen
-// coordinates by walking the DOM ancestry of `elementFromPoint`.
-// Returns null when the drop landed over the page body (header, gap,
-// backlinks panel, etc.) — caller falls back to the page node.
-const dropSiteIdAt = (clientX: number, clientY: number): string | null => {
+// Hit-test result for the drop site under the cursor — either a
+// rendered bullet row, or the pending-child placeholder of an
+// expanded parent.
+type DropSiteHit = {
+  kind: 'bullet' | 'pending-child';
+  // For 'bullet': the bullet's Node id. For 'pending-child': the
+  // parent Node whose pending-child slot the cursor is over.
+  parentId: string;
+  // The DOM element's bounding box (viewport-relative).
+  rect: DOMRect;
+};
+
+// Walk the DOM at the cursor and resolve which drop site the cursor
+// is over (bullet row, pending-child placeholder, or neither).
+const hitTestDropSite = (clientX: number, clientY: number): DropSiteHit | null => {
   const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
   if (!el) {
     return null;
   }
+  // Bullet row (existing convention — every Node renders a wrapper
+  // with `data-block-id`).
   const row = el.closest('[data-block-id]') as HTMLElement | null;
-  return row?.dataset?.blockId ?? null;
+  if (row) {
+    const parentId = row.dataset?.blockId;
+    if (parentId) {
+      return { kind: 'bullet', parentId, rect: row.getBoundingClientRect() };
+    }
+  }
+  // Pending-child placeholder (F-PDF-Upload.drop-target-per-row —
+  // PendingChildRow now stamps `data-bramble-pending-child` with the
+  // parent Node id).
+  const pending = el.closest('[data-bramble-pending-child]') as HTMLElement | null;
+  if (pending) {
+    const parentId = pending.dataset?.bramblePendingChild;
+    if (parentId) {
+      return { kind: 'pending-child', parentId, rect: pending.getBoundingClientRect() };
+    }
+  }
+  return null;
 };
 
 export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfDropTargetResult => {
   const [uploader] = useCapabilities(AppCapabilities.FileUploader);
   const [dragActive, setDragActive] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  // Per-row highlight state — null when the cursor isn't over a
+  // recognised drop site (article surface only).
+  const [activeHit, setActiveHit] = useState<DropSiteHit | null>(null);
   // F-PDF-Upload: `dragenter`/`dragleave` fire as the cursor crosses
   // every child element, so we keep a counter (incremented on enter,
   // decremented on leave) instead of toggling on each event. The
   // overlay is "active" while counter > 0.
   const dragDepthRef = useRef(0);
+  // Ref to the overlay container so we can convert viewport-relative
+  // hit-test rects into overlay-relative coordinates for absolute
+  // positioning of the per-row highlight.
+  const overlayRef = useRef<HTMLDivElement | null>(null);
 
   const db = pageNode ? Obj.getDatabase(pageNode) : undefined;
 
@@ -121,6 +164,10 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'copy';
     }
+    // F-PDF-Upload.drop-target-per-row: snap the highlight to the
+    // bullet / pending-child under the cursor.
+    const hit = hitTestDropSite(event.clientX, event.clientY);
+    setActiveHit(hit);
   }, []);
 
   const onDragLeave = useCallback((event: React.DragEvent) => {
@@ -130,6 +177,7 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
     if (dragDepthRef.current === 0) {
       setDragActive(false);
+      setActiveHit(null);
     }
   }, []);
 
@@ -152,6 +200,11 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
       event.preventDefault();
       dragDepthRef.current = 0;
       setDragActive(false);
+      // Cache the hit BEFORE clearing — drop is the moment the
+      // highlight stops mattering, so snapshot what was under the
+      // cursor and only then clear.
+      const dropHit = hitTestDropSite(event.clientX, event.clientY);
+      setActiveHit(null);
 
       const files = extractPdfFiles(event);
       if (files.length === 0) {
@@ -169,21 +222,30 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
         return;
       }
 
-      // Resolve the drop-site parent. The drop event's coordinates
-      // map back to a bullet row when the user released over one;
-      // otherwise the page node is the parent.
-      const dropSiteId = dropSiteIdAt(event.clientX, event.clientY);
-      const dropSiteNode = dropSiteId
-        ? (db.getObjectById?.(dropSiteId) as Bramble.Node | undefined)
-        : undefined;
+      // Resolve the drop-site parent.
+      //   - bullet:        parent = the bullet's Node
+      //   - pending-child: parent = the placeholder's parent Node (so
+      //                    the new wrapper-Node lands as the LAST
+      //                    child of that parent, matching Enter-key
+      //                    semantics on the placeholder)
+      //   - else:          parent = page node (existing fallback)
+      const dropSiteNode = dropHit
+        ? ((db.getObjectById?.(dropHit.parentId) as Bramble.Node | undefined) ?? pageNode)
+        : pageNode;
       const parent = dropSiteNode ?? pageNode;
 
       let createdCount = 0;
       let dedupedCount = 0;
+      let failureCount = 0;
       for (const file of files) {
         try {
-          const result = await uploadPdfWithDedup({ db, file, uploader });
+          const result = await ensurePdfBrambleNode({ db, file, uploader });
           if (!result) {
+            // Upload returned no usable cid — surface the failure
+            // instead of silently dropping the file (the earlier
+            // implementation continued the loop with no status
+            // update, which looked like the drop had been ignored).
+            failureCount += 1;
             continue;
           }
           attachAsChild(db, parent, result.node);
@@ -198,11 +260,13 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
           // overlay status string is the user-facing surface.
           // eslint-disable-next-line no-console
           console.warn('[plugin-bramble] PDF drop failed', err);
-          setStatus('PDF upload failed. See console for details.');
+          failureCount += 1;
         }
       }
 
-      if (createdCount > 0 && dedupedCount > 0) {
+      if (failureCount > 0 && createdCount === 0 && dedupedCount === 0) {
+        setStatus('PDF upload failed. See console for details.');
+      } else if (createdCount > 0 && dedupedCount > 0) {
         setStatus(`Added ${createdCount} new, linked ${dedupedCount} existing.`);
       } else if (createdCount > 0) {
         setStatus(`Added ${createdCount} PDF${createdCount === 1 ? '' : 's'}.`);
@@ -215,15 +279,39 @@ export const usePdfDropTarget = ({ pageNode }: UsePdfDropTargetOptions): UsePdfD
     [uploader, db, pageNode],
   );
 
+  // Compute the highlight rect in overlay-relative coordinates. The
+  // overlay's offsetParent is the container we're spread onto; we
+  // measure the overlay's own getBoundingClientRect and subtract
+  // viewport offsets.
+  const highlightStyle: React.CSSProperties | undefined = React.useMemo(() => {
+    if (!activeHit || !overlayRef.current) {
+      return undefined;
+    }
+    const containerRect = overlayRef.current.getBoundingClientRect();
+    return {
+      left: activeHit.rect.left - containerRect.left,
+      top: activeHit.rect.top - containerRect.top,
+      width: activeHit.rect.width,
+      height: activeHit.rect.height,
+    };
+  }, [activeHit]);
+
   const overlay = (
     <div
+      ref={overlayRef}
       className='absolute inset-0 pointer-events-none'
       aria-hidden
       data-bramble-pdf-drop-overlay
     >
-      {dragActive && (
-        <div className='absolute inset-2 flex items-center justify-center rounded-md border-2 border-dashed border-indigo-500 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-200 text-sm font-medium'>
-          Drop PDF to add as a bullet
+      {dragActive && activeHit && highlightStyle && (
+        <div
+          className='absolute rounded-md border-2 border-dashed border-indigo-500 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40'
+          style={highlightStyle}
+        />
+      )}
+      {dragActive && !activeHit && (
+        <div className='absolute inset-2 flex items-center justify-center rounded-md border-2 border-dashed border-indigo-300/70 dark:border-indigo-700/60 text-indigo-700/80 dark:text-indigo-200/80 text-sm font-medium'>
+          Drop PDF to add as a bullet (or hover a bullet / pending-child to target it)
         </div>
       )}
       {status && (

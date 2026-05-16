@@ -11,7 +11,7 @@ import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
 import { Editor } from '../Editor';
 import { findTagTypeByTypename } from '../Editor/tag-types';
 import { MentionPicker } from '../MentionPicker';
-import { PdfChip, isPdfAttachment } from '../PdfDrop';
+import { PdfChip, findFileSupertag, isPdfFile } from '../PdfDrop';
 import {
   childEdgesOf,
   createEdge,
@@ -370,13 +370,18 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
             />
           </div>
           <TagChips block={snapshot} />
-          {/* F-PDF-Upload.chip-rendering: when this Node's attachment is
-              a PDF file, render the PDF chip (icon + filename) adjacent
-              to its content. The chip's click opens the file in a new
-              tab without disturbing the bullet's own zoom gesture. */}
-          {isPdfAttachment((snapshot as any).attachment) && (
-            <PdfChip attachment={(snapshot as any).attachment} />
-          )}
+          {/* F-PDF-Upload.chip-rendering: when this Node's supertags
+              include a Wnfs.File that is a PDF, render the PDF chip
+              (icon + label). The chip's label uses the Node's
+              editable content when non-empty, falling back to the
+              file's name per F-PDF-Upload.editable-label-preserves-
+              attachment. Click opens the wrapped Wnfs.File inline. */}
+          {(() => {
+            const file = findFileSupertag(snapshot as any);
+            return file && isPdfFile(file) ? (
+              <PdfChip node={snapshot as any} wnfsFile={file} />
+            ) : null;
+          })()}
           {backlinkCount > 0 && (
             <span
               className='text-xs leading-none px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-600 dark:text-neutral-400 shrink-0'
@@ -917,7 +922,15 @@ export const PendingChildRow = ({
   };
 
   return (
-    <div className='flex items-baseline gap-1 cursor-text' onClick={handleClick}>
+    <div
+      className='flex items-baseline gap-1 cursor-text'
+      onClick={handleClick}
+      // F-PDF-Upload.drop-target-per-row: the pending-child placeholder
+      // is a recognised drop site. The drop overlay's hit-test reads
+      // `data-bramble-pending-child` to identify the parent whose
+      // last-child slot the cursor is over.
+      data-bramble-pending-child={parent.id}
+    >
       <span className='shrink-0 w-6' aria-hidden />
       <span className='shrink-0 mt-1 w-5 h-5 inline-flex items-center justify-center'>
         <span className='inline-block w-2 h-2 rounded-full bg-neutral-300 dark:bg-neutral-700' />

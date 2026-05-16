@@ -2,53 +2,77 @@
 // Copyright 2026 DXOS.org
 //
 
-// F-PDF-Upload: client-side helpers for the drop-a-PDF-to-create-a-Node flow.
-// Lives entirely above @dxos/echo per R-No-Echo-Changes — uses the public
-// query/Filter API for dedup lookups and the F-DAG createEdge primitive for
-// drop-site wiring.
+// F-PDF-Upload: client-side helpers for the drop-a-PDF-to-create-a-Node
+// flow. Lives entirely above @dxos/echo per R-No-Echo-Changes — uses the
+// public query/Filter API for dedup lookups and the F-DAG createEdge
+// primitive for drop-site wiring.
+//
+// 2026-05-16: switched from inline `Bramble.Node.attachment` struct to
+// the F-Supertag wrap pattern around plugin-wnfs's canonical
+// `Wnfs.File` (typename `org.dxos.type.file`). The FileUploader
+// capability (plugin-wnfs's WNFS implementation) creates and adds the
+// Wnfs.File for us as part of the upload; Bramble locates it by `cid`
+// post-upload and find-or-creates a Bramble.Node wrapper carrying the
+// file as a supertag Ref. We treat Wnfs.File as an opaque ECHO object
+// identified by its typename string to avoid a compile-time dependency
+// on `@dxos/plugin-wnfs`.
 
-import { Filter } from '@dxos/echo';
+import { Filter, Obj } from '@dxos/echo';
 
 import { createEdge, findEdge } from '../Node/edges';
 
 import { Bramble } from '#types';
 
-// Compute the SHA-256 of the given bytes as a lowercase hex string. Uses
-// WebCrypto.subtle which is available in every Composer target (browser,
-// secure contexts). The digest is the dedup key — same bytes always hash
-// to the same string regardless of filename or MIME type.
-export const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
-  // SubtleCrypto.digest's BufferSource type is awkward in TS 5.6+
-  // (Uint8Array<ArrayBufferLike> doesn't satisfy ArrayBufferView<
-  // ArrayBuffer> directly). The runtime accepts a Uint8Array fine;
-  // the cast is the path of least friction here.
-  const buffer = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
-  return [...new Uint8Array(buffer)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-};
+// Stable typename of plugin-wnfs's File ECHO type. Avoids a hard
+// import of `@dxos/plugin-wnfs` (cross-plugin compile coupling); the
+// typename is part of the WNFS plugin's public contract and changes
+// would be a coordinated upgrade either way.
+export const WNFS_FILE_TYPENAME = 'org.dxos.type.file';
 
-// True when the attachment is a PDF — either by explicit mime type or by
-// the URL's `.pdf` suffix (covers wnfs:// URLs whose returned info may not
-// preserve the original mime type in every storage backend).
-export const isPdfAttachment = (
-  attachment: Bramble.Node['attachment'] | undefined,
-): boolean => {
-  if (!attachment) {
+// True when the given ECHO object is a Wnfs.File representing a PDF —
+// either by explicit mime type or by `.pdf` filename suffix (covers
+// storage backends that drop the original mime type).
+export const isPdfFile = (file: any | undefined): boolean => {
+  if (!file) {
     return false;
   }
-  if (attachment.mimeType === 'application/pdf') {
+  if (file.type === 'application/pdf') {
     return true;
   }
-  return (attachment.url ?? '').toLowerCase().endsWith('.pdf');
+  return ((file.name ?? '') as string).toLowerCase().endsWith('.pdf');
 };
 
-// Find the Bramble.Node in `db` whose attachment carries the given
-// SHA-256 hash, if any. Returns the FIRST match deterministically (lower
-// id wins) so concurrent uploads of the same file across panes converge
-// on the same canonical Node.
-export const findNodeByHash = (db: any, sha256: string): Bramble.Node | undefined => {
-  if (!db || !sha256) {
+// Find an existing Wnfs.File in `db` whose content-addressed `cid`
+// matches. Returns the FIRST match deterministically (lowest id wins)
+// so concurrent uploads of the same bytes converge on the same
+// canonical file instance.
+export const findWnfsFileByCid = (db: any, cid: string): any | undefined => {
+  if (!db || !cid) {
+    return undefined;
+  }
+  const results = (db.query(Filter.typename(WNFS_FILE_TYPENAME)).runSync() ?? []) as Array<{
+    object: any;
+  }>;
+  const matches = results
+    .map((item) => (item as any).object ?? item)
+    .filter((file: any) => file?.cid === cid)
+    .sort((a: any, b: any) => (a.id < b.id ? -1 : 1));
+  return matches[0];
+};
+
+// Find the Bramble.Node in `db` whose `supertags` array contains a Ref
+// to the given Wnfs.File. Returns the FIRST match deterministically
+// (lowest id wins) — this is the wrapper-Node uniqueness invariant per
+// F-Supertag.uniqueness extended to file wrappers.
+export const findBrambleNodeWrappingFile = (
+  db: any,
+  wnfsFile: any,
+): Bramble.Node | undefined => {
+  if (!db || !wnfsFile) {
+    return undefined;
+  }
+  const fileId = (wnfsFile as any).id;
+  if (!fileId) {
     return undefined;
   }
   const results = (db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? []) as Array<{
@@ -56,9 +80,29 @@ export const findNodeByHash = (db: any, sha256: string): Bramble.Node | undefine
   }>;
   const matches = results
     .map((item) => (item as any).object ?? item)
-    .filter((node: Bramble.Node) => (node as any)?.attachment?.sha256 === sha256)
-    .sort((a: Bramble.Node, b: Bramble.Node) => ((a as any).id < (b as any).id ? -1 : 1));
+    .filter((node: any) => {
+      const supertags = (node?.supertags ?? []) as readonly any[];
+      return supertags.some((ref) => ref?.target && (ref.target as any).id === fileId);
+    })
+    .sort((a: any, b: any) => (a.id < b.id ? -1 : 1));
   return matches[0];
+};
+
+// Return the FIRST supertag Ref's target that is a Wnfs.File, if any.
+// Used by the chip-rendering site to detect whether a Bramble bullet
+// wraps a file (and to pull the file metadata for rendering).
+export const findFileSupertag = (node: Bramble.Node | undefined): any | undefined => {
+  if (!node) {
+    return undefined;
+  }
+  const supertags = ((node as any).supertags ?? []) as readonly any[];
+  for (const ref of supertags) {
+    const target = ref?.target;
+    if (target && Obj.getTypename(target) === WNFS_FILE_TYPENAME) {
+      return target;
+    }
+  }
+  return undefined;
 };
 
 // Attach `child` to `parent` as a structural successor (creates an Edge
@@ -75,29 +119,32 @@ export const attachAsChild = (db: any, parent: Bramble.Node, child: Bramble.Node
   createEdge(db, parent, child);
 };
 
-// Result of `uploadPdfWithDedup` — the caller routes this through
-// `attachAsChild` (or the F-DAG primitive of its choice) to wire the
-// returned Node into the drop site.
-export type PdfUploadResult = {
-  // The Bramble.Node carrying the file's attachment (either newly
-  // created OR the pre-existing one returned via dedup).
+// Result of `ensurePdfBrambleNode` — the caller routes `node` through
+// `attachAsChild` to wire it into the drop site.
+export type EnsurePdfNodeResult = {
+  // The Bramble.Node wrapping the Wnfs.File (either freshly created OR
+  // the pre-existing one found via dedup).
   node: Bramble.Node;
-  // True when the bytes hashed to an already-existing Node and no upload
-  // ran — surfaces in the UI as a "linked existing" affordance, NOT as
-  // a created-fresh confirmation.
+  // The Wnfs.File that `node` wraps.
+  wnfsFile: any;
+  // True when the bytes hashed to an already-existing Wnfs.File (and
+  // a wrapper Bramble.Node already exists for it) — surfaces in the UI
+  // as a "linked existing" affordance, NOT as a created-fresh
+  // confirmation.
   deduped: boolean;
 };
 
-// Hash, upload (if new), and find-or-create a Bramble.Node carrying the
-// file's attachment. The caller passes the live FileUploader function
-// (typically resolved via the `AppCapabilities.FileUploader` capability
-// — plugin-wnfs supplies the implementation today).
+// Upload a file via the FileUploader capability, then find-or-create a
+// Bramble.Node that wraps the resulting Wnfs.File via the F-Supertag
+// pattern. The FileUploader's contract (plugin-wnfs's WNFS
+// implementation today) already creates the Wnfs.File and `AddObject`s
+// it; Bramble locates the just-created instance by `cid` and wraps it.
 //
 // Doesn't wire the result into the drop site — the caller decides which
 // parent to attach the result under (drop-site bullet vs page node) and
 // calls `attachAsChild`. Splitting these keeps the upload-side logic
 // pure of any rendering decisions.
-export const uploadPdfWithDedup = async ({
+export const ensurePdfBrambleNode = async ({
   db,
   file,
   uploader,
@@ -105,68 +152,49 @@ export const uploadPdfWithDedup = async ({
   db: any;
   file: File;
   // The FileUploader capability — returns the uploaded file's metadata
-  // (including the persisted URL). Returned info is allowed to be
-  // partially undefined; we treat a missing url as a failure.
-  uploader: (db: any, file: File) => Promise<{ url?: string; name?: string; type?: string } | undefined>;
-}): Promise<PdfUploadResult | undefined> => {
-  // Snapshot the bytes once — File.arrayBuffer reads the file's
-  // contents and we want to feed them to both the hasher and the
-  // uploader without re-reading.
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  const sha256 = await sha256Hex(bytes);
-
-  // Dedup: if a Node already carries this hash, return it without
-  // uploading. The dedup query runs against the LIVE db so concurrent
-  // uploads of the same file across panes converge as soon as either
-  // commits its create.
-  const existing = findNodeByHash(db, sha256);
-  if (existing) {
-    return { node: existing, deduped: true };
-  }
-
-  // Fresh upload — push the bytes to file storage, then create the
-  // Bramble.Node carrying the resulting URL + the dedup-key fields.
+  // (including a content-addressed `cid`). Returned info is allowed to
+  // be partially undefined; we treat a missing `cid` as a failure.
+  uploader: (
+    db: any,
+    file: File,
+  ) => Promise<{ url?: string; name?: string; type?: string; cid?: string } | undefined>;
+}): Promise<EnsurePdfNodeResult | undefined> => {
   const info = await uploader(db, file);
-  if (!info?.url) {
+  if (!info?.cid) {
     return undefined;
   }
-  // F-PDF-Upload: do NOT set `Node.kind` — the existing literal
-  // enum doesn't include `'file'` and the renderer keys off
-  // `attachment.kind` + `attachment.mimeType` for the chip
-  // (per F-PDF-Upload.chip-rendering). Adding a new `Node.kind`
-  // value would propagate through tag/picker filters unnecessarily.
-  const node = Bramble.makeNode({
-    attachment: {
-      kind: 'file',
-      url: info.url,
-      name: info.name ?? file.name,
-      mimeType: info.type ?? file.type ?? undefined,
-      sha256,
-    },
+
+  // The FileUploader (WNFS implementation) has already AddObject'd the
+  // Wnfs.File — locate it by cid. Same-bytes-twice resolves to the
+  // same Wnfs.File by construction (cid is content-addressed), so
+  // re-uploads always find the canonical existing instance.
+  const wnfsFile = findWnfsFileByCid(db, info.cid);
+  if (!wnfsFile) {
+    return undefined;
+  }
+
+  // Find-or-create the Bramble.Node wrapper. F-Supertag.uniqueness
+  // extended: at most one Bramble.Node in the space carries a Ref to
+  // this Wnfs.File in its supertags. The sort-by-id deterministic
+  // tie-break in `findBrambleNodeWrappingFile` matches that invariant.
+  const existing = findBrambleNodeWrappingFile(db, wnfsFile);
+  if (existing) {
+    return { node: existing, wnfsFile, deduped: true };
+  }
+
+  const wrapper = Bramble.makeNode({
+    supertags: [db.makeRef(Obj.getDXN(wnfsFile))],
   });
-  // Add the Node first so subsequent dedup queries (e.g. a second
-  // concurrent drop already in flight) find it.
-  db.add(node);
-  return { node, deduped: false };
+  db.add(wrapper);
+  return { node: wrapper, wnfsFile, deduped: false };
 };
 
-// Convenience: derive a user-visible filename for an attachment that
-// may have been created before F-PDF-Upload's name/mimeType fields
-// were added. Falls back to the last URL segment when `name` is empty.
-export const getAttachmentLabel = (
-  attachment: Bramble.Node['attachment'] | undefined,
-): string => {
-  if (!attachment) {
+// Derive a user-visible filename for a Wnfs.File. Falls back to "file"
+// when the file has no `name` (legacy / unusual storage paths).
+export const getFileLabel = (file: any | undefined): string => {
+  if (!file) {
     return '';
   }
-  const name = (attachment.name ?? '').trim();
-  if (name.length > 0) {
-    return name;
-  }
-  const url = attachment.url ?? '';
-  // Strip query/hash, then take the trailing path segment.
-  const path = url.split(/[?#]/, 1)[0];
-  const segments = path.split('/');
-  return segments[segments.length - 1] || 'file';
+  const name = ((file.name ?? '') as string).trim();
+  return name.length > 0 ? name : 'file';
 };

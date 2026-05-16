@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DXN, Obj } from '@dxos/echo';
 
+import { useOpenPane } from '../backlinks';
 import { MentionPicker } from '../MentionPicker';
 import { TagPicker } from '../TagPicker';
 
@@ -127,6 +128,19 @@ export const Editor = ({
     state: HashState;
     cursor: { left: number; top: number; bottom: number };
   } | null>(null);
+
+  // F-PDF-Upload (T-PDF-Mention-renders-attachment): when the
+  // RefNodeView renders a PDF chip for a PDF-wrapping target, click
+  // navigates to the wrapped Wnfs.File via openPane. Captured in a
+  // ref so the EditorView mount effect doesn't re-run on every
+  // context value identity change (which would tear down ProseMirror
+  // state). The chip click reads the latest openPane via the ref.
+  const openPane = useOpenPane();
+  const openPaneRef = useRef(openPane);
+  openPaneRef.current = openPane;
+  const navigateToObject = useCallback((target: any) => {
+    openPaneRef.current?.(target);
+  }, []);
 
   // Resolver used by both the NodeView (for label rendering) and serialize.fromDoc
   // (to mint a Ref<Obj.Unknown> from a DXN string). Uses the block's database
@@ -363,7 +377,8 @@ export const Editor = ({
     const view = new EditorView(hostRef.current, {
       state: editorState,
       nodeViews: {
-        ref: (node, viewArg, getPos) => new RefNodeView(node, viewArg, getPos, resolveRef),
+        ref: (node, viewArg, getPos) =>
+          new RefNodeView(node, viewArg, getPos, resolveRef, navigateToObject),
       },
       dispatchTransaction: (transaction) => {
         const next = view.state.apply(transaction);

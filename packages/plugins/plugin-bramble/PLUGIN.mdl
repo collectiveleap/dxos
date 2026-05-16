@@ -332,10 +332,6 @@ type Node
     fields?: Record<string, Ref<Node>[]>
     state?: { checked?: boolean }
     view?: { kind: 'table' | 'cards' | 'tabs' | 'calendar' }
-    # F-PDF-Upload extends `attachment` with optional `name`,
-    # `mimeType`, and `sha256` fields; the hash keys the dedup
-    # index.
-    attachment?: { kind: 'image' | 'file', url: string, name?: string, mimeType?: string, sha256?: string }
 ```
 
 ```mdl
@@ -3252,94 +3248,118 @@ feat F-Supertag-Chips-On-Page-Header: supertag chips render alongside the H1    
 feat F-PDF-Upload: drop a PDF onto a page to become a Node   # Increment 2f
   desc: |
     Drag-and-drop a PDF file anywhere over a Bramble page (the
-    article surface) to create a new bullet whose attachment is
-    the uploaded file. The Node renders with a PDF icon + the
-    filename; clicking the icon opens the file in a new tab.
+    article surface, a specific bullet row, or the pending-child
+    placeholder) to create a Bramble bullet that represents the
+    uploaded file. The bullet renders with a PDF icon + a
+    user-renameable label; clicking the chip opens the file
+    inline via Composer's standard navigate-to-object pathway
+    (which routes through plugin-wnfs's `FileContainer`).
+
+    The bullet IS a Bramble.Node wrapping a Wnfs.File ECHO
+    instance (typename `org.dxos.type.file`, contributed by
+    plugin-wnfs). The wrap uses the existing F-Supertag pattern
+    — the Bramble.Node's `supertags` array carries a Ref to the
+    Wnfs.File. The Wnfs.File holds the canonical file identity
+    (name, mime type, content-addressed `cid`); the Bramble.Node
+    carries the user-facing editable label as its `content`.
 
     Storage routes through `AppCapabilities.FileUploader` — the
     capability that plugin-wnfs contributes today. plugin-bramble
-    does NOT roll its own file storage; if no FileUploader is
-    registered, the drop target shows a "file upload unavailable"
-    hint instead of accepting the drop. This keeps R-No-Echo-
-    Changes satisfied (file storage stays in the WNFS plugin) and
-    keeps the integration narrow (one capability call per drop).
+    does NOT roll its own file storage. The capability's WNFS
+    implementation creates and `db.add`s the Wnfs.File ECHO
+    instance automatically as part of the upload (via
+    `WnfsOperation.Create` + `SpaceOperation.AddObject`);
+    Bramble locates the just-created instance by `cid` and wraps
+    it in a Bramble.Node. If no FileUploader is registered, the
+    drop target shows a "file upload unavailable" hint instead
+    of accepting the drop. This keeps R-No-Echo-Changes
+    satisfied (file storage and the file ECHO type both stay in
+    the WNFS plugin).
 
-    Same-PDF-twice deduplicates: the bytes are hashed
-    (SHA-256, hex digest, computed in the browser via
-    WebCrypto.subtle) before upload. If a Bramble.Node already
-    exists in the space whose `attachment.sha256` matches the
-    hash, NO new Node is created and NO new file is uploaded —
-    instead a structural edge (`createEdge` per F-DAG) is added
-    from the drop-site parent to the existing Node so the
-    existing Node appears as a structural successor at the
-    drop point. Re-dropping the same file under different
-    drop sites surfaces the same Node in multiple places via
-    the F-DAG multi-parent badge (per F-DAG.Phase3e).
+    Same-PDF-twice deduplicates via the content-addressed `cid`
+    (WNFS storage is content-addressed: same bytes → same cid by
+    construction; no Bramble-side hashing required). If a
+    Wnfs.File with the same `cid` is already in the space AND
+    is already wrapped by a Bramble.Node via supertag, neither a
+    new Wnfs.File nor a new Bramble.Node is created. Instead a
+    structural edge (`createEdge` per F-DAG) is added from the
+    drop-site parent to the existing Bramble.Node, so the
+    existing bullet appears as a structural successor at the
+    drop point. Re-dropping the same file under different drop
+    sites surfaces the same Node in multiple places via the
+    F-DAG multi-parent badge (per F-DAG.Phase3e).
 
     Drop site resolution:
       - When the drop coordinates land over a rendered bullet
-        row (`[data-block-id]`), that bullet's Node becomes the
-        new attachment-Node's structural predecessor.
-      - Otherwise the page node (the pane's current
-        `pageNode`) is used.
+        row, that bullet's Node becomes the new wrapper-Node's
+        structural predecessor.
+      - When the drop coordinates land over the pending-child
+        placeholder of an expanded parent, the new wrapper-
+        Node lands as the LAST structural child of that
+        parent (matching the placeholder's Enter-key semantics).
+      - Otherwise the page node (the pane's current `pageNode`)
+        is used.
 
-    The PDF chip rendering is the standard Node visual flavour
-    for `attachment.kind === 'file'` AND a PDF mime type — the
-    same field can later host non-PDF file attachments (e.g.
-    images dropped via the same code path).
+    Switch note (2026-05-16): F-PDF-Upload originally inlined
+    file identity onto Bramble.Node via an `attachment` struct
+    (`{ kind, url, name, mimeType, sha256 }`). That model
+    duplicated plugin-wnfs's canonical Wnfs.File for every
+    drop. The current spec switches to the Wnfs.File model via
+    the F-Supertag wrap pattern (above). Greenfield per
+    R-Greenfield-Stance — pre-switch PDFs in test spaces are
+    invisible to the new flow; user wipes + re-seeds.
 
   req F-PDF-Upload.drop-creates-node:
     given: a Bramble page is open; a PDF file is dragged from
-      the OS over the page
+      the OS over the page; no Wnfs.File with that file's
+      content-addressed `cid` exists in the space yet
     when: the user releases the drag (`drop`) over the article
       surface
     then:
-      - the file bytes are hashed (SHA-256 hex);
-      - no Bramble.Node carrying that `attachment.sha256` exists
-        in the space yet (this is the first-encounter branch);
-      - the bytes are uploaded via `AppCapabilities.FileUploader`
-        and the returned URL becomes the new Node's
-        `attachment.url`;
-      - a new Bramble.Node is created with `attachment` set to
-        `{ kind: 'file', url, name: file.name, mimeType:
-        file.type, sha256 }`. `Node.kind` is NOT set — the
-        rendering keys off `attachment.kind` +
-        `attachment.mimeType`, so the existing `Node.kind`
-        literal enum is unaffected.
-      - the new Node is added under the drop-site parent
-        (resolved per F-PDF-Upload's drop-site rules above)
-        via `createEdge`, so the new Node shows up as a fresh
-        bullet at that location.
+      - the file is uploaded via the registered
+        `AppCapabilities.FileUploader` capability, which creates
+        a Wnfs.File ECHO instance W (typename
+        `org.dxos.type.file`) and adds W to the space;
+      - a Bramble.Node B is created with empty `content` and
+        with W as its sole supertag (`B.supertags = [Ref(W)]`);
+      - B is added under the drop-site parent (resolved per
+        F-PDF-Upload's drop-site rules above) via `createEdge`
+        per F-DAG, so B appears as a fresh bullet at that
+        location.
 
   req F-PDF-Upload.dedup-reuses-existing-node:
-    given: a Bramble.Node M exists in the space with
-      `attachment.sha256` equal to the hash of file F; the user
-      drops file F onto a Bramble page
-    when: the drop is processed and the hash is computed
+    given: a Bramble.Node B already wraps a Wnfs.File W in the
+      space (created via F-PDF-Upload.drop-creates-node or any
+      earlier path); the user drops a file F whose bytes hash
+      to the same content-addressed `cid` as W
+    when: the drop is processed
     then:
-      - no new file is uploaded (the existing URL is sufficient);
-      - no new Bramble.Node is created (M is reused);
-      - the drop-site parent gains a `createEdge` to M, so M
+      - no new file is uploaded — the existing W is reused;
+      - no new Bramble.Node is created — B is reused;
+      - the drop-site parent gains a `createEdge` to B, so B
         renders as a structural successor at the drop point.
-        When the drop-site parent already has an edge to M, the
+        When the drop-site parent already has an edge to B, the
         edge addition is a no-op (createEdge is idempotent).
 
   req F-PDF-Upload.chip-rendering:
-    given: a Bramble.Node N with `attachment.kind === 'file'` and
-      a PDF mime type (`attachment.mimeType === 'application/pdf'`
-      or `attachment.url` ends in `.pdf`)
+    given: a Bramble.Node N whose supertags include a Wnfs.File
+      W whose mime type is a PDF (`'application/pdf'`) or whose
+      file name ends in `.pdf`
     when: N is rendered as a bullet (either as a structural
-      child or as a zoomed page node)
+      child OR as a zoomed page node)
     then:
       - a PDF chip appears adjacent to the bullet's editable
         content. The chip carries the `ph--file-pdf--regular`
-        icon followed by the filename
-        (`attachment.name`; falls back to a derived label from
-        the URL when `name` is absent for legacy attachments).
-      - clicking the chip opens `attachment.url` in a new tab
-        (target=_blank, rel=noopener).
-      - the bullet remains zoomable per F-Zoom — its bullet dot
-        is unchanged.
+        icon followed by a label.
+      - the chip's label uses N's `content` text when non-
+        empty, falling back to W's `name` when empty.
+      - clicking the chip navigates the current pane to W
+        (Composer's standard navigate-to-object pathway), so W
+        renders inline via plugin-wnfs's `FileContainer` (PDF
+        preview, image preview, etc.). Shift+click opens W in
+        a new pane.
+      - the bullet remains zoomable per F-Zoom — its bullet
+        dot is unchanged.
 
   req F-PDF-Upload.no-uploader-graceful:
     given: an environment where no plugin contributes
@@ -3347,10 +3367,54 @@ feat F-PDF-Upload: drop a PDF onto a page to become a Node   # Increment 2f
       enabled in this Composer build)
     when: a PDF is dropped on a Bramble page
     then:
-      - no Node is created, no upload is attempted;
+      - no Wnfs.File is created, no Bramble.Node is created,
+        no upload is attempted;
       - the drop overlay surfaces a "file upload unavailable"
         affordance (a hint text or toast) acknowledging the
         gesture without silently dropping the file.
+
+  req F-PDF-Upload.drop-target-per-row:
+    given: a Bramble page is open with one or more bullets
+      rendered; the user is dragging a PDF file over the
+      article surface
+    when: the drag cursor passes over a specific rendered
+      bullet row OR over the pending-child placeholder at the
+      foot of an expanded parent
+    then:
+      - the drop-target highlight snaps to the bullet (or
+        placeholder) under the cursor — not to the whole
+        article surface — so the user can see and target a
+        specific structural parent;
+      - on `drop` over a bullet, the resulting wrapper-Node
+        lands as a child of that bullet's Node (per the
+        existing F-PDF-Upload.drop-creates-node /
+        F-PDF-Upload.dedup-reuses-existing-node wiring);
+      - on `drop` over the pending-child placeholder, the
+        resulting wrapper-Node lands as the LAST child of the
+        parent the placeholder belongs to (matching the
+        placeholder's Enter-key semantics);
+      - when the cursor is over neither a bullet nor the
+        placeholder (header, gap, backlinks panel, etc.), no
+        per-row highlight renders and the drop falls back to
+        the page node per the existing rule.
+
+  req F-PDF-Upload.editable-label-preserves-attachment:
+    given: a Bramble.Node N wrapping a Wnfs.File W (created
+      via F-PDF-Upload.drop-creates-node)
+    when: the user types into N's editable bullet content
+    then:
+      - N accepts the typed text as its `content`, exactly
+        like any other Bramble bullet (Tana-style rename);
+      - the PDF chip's displayed label reflects the edited
+        text (so the chip reads "Quarterly Plan" after the
+        user retitles the bullet, "report.pdf" before);
+      - N's file association is unchanged: W and its `cid` /
+        `name` / `type` are not modified by the rename, and
+        the dedup invariant (one wrapper Bramble.Node per
+        `cid`) holds;
+      - the rename propagates to every place N appears per
+        F-4b (live-rename propagation), including inline
+        @-mentions per T-PDF-Mention-renders-attachment.
 ```
 
 ## Acceptance
@@ -4382,55 +4446,79 @@ test T-Supertag-Chips-On-Page-Header: page H1 shows chips for the page Node's su
 ```
 
 ```mdl
-test T-PDF-Upload-creates-node: dropping a PDF onto a page creates a new Node carrying the file
+test T-PDF-Upload-creates-node: dropping a PDF onto a page creates a new bullet that wraps a Wnfs.File
   given: a Bramble page open on a pane; plugin-wnfs contributes
     `AppCapabilities.FileUploader`; the user has a local PDF
     file F (e.g. ~100 KB) ready to drag from the OS
   when: I drag F onto the article surface and release the
     pointer over an empty area of the page
   then:
-    - a new Bramble.Node N is created with `attachment: {
-      kind: 'file', url: <wnfs://… URL>, name: F.name, mimeType:
-      'application/pdf', sha256: <SHA-256 hex of F's bytes> }`.
-      `Node.kind` is NOT set (it remains undefined per
-      F-PDF-Upload.drop-creates-node).
-    - N appears in the page as a fresh bullet under the drop-
-      site parent (the page node when the drop did not land on
-      a specific bullet), wired in via `createEdge` per F-DAG.
-    - N's rendered row shows the PDF chip
+    - a new Wnfs.File W is created and added to the space by
+      the FileUploader capability (this is plugin-wnfs's
+      contract — not Bramble's responsibility).
+    - a new Bramble.Node B is created with empty `content` and
+      with W as its sole supertag (`B.supertags = [Ref(W)]`).
+    - B appears in the page as a fresh bullet under the drop-
+      site parent (the page node when the drop did not land
+      on a specific bullet), wired in via `createEdge` per
+      F-DAG.
+    - B's rendered row shows the PDF chip
       (`ph--file-pdf--regular` icon + filename) per
       F-PDF-Upload.chip-rendering.
 ```
 
 ```mdl
-test T-PDF-Upload-dedupes-on-second-drop: dropping the SAME PDF a second time reuses the existing Node
-  given: a Bramble.Node M already exists in the space with
-    `attachment.sha256` equal to the hash of file F (e.g. via
-    T-PDF-Upload-creates-node having just run)
+test T-PDF-Upload-dedupes-on-second-drop: dropping the SAME PDF a second time reuses the existing bullet
+  given: a Bramble.Node B already wraps a Wnfs.File W in the
+    space, where W's `cid` is the content-addressed hash of
+    file F (e.g. via T-PDF-Upload-creates-node having just
+    run)
   when: I drop F onto a Bramble page a second time
   then:
-    - the total count of Bramble.Nodes carrying any
-      `attachment.sha256` equal to F's hash remains exactly 1
-      (M is reused; no second Node is created).
+    - the total count of Wnfs.File instances in the space with
+      that `cid` remains exactly 1 (W is reused; no second
+      Wnfs.File is uploaded or created).
+    - the total count of Bramble.Node instances wrapping W
+      remains exactly 1 (B is reused; no second wrapper-Node
+      is created).
     - the drop-site parent at the moment of the second drop
-      has a structural successor edge pointing at M (added
-      via `createEdge` if not already present). The same M is
+      has a structural successor edge pointing at B (added
+      via `createEdge` if not already present). The same B is
       now visible at the new drop point AND at its original
-      location; the F-DAG multi-parent badge surfaces on every
-      occurrence of M (per F-DAG.Phase3e).
+      location; the F-DAG multi-parent badge surfaces on
+      every occurrence of B (per F-DAG.Phase3e).
 ```
 
 ```mdl
-test T-PDF-Upload-chip-opens-file: clicking the PDF chip opens the file in a new tab
-  given: a Bramble bullet rendering a Node whose
-    `attachment.kind === 'file'` and whose mime type is
+test T-PDF-Upload-chip-opens-inline: clicking the PDF chip opens the file inline as a Composer surface
+  given: a Bramble bullet rendering a Bramble.Node N whose
+    supertags include a Wnfs.File W whose mime type is
     `application/pdf`
   when: I click the PDF chip adjacent to the bullet's content
   then:
-    - the browser opens `attachment.url` in a new tab
-      (`target="_blank"`, `rel="noopener noreferrer"`).
+    - the current pane navigates to W (Composer's standard
+      navigate-to-object pathway), so W renders inline via
+      plugin-wnfs's `FileContainer` (PDF preview).
     - the bullet's zoom gesture is unaffected — clicking the
       bullet dot still zooms per F-Zoom.
+```
+
+```mdl
+test T-PDF-Mention-renders-attachment: an @-mention to a PDF-wrapping Node renders the same chip surface as the source
+  given: a Bramble.Node P wraps a Wnfs.File W (a PDF file) in
+    the space; an empty Bramble bullet is open in editable
+    position elsewhere in the space
+  when: the user types `@` in the empty bullet, picks P from
+    the mention picker, and commits the mention (Enter)
+  then:
+    - the inline reference inside the bullet displays the PDF
+      chip (icon + label) — NOT a blank reference;
+    - the chip's label and click behaviour match P's bullet
+      per F-PDF-Upload.chip-rendering (clicking the chip
+      navigates to W inline).
+
+  Current behavior (2026-05-16): the inline reference
+  surfaces a blank node — the PDF chip is missing.
 ```
 
 ---
@@ -4572,6 +4660,32 @@ Branch:         `claude/agitated-nash-bd0b0f`
   typename already exists in `node.supertags`. Then promote
   `R-Supertag-Type-Uniqueness` to a real rule citing both
   invariants (instance-uniqueness AND typename-uniqueness).
+- **Canon-partition discipline + R-Consolidation-Scrub rule
+  (flagged 2026-05-16).** Adopt the principle: PLUGIN.mdl,
+  CONCEPTS.md, `src/**` comments, README, and the agent memory
+  file carry only CURRENT canon; superseded reqs, retired
+  vocabulary, and deprecated patterns live in git history
+  alone — no `## Superseded` section, no `_archive/` dir, no
+  in-scope summaries. Two parts:
+
+  1. Draft `R-Consolidation-Scrub` for `## Rules`: every commit
+     that consolidates or deletes a req / pattern must grep
+     PLUGIN.mdl, CONCEPTS.md, `src/**`, README, and the agent
+     memory for the retired name and scrub in-scope leftovers
+     in the same commit.
+  2. One-time audit of leftovers from this branch's existing
+     consolidations — `F-V6`, `F-6.Phase3.tag-node.materialize`,
+     `F-6.Phase3.tag-node.click`, `F-6.Phase3.tag-node.shift-click`,
+     `F-6.Phase3.tag-node.schema-parent`, `F-6.Phase3.all-echo-types`,
+     and the `tag block` → `supertag node` vocabulary rename
+     (already listed below).
+
+  Why: 2026-05-16 session — confabulated a "first apply"
+  trigger for the predecessor `F-6.Phase3.tag-node.materialize`
+  (real predecessor said "first chip render"; current spec
+  `F-Supertag.eager-materialization` says "outliner mount").
+  No in-scope mechanism today catches an agent paraphrasing a
+  predecessor-shaped shadow.
 
 ---
 
