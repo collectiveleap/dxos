@@ -98,8 +98,23 @@ export const Node = Schema.Struct({
   ),
 
   // Attachment for image/url kinds.
+  //
+  // F-PDF-Upload: extended with optional `name`, `mimeType`, and
+  // `sha256` fields. `sha256` (hex digest of the file bytes) keys
+  // the dedup index — uploading the same file twice reuses the
+  // existing Node carrying that hash rather than creating a
+  // duplicate. `name` is the user-visible filename rendered
+  // alongside the PDF chip; `mimeType` is the browser-reported
+  // content type at upload time. All three are optional so
+  // pre-PDF-Upload `image` attachments remain valid.
   attachment: Schema.optional(
-    Schema.Struct({ kind: Schema.Literal('image', 'file'), url: Schema.String }),
+    Schema.Struct({
+      kind: Schema.Literal('image', 'file'),
+      url: Schema.String,
+      name: Schema.optional(Schema.String),
+      mimeType: Schema.optional(Schema.String),
+      sha256: Schema.optional(Schema.String),
+    }),
   ),
 
   // F-Supertag (option-node): per-space wrapper for one literal
