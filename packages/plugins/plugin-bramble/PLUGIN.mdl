@@ -433,6 +433,71 @@ rule R-Bramble-Surfaces-Wrap-Only:
     `Bramble.Node` only.
 ```
 
+```mdl
+rule R-Pending-Row-Is-The-Empty-Bullet:
+  desc: |
+    Real `Bramble.Node` instances carry meaningful state on at
+    least one axis — non-empty `content`, non-empty `supertags`,
+    non-empty outgoing Edges, non-empty `children` (legacy), or
+    non-empty `fields`. The renderer projects a pending row — a
+    render-state placeholder — at every editable position in the
+    Bramble that would otherwise correspond to a Node with zero
+    meaningful state.
+
+    Pending rows promote to real Nodes on first meaningful input.
+    The promotion paths today (examples; the exact set tracks
+    whatever paths the spec declares, per
+    R-Spec-Entry-Conventions clause 1b):
+
+    - A typed character routes through the `onPromote` path: a
+      new Node carrying the typed content is persisted, and a
+      structural `'child'` Edge is created from the parent at
+      the pending row's slot per R-Edges-First-Class.
+    - An `@`-mention target commit routes through the
+      `onAddExisting` path: a structural Edge is created from
+      the parent to the picked target at the slot.
+    - A `#` supertag apply routes through the corresponding
+      supertag promotion path (F-Supertag.types-shown +
+      F-Supertag.uniqueness): a new Node is persisted carrying
+      the supertag Ref at the slot.
+
+    Real Nodes whose meaningful state collapses to zero across
+    every axis are retired by removing their INCOMING Edges;
+    the renderer projects a pending row at the vacated slot.
+    The Node itself remains in ECHO per substrate-principles
+    §10 (`PLUGIN.mdl:3930-3938` — "the substrate is non-
+    destructive — Targets get RETIRED, not destructively
+    removed; their history stays reconstructable via
+    `checkoutVersion`"). Identity is preserved; `F-Versioning`
+    pinned references continue to resolve.
+
+    Why: the pending row is the substrate's single locus for
+    content entering the Bramble. Every surface that resolves
+    Bramble identity — mention picker, queries, drop targets,
+    drag sources, predecessor nav — reads one shape: a Node
+    carrying meaningful state. Tana's outliner product is built
+    on the same invariant; the pattern is well-precedented.
+
+    How to apply: when a new feat / req proposes creating a
+    Node, check the meaningful-state predicate at creation
+    time. If the proposed Node carries meaningful state at
+    creation, the creation is correct and the gesture's effect
+    is the pending row's promotion. If the proposed Node would
+    carry zero meaningful state at creation, a pending row at
+    the appropriate slot is the correct artefact; the real
+    Node materialises later when input arrives.
+
+    When a new feat / req proposes deleting a Node, check
+    whether the Node would become empty across every
+    meaningful axis post-delete. If yes, retire via incoming-
+    edge removal (the renderer projects a pending row at the
+    vacated slot); the Node remains in ECHO.
+
+    Established 2026-05-17. Design conversation captured in
+    CONCEPTS §13; the @-mention substrate refactor
+    (R-Bramble-Surfaces-Wrap-Only) landed concurrently.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -1041,41 +1106,147 @@ feat F-Pending-Child: leaf shows pending child when expanded   # Increment Pendi
     visible "add another" pending row). Distinct from
     F-Pending-Child.expand, which is about ROW-level rendering
     gated by state.expanded.
+  req F-Pending-Child.sibling-slot:
+    given: a creation gesture requests a pending row at a
+      specific sibling slot — a position in the Bramble
+      between two real sibling Nodes under a common parent,
+      OR at the start / end of a parent's children list.
+      Example creation gestures today (the exact set tracks
+      whatever creation gestures the spec declares per
+      R-Spec-Entry-Conventions clause 1b): Shift+Enter
+      (F-Shift-Enter.1) and Cmd+Shift+Enter
+      (F-Cmd-Shift-Enter.1) on a body bullet; Shift+Enter
+      in the H1 (F-Page-Header.9) requesting the first-child
+      slot of the page node.
+    when: the pending row renders at the requested slot per
+      R-Pending-Row-Is-The-Empty-Bullet
+    then:
+      - the pending row's render carries the same visual
+        properties as the leaf-row-end pending row of
+        F-Pending-Child.expand and the end-of-body pending
+        row of F-Pending-Child.page-root: same indent
+        column, same bullet style, same caret alignment per
+        F-Pending-Child.cursor-alignment, same click-
+        anywhere-to-focus behaviour;
+      - the pending row carries a position hint identifying
+        the requested slot (target parent + insertion order);
+      - on the `onPromote` path (typed character), the new
+        Bramble.Node is persisted with the typed content and
+        a structural `'child'` Edge is created from the
+        target parent to the new Node at the requested slot
+        via `createEdge` per R-Edges-First-Class — the
+        edge's `order` lands the new Node between the
+        flanking real siblings (or at the start / end of the
+        children list as requested);
+      - on the `onAddExisting` path (mention target commit),
+        a structural `'child'` Edge is created from the
+        target parent to the picked target at the requested
+        slot via `createEdge` with the same ordering rules;
+      - on the `#` supertag apply path, the new Bramble.Node
+        carrying the supertag Ref is persisted at the
+        requested slot via `createEdge` with the same
+        ordering rules.
 ```
 
 ```mdl
-feat F-Shift-Enter: empty sibling shortcut         # Increment Shift-Enter (current)
+feat F-Retire-Empty-Node: a Node whose meaningful state collapses to zero across every axis retires via incoming-edge removal; the renderer projects a pending row at the vacated slot    # Increment Retire-Empty-Node (not started)
   desc: |
-    Shift+Enter creates an empty sibling Node AFTER the current Node
-    without splitting the current bullet's content. Distinct from Enter
-    which splits at the cursor. The cursor moves to the new empty sibling.
+    Operationalises R-Pending-Row-Is-The-Empty-Bullet's
+    erasure-side corollary. When user gestures (backspace
+    through the last character, deletion of the last supertag,
+    removal of the last outgoing edge, etc.) reduce a real
+    Bramble.Node X to zero meaningful state across every axis
+    (per the rule's predicate — empty `content` AND empty
+    `supertags` AND empty outgoing Edges AND empty `children`
+    AND empty `fields`), X's incoming `'child'` Edges are
+    removed; the renderer projects a pending row at each
+    vacated slot.
+
+    X itself remains in ECHO as a retired orphan per
+    substrate-principles §10 (`PLUGIN.mdl:3930-3938`).
+    Identity is preserved; `F-Versioning` pinned references
+    continue to resolve via `Obj.checkoutVersion`.
+
+    Out of scope for F-Retire-Empty-Node:
+    - cleanup / GC of retired orphan Nodes — deferred per
+      F-PDF-Upload's non-cascading delete model;
+    - explicit revival of a retired Node — no UX gesture
+      today; orphans are reachable via direct id lookup or
+      cross-pane traversal of pinned references.
+  req F-Retire-Empty-Node.1:
+    given: a real `Bramble.Node` X with meaningful state on
+      at least one axis (per
+      R-Pending-Row-Is-The-Empty-Bullet's predicate),
+      referenced in the Bramble via one or more incoming
+      `'child'` Edges from parents
+    when: a user gesture reduces X to zero meaningful state
+      across every axis (e.g. backspacing through the last
+      character of X's content while X has empty supertags,
+      empty children, no outgoing edges, empty fields)
+    then:
+      - every incoming `'child'` Edge to X is removed via
+        the Edge-deletion path R-Edges-First-Class governs;
+      - the renderer projects a pending row at each vacated
+        slot (one pending row per removed Edge) per
+        R-Pending-Row-Is-The-Empty-Bullet;
+      - X remains in ECHO with full history;
+        `Obj.version(X)` and prior versions are retrievable
+        via `Obj.checkoutVersion` per F-Versioning's
+        substrate alignment;
+      - focus moves to the pending row that replaces X's
+        most recent rendered position.
+```
+
+```mdl
+feat F-Shift-Enter: pending row at the sibling slot below         # Increment Shift-Enter (current)
+  desc: |
+    Shift+Enter renders a pending row at the sibling slot
+    immediately after the editing Node per
+    R-Pending-Row-Is-The-Empty-Bullet. The pending row takes
+    focus; the editing Node's content is preserved. First
+    meaningful input into the pending row promotes it to a real
+    Bramble.Node at the slot. Distinct from Enter which splits
+    the editing Node's content at the cursor into two real
+    Nodes.
   req F-Shift-Enter.1:
-    given: I am editing node X
+    given: I am editing a real `Bramble.Node` X
     when: I press Shift+Enter
     then:
-      - a new sibling Node Y is created
-      - Y has the same parent as X
-      - Y is empty (no content)
-      - X's content is unchanged
-      - cursor moves to Y
+      - a pending row Y renders at the sibling slot immediately
+        after X — same indent as X, same parent in the Bramble,
+        same render slot any real sibling Node would occupy; Y
+        exists in the render layer per
+        R-Pending-Row-Is-The-Empty-Bullet;
+      - focus moves to Y; the caret renders at Y's editable
+        area per `F-Pending-Child.cursor-alignment`;
+      - on first meaningful input into Y, Y promotes to a real
+        Bramble.Node at its sibling slot via the pending-row
+        promotion paths (per R-Pending-Row-Is-The-Empty-Bullet).
 ```
 
 ```mdl
-feat F-Cmd-Shift-Enter: empty sibling above shortcut   # Increment Cmd-Shift-Enter (current)
+feat F-Cmd-Shift-Enter: pending row at the sibling slot above   # Increment Cmd-Shift-Enter (current)
   desc: |
-    Cmd+Shift+Enter (Mod+Shift+Enter) creates an empty sibling Node
-    BEFORE the current Node — i.e. visually above it — without
-    splitting the current bullet's content. Mirrors F-Shift-Enter
-    which inserts AFTER. The cursor moves to the new empty sibling.
+    Cmd+Shift+Enter (Mod+Shift+Enter) renders a pending row at
+    the sibling slot immediately before the editing Node per
+    R-Pending-Row-Is-The-Empty-Bullet. Mirrors F-Shift-Enter for
+    the "above" direction. The pending row takes focus; first
+    meaningful input promotes it to a real Bramble.Node at the
+    slot.
   req F-Cmd-Shift-Enter.1:
-    given: my cursor is in node X
+    given: I am editing a real `Bramble.Node` X
     when: I press Cmd+Shift+Enter (Mod+Shift+Enter)
     then:
-      - a new sibling Node Y is created visually above X
-      - Y has the same parent as X
-      - Y is empty (no content)
-      - X's content is unchanged
-      - cursor moves to Y
+      - a pending row Y renders at the sibling slot immediately
+        before X — same indent as X, same parent in the Bramble,
+        same render slot any real sibling Node would occupy; Y
+        exists in the render layer per
+        R-Pending-Row-Is-The-Empty-Bullet;
+      - focus moves to Y; the caret renders at Y's editable
+        area per `F-Pending-Child.cursor-alignment`;
+      - on first meaningful input into Y, Y promotes to a real
+        Bramble.Node at its sibling slot via the pending-row
+        promotion paths (per R-Pending-Row-Is-The-Empty-Bullet).
 ```
 
 ```mdl
@@ -1343,16 +1514,21 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     given: the cursor is in the H1 editor of page node P
     when: the user presses Shift+Enter
     then:
-      - a new empty Node Z is created with empty content (no split
-        of P.content; P retains all its current text/refs)
-      - Z is inserted as P's FIRST structural child (same insertion
-        rule as F-Page-Header.8)
-      - focus moves to Z; the caret lands inside the empty Z
-      - the F-Pending-Child.page-root row is undisturbed
-    Note: mirrors F-Shift-Enter.1 (empty-sibling-after) translated
-    to the page-header context: the H1's "next sibling in the
-    visible flow" IS its first child, since the page renders the
-    H1 above its child column.
+      - a pending row Z renders at P's first-structural-child
+        slot (same insertion slot as F-Page-Header.8) per
+        R-Pending-Row-Is-The-Empty-Bullet; P's content is
+        preserved (all current text/refs retained);
+      - focus moves to Z; the caret renders at Z's editable
+        area per `F-Pending-Child.cursor-alignment`;
+      - on first meaningful input into Z, Z promotes to a real
+        Bramble.Node as P's first structural child via the
+        pending-row promotion paths;
+      - the F-Pending-Child.page-root row at the end of the page
+        body renders independently of Z.
+    Note: mirrors F-Shift-Enter.1 (pending-row-at-sibling-slot-
+    below) translated to the page-header context: the H1's "next
+    sibling in the visible flow" IS its first child, since the
+    page renders the H1 above its child column.
   req F-Page-Header.10:
     given: the cursor is in the H1 editor of page node P
     when: the user presses Cmd+Shift+Enter (Mod+Shift+Enter)
@@ -4153,14 +4329,19 @@ test T-8: Increment 4b — rename propagates without local edit
 ```
 
 ```mdl
-test T-Cmd-Shift-Enter: Cmd+Shift+Enter inserts an empty sibling ABOVE
-  given: an outline with a single bullet X containing some text
-  when: cursor is in X and user presses Cmd+Shift+Enter (Mod+Shift+Enter)
+test T-Cmd-Shift-Enter-Pending-Row-Above: Cmd+Shift+Enter renders a pending row at the sibling slot above the editing Node
+  given: a Bramble with a single real `Bramble.Node` X carrying
+    non-empty content under a parent P
+  and: I am editing X
+  when: I press Cmd+Shift+Enter (Mod+Shift+Enter)
   then:
-    - parent.children has two Node refs in order [Y, X]
-    - Y.content is empty
-    - X.content is unchanged
-    - cursor lands at the start of Y (Y has focus)
+    - a pending row Y renders at the sibling slot immediately
+      before X under P per R-Pending-Row-Is-The-Empty-Bullet;
+    - the rendered children of P are, in order: pending row Y,
+      then X;
+    - focus is on Y; the caret renders at Y's editable area
+      per F-Pending-Child.cursor-alignment;
+    - X's content remains unchanged.
 ```
 
 ```mdl
@@ -4698,103 +4879,160 @@ test T-Add-Existing-Via-At-Picker-Edges-Not-Duplicates: @-picker selection of an
 ```
 
 ```mdl
-test T-Sibling-Above-Lands-Between: Cmd+Shift+Enter on Y places the new empty Z between X and Y
-  given: a fresh Bramble outline at the page root with exactly two
-    bullets in document order — X with content "XXX" and Y with
-    content "YYY"; both are direct children of the page node and
-    have no children of their own
+test T-Sibling-Above-Lands-Between: Cmd+Shift+Enter on Y renders a pending row at the slot between X and Y
+  given: a fresh Bramble at the page root with exactly two real
+    sibling Nodes in document order — X with content "XXX" and
+    Y with content "YYY"; both are direct children of the page
+    node and have no children of their own
   when: the cursor is in Y's editor and the user presses
     Cmd+Shift+Enter (Mod+Shift+Enter)
   then:
-    - a new empty Node Z is created as Y's PREVIOUS sibling (per
-      F-Cmd-Shift-Enter.1)
-    - the page body now renders three bullets in this exact order:
-      ● XXX, ● (empty Z), ● YYY (immediately followed by the
-      F-Pending-Child.page-root row at the end)
-    - focus is on Z and Z's editor shows a visible caret
-      (F-Caret.1)
-    - X.content === "XXX" and Y.content === "YYY" are unchanged
+    - a pending row Z renders at the sibling slot between X and
+      Y under the page node per F-Cmd-Shift-Enter.1 +
+      R-Pending-Row-Is-The-Empty-Bullet;
+    - the page body now renders three rows in this exact order:
+      ● XXX, ● (pending Z), ● YYY — immediately followed by the
+      F-Pending-Child.page-root row at the end;
+    - focus is on Z; Z's editable area shows a visible caret
+      per F-Caret.1;
+    - X.content === "XXX" and Y.content === "YYY" are
+      unchanged.
   desc: |
-    Reported 2026-05-14 to clarify the multi-sibling placement of
-    Cmd+Shift+Enter. The existing T-Cmd-Shift-Enter test only
-    covered a single-bullet outline (and asserted
-    `parent.children === [Y, X]`); this test adds the
-    between-X-and-Y case.
+    Reported 2026-05-14 to clarify the multi-sibling placement
+    of Cmd+Shift+Enter. Rewritten 2026-05-17 under
+    R-Pending-Row-Is-The-Empty-Bullet — the row at the slot
+    between X and Y is a pending row (render-only) until first
+    meaningful input promotes it to a real Bramble.Node at the
+    slot per F-Pending-Child.sibling-slot.
 
-    Verified on this worktree against a brand-new graph (fresh
-    "+ → Bramble" creation): pressing Cmd+Shift+Enter on YYY
-    produced exactly [XXX, ●empty, YYY] at the page root, with
-    focus on the new empty bullet.
-
-    Caveat for legacy outlines: when a parent's children are
+    Caveat for legacy Brambles: when a parent's children are
     still mixed between `Node.children` (legacy array) and
     `Bramble.Edge` relations during the F-DAG transition,
     `getStructuralChildren` renders all legacy children FIRST
     and edges AFTER (see edges.ts comment, F-DAG Phase 3d).
-    `insertSiblingBefore` calls `ensureMigratedChildren` to port
-    the parent's legacy children to edges before placing the new
-    edge, but in a polluted test space the migration can leave
-    the new edge sorted after pre-existing legacy entries. The
-    test is therefore stated against a fresh outline; the legacy-
-    mixed case is a transitional concern documented separately.
+    `insertSiblingBefore` calls `ensureMigratedChildren` to
+    port the parent's legacy children to edges before placing
+    the new edge, but in a polluted test space the migration
+    can leave the new edge sorted after pre-existing legacy
+    entries. The test is therefore stated against a fresh
+    Bramble; the legacy-mixed case is a transitional concern
+    documented separately.
 ```
 
 ```mdl
-test T-Sibling-Below-Lands-Between: Shift+Enter on X places the new empty Z between X and Y
-  given: a fresh Bramble outline at the page root with exactly two
-    bullets in document order — X with content "XXX" and Y with
-    content "YYY"; both are direct children of the page node
+test T-Sibling-Below-Lands-Between: Shift+Enter on X renders a pending row at the slot between X and Y
+  given: a fresh Bramble at the page root with exactly two real
+    sibling Nodes in document order — X with content "XXX" and
+    Y with content "YYY"; both are direct children of the page
+    node
   when: the cursor is in X's editor and the user presses
     Shift+Enter
   then:
-    - a new empty Node Z is created as X's NEXT sibling (per
-      F-Shift-Enter.1)
-    - the page body now renders three bullets in this exact order:
-      ● XXX, ● (empty Z), ● YYY (immediately followed by the
-      F-Pending-Child.page-root row at the end)
-    - focus is on Z and Z's editor shows a visible caret
-      (F-Caret.1)
-    - X.content === "XXX" and Y.content === "YYY" are unchanged
+    - a pending row Z renders at the sibling slot between X and
+      Y under the page node per F-Shift-Enter.1 +
+      R-Pending-Row-Is-The-Empty-Bullet;
+    - the page body now renders three rows in this exact order:
+      ● XXX, ● (pending Z), ● YYY — immediately followed by the
+      F-Pending-Child.page-root row at the end;
+    - focus is on Z; Z's editable area shows a visible caret
+      per F-Caret.1;
+    - X.content === "XXX" and Y.content === "YYY" are
+      unchanged.
   desc: |
     Reported 2026-05-14 alongside T-Sibling-Above-Lands-Between.
-    Mirrors that test for the "below" direction.
+    Rewritten 2026-05-17 under R-Pending-Row-Is-The-Empty-Bullet
+    — the slot between X and Y carries a pending row (render-
+    only) until first meaningful input promotes it to a real
+    Bramble.Node at the slot per F-Pending-Child.sibling-slot.
 
-    Verified on this worktree against a brand-new graph: pressing
-    Shift+Enter on XXX produced exactly [XXX, ●empty, YYY] at the
-    page root with focus on the new empty bullet. The same
-    legacy-vs-edges caveat from T-Sibling-Above-Lands-Between
-    applies.
+    The same legacy-vs-edges caveat from
+    T-Sibling-Above-Lands-Between applies.
 ```
 
 ```mdl
-test T-New-Sibling-Focus-And-Caret: Shift+Enter / Cmd+Shift+Enter create an empty sibling with focus and a visible caret
-  given: a Bramble outline contains a Node X that is being edited
-    (the cursor is inside X's ProseMirror editor)
+test T-Pending-Row-Mention-Commit-Attaches-At-Slot: committing an @-mention target on a pending row creates a structural Edge from the parent to the target at the row's slot
+  given: a Bramble with parent `P` whose children are real
+    sibling Nodes `X` (content "alpha") and `Y` (content
+    "beta"), in that order
+  and: a pending row `Z` rendered at the sibling slot between
+    `X` and `Y` (e.g. created by pressing Shift+Enter on `X`
+    per F-Shift-Enter.1)
+  and: a real `Bramble.Node` `T` exists elsewhere in the
+    space carrying meaningful state (e.g. wrapping a Wnfs.File
+    PDF per F-PDF-Upload, or any other Bramble.Node)
+  and: focus is on `Z` with the caret in the editable area
+  when: I type `@` followed by a substring matching `T`'s
+    resolved display label, and commit the mention target `T`
+    from the picker (per F-4 + R-Bramble-Surfaces-Wrap-Only)
+  then:
+    - a structural `'child'` Edge is created from `P` to `T`
+      at the slot between `X` and `Y` via `createEdge` per
+      F-Pending-Child.sibling-slot + R-Edges-First-Class,
+      preserving the X / T / Y order under `P`;
+    - the pending row's render is replaced by `T` at the
+      slot;
+    - `T`'s content, supertags, edges, and fields remain as
+      they were (the mention attaches `T` structurally);
+    - focus moves to `T`'s rendered position at the slot.
+```
+
+```mdl
+test T-Backspace-To-Empty-Retires-Node: backspacing through the last meaningful state of a Node retires it via incoming-edge removal; the renderer projects a pending row at the vacated slot
+  given: a Bramble with parent `P` whose children are real
+    sibling Nodes `X` (content "a") and `Y` (content "beta"),
+    in that order
+  and: `X` has empty `supertags`, empty `children`, no
+    outgoing Edges, empty `fields` (`X` carries meaningful
+    state on the `content` axis only)
+  and: I am editing `X` with the caret positioned at the end
+    of its content
+  when: I press Backspace until `X`'s content is empty
+  then:
+    - the incoming `'child'` Edge from `P` to `X` is removed
+      via the Edge-deletion path R-Edges-First-Class governs
+      per F-Retire-Empty-Node.1;
+    - a pending row renders at the sibling slot between `P`'s
+      first child and `Y` (where `X` was rendered) per
+      R-Pending-Row-Is-The-Empty-Bullet;
+    - focus moves to the pending row; the caret renders at
+      the editable area per F-Pending-Child.cursor-alignment;
+    - `X` remains in ECHO with full history; `Obj.version(X)`
+      and prior versions retrievable via `Obj.checkoutVersion`
+      per F-Versioning's substrate alignment.
+```
+
+```mdl
+test T-New-Sibling-Focus-And-Caret: Shift+Enter / Cmd+Shift+Enter render a pending row at the appropriate sibling slot with focus and a visible caret
+  given: a Bramble contains a real `Bramble.Node` X that is
+    being edited (the cursor is inside X's ProseMirror editor)
   when: the user presses Shift+Enter
   then:
-    - a new empty sibling Node Y is created as X's NEXT sibling
-      (F-Shift-Enter.1), with the same parent as X and empty
-      `content`
-    - focus shifts from X to Y: Y's editor's
-      `autoFocus={focusId === Y.id}` flips true on the same render,
-      so the Editor's mount effect calls `view.focus()` and
-      ProseMirror sets the selection to `TextSelection.atStart`
-    - the empty Y editor renders a single visible caret per
-      F-Caret.1 (the `min-width: 1rem` rule in `block-editor.css`
-      gives the empty paragraph somewhere to paint)
+    - a pending row Y renders at the sibling slot immediately
+      after X under X's parent per F-Shift-Enter.1 +
+      R-Pending-Row-Is-The-Empty-Bullet;
+    - focus shifts from X to Y: Y's editable area's
+      `autoFocus={focusId === Y's pending-row id}` flips true on
+      the same render, so the editable area's mount effect calls
+      `view.focus()` and ProseMirror sets the selection to
+      `TextSelection.atStart`;
+    - Y's editable area renders a single visible caret per
+      F-Caret.1 (the `min-width: 1rem` rule in
+      `block-editor.css` gives the empty paragraph somewhere to
+      paint).
   when: the user presses Cmd+Shift+Enter instead (Mod+Shift+Enter)
   then:
-    - same outcome but Y is X's PREVIOUS sibling (F-Cmd-Shift-Enter.1)
-  when: X has a trailing `#` so the hash picker is visibly OPEN at
-    the time of keypress
+    - same outcome but Y renders at the sibling slot immediately
+      before X under X's parent per F-Cmd-Shift-Enter.1.
+  when: X has a trailing `#` so the hash picker is visibly OPEN
+    at the time of keypress
   then:
     - Shift+Enter / Cmd+Shift+Enter are N/A (per user
       clarification 2026-05-14 and the modifier clause in
       F-6.Phase1.keyboard-nav): the picker swallows them as
-      no-ops. No sibling Y is created. No tag is applied. The
-      picker remains open with the active item unchanged. The
-      user dismisses the picker (Escape / click outside / commit
-      a tag), THEN the sibling-creation gestures take effect.
+      no-ops; the picker remains open with the active item
+      unchanged. The user dismisses the picker (Escape / click
+      outside / commit a tag), THEN the sibling-creation
+      gestures take effect.
   desc: |
     Reported 2026-05-14 as a basic sibling-creation scenario.
     Existing reqs F-Shift-Enter.1, F-Cmd-Shift-Enter.1, and
@@ -5187,10 +5425,11 @@ test T-PDF-Upload-dedupes-on-second-drop: dropping the SAME PDF a second time re
 ```mdl
 test T-PDF-Mention-renders-attachment: an @-mention to a PDF-wrapping Node renders the filename + non-interactive PDF icon
   given: a Bramble.Node P wraps a Wnfs.File W (a PDF file) in
-    the space; an empty Bramble bullet is open in editable
-    position elsewhere in the space
-  when: the user types `@` in the empty bullet, picks P from
-    the mention picker, and commits the mention (Enter)
+    the space; a real `Bramble.Node` Q with non-empty content
+    is open in editable position elsewhere in the space
+  when: the user types `@` after the existing content in Q,
+    picks P from the mention picker, and commits the mention
+    (Enter)
   then:
     - the inline reference inside the bullet displays P's
       `content` text (the filename per F-PDF-Upload.drop-
