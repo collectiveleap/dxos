@@ -502,9 +502,10 @@ rule R-Pending-Row-Is-The-Empty-Bullet:
 rule R-Bramble-Subject-Path:
   desc: |
     Every `Bramble.Node` is addressable as a pane subject via
-    its canonical path `bramble.<id>`, where `<id>` is the
-    Node's ECHO id. The pane's `attendableId` ends in this
-    segment whenever the pane is on that Node.
+    a canonical, stable, shareable path. The pane's deck
+    subject is the single source of truth for "which Node the
+    pane is on" — no per-pane component-local state hides
+    pane position from the layout system.
 
     Role-named entry points get stable aliases that resolve to
     whichever Node currently fills the role:
@@ -514,33 +515,41 @@ rule R-Bramble-Subject-Path:
       `YYYY-MM-DD`). Resolution: `ensureDayNodeForDate(db,
       today())` per F-Today.
 
-    An alias and its canonical path name the SAME node; the
-    subject resolver accepts either form. The left-nav button
-    uses the alias (so the link auto-rolls daily, per
-    F-Bramble-Nav.today-opens-todays-day-node). Gestures that
-    target a specific Node (e.g. F-Zoom) write the canonical
-    form (so each Node has a stable, shareable, history-
-    navigable subject).
+    An alias and the corresponding Node's canonical path name
+    the SAME node; the subject resolver accepts either form.
+    The left-nav button uses the alias (so the link auto-rolls
+    daily, per F-Bramble-Nav.today-opens-todays-day-node).
+    Gestures that target a specific Node (e.g. F-Zoom) write
+    the canonical form (so each Node has a stable, shareable,
+    history-navigable subject).
 
     Why: pane state — which Node a pane is currently
     rendering — lives in the subject path, not in component-
     local React state. Two consequences:
 
     1. Every pane navigation goes through the same operation
-       (`LayoutOperation.Open` with a `bramble.*` subject).
-       Article reads `subject` and renders the corresponding
-       Node; there is no per-pane zoom state hidden from the
-       layout system.
+       (`LayoutOperation.Open`). Article reads `subject` and
+       renders the corresponding Node; there is no per-pane
+       zoom state hidden from the layout system.
     2. Browser navigation, bookmarks, and URL sharing all
        work via the subject path as the source of truth.
        Back / forward across zoom levels falls out for free.
 
     How to apply: when a new feat proposes a gesture that
     changes which Node the pane shows, the gesture invokes
-    `LayoutOperation.Open` with a `bramble.<id>` subject. New
-    role-named entry points introduce a new alias (e.g.
-    `bramble.all-tags`); the subject resolver maps the alias
-    to that role's current Node.
+    `LayoutOperation.Open` with the target's canonical path.
+    New role-named entry points introduce a new alias (e.g.
+    a future "All Tags" alias for the per-space Schema
+    system node); the subject resolver maps the alias to that
+    role's current Node.
+
+    The literal path-string format is implementation-level
+    (today's implementation reuses the existing
+    `getObjectPathFromObject` shape from `@dxos/app-toolkit`,
+    sharing the form F-Open-Pane already uses). The rule
+    fixes the SEMANTIC — every Node has one canonical
+    subject; aliases name roles; the deck subject is the
+    truth — and stays out of the way of the literal format.
 
     Established 2026-05-17. Design conversation captured in
     CONCEPTS §14; the F-Zoom rewrite from local React zoom
@@ -1302,12 +1311,11 @@ feat F-Cmd-Shift-Enter: pending row at the sibling slot above   # Increment Cmd-
 feat F-Zoom: zoom into a Node by changing the pane subject    # Increment Zoom (current)
   desc: |
     Clicking a `Bramble.Node`'s bullet navigates the pane to
-    that Node by changing the pane's subject path to the
-    Node's canonical address `bramble.<id>` per
-    R-Bramble-Subject-Path. The pane's Article re-renders with
-    the zoomed Node as its pageNode. Zoom state lives in the
-    pane subject — no per-pane React state hides the current
-    zoom from the layout system.
+    that Node by changing the pane subject to the Node's
+    canonical path per R-Bramble-Subject-Path. The pane's
+    Article re-renders with the zoomed Node as its pageNode.
+    Zoom state lives in the pane subject — no per-pane React
+    state hides the current zoom from the layout system.
 
     Consequences that fall out for free:
 
@@ -1334,7 +1342,7 @@ feat F-Zoom: zoom into a Node by changing the pane subject    # Increment Zoom (
       the pane's rendered tree
     when: I click X's bullet
     then:
-      - the pane's subject becomes `bramble.<X-id>` via
+      - the pane's subject becomes X's canonical path via
         `LayoutOperation.Open` per R-Bramble-Subject-Path;
       - the pane's Article re-renders with X as the pageNode
         — X's content + supertags + children tree render
@@ -1345,8 +1353,9 @@ feat F-Zoom: zoom into a Node by changing the pane subject    # Increment Zoom (
         this navigation primitive).
 
   req F-Zoom.subject-change-replaces-rendered-target:
-    given: a pane's current subject is `bramble.<X-id>` for
-      some Bramble.Node X
+    given: a pane's current subject is some specific
+      Bramble.Node X (its canonical path per
+      R-Bramble-Subject-Path)
     when: any other gesture changes the pane subject (e.g.
       `F-Bramble-Nav.today-opens-todays-day-node` clicking
       Today, `F-DAG.Phase3e` predecessor-nav, browser back,
@@ -3468,36 +3477,36 @@ feat F-Bramble-Nav: per-space "Bramble" sidebar section    # Increment Bramble-N
     when: the user activates the "Today" item inside the
       section
     then:
-      - the active pane navigates to subject `bramble.today`
-        per R-Bramble-Subject-Path; the resolver maps this
-        alias to today's day-Node (the Node carrying the
-        `#Day` supertag whose date is today's local-tz
+      - the active pane navigates to the Today alias per
+        R-Bramble-Subject-Path; the resolver maps it to
+        today's day-Node (the Node carrying the `#Day`
+        supertag whose date is today's local-tz
         `YYYY-MM-DD`);
       - if no such Node exists yet, one is created (per
         `type Day`'s uniqueness invariant) and the pane
         navigates to it.
 
   req F-Bramble-Nav.today-resets-zoom:
-    given: a pane displays a subject other than `bramble.today`
-      — anything from a zoomed-in descendant of today's day-
-      Node (`bramble.<descendant-id>`), to today's day-Node via
-      its canonical id (`bramble.<day-Node-id>`), to a
-      completely unrelated subject (a supertag-node, a
-      predecessor walk, an @-mention destination, etc.)
+    given: a pane displays any subject other than the Today
+      alias — anything from a zoomed-in descendant of today's
+      day-Node, to today's day-Node addressed via its
+      canonical path (rather than the alias), to a completely
+      unrelated subject (a supertag-node, a predecessor walk,
+      an `@`-mention destination, etc.)
     when: the user activates the "Today" item in the left nav
     then:
-      - the pane's subject becomes `bramble.today` via
+      - the pane's subject becomes the Today alias via
         `LayoutOperation.Open` per
         R-Bramble-Subject-Path — independent of what the
         pane was displaying;
-      - the resolver maps `bramble.today` to today's day-
-        Node per F-Bramble-Nav.today-opens-todays-day-node;
+      - the resolver maps the alias to today's day-Node per
+        F-Bramble-Nav.today-opens-todays-day-node;
       - the Article re-renders with the day-Node as its
         pageNode per F-Zoom.subject-change-replaces-rendered-
         target — any prior zoom state is naturally discarded
         because the subject is the zoom (per F-Zoom +
         R-Bramble-Subject-Path).
-    Note: when the pane subject is ALREADY `bramble.today`,
+    Note: when the pane subject is ALREADY the Today alias,
     activating Today is the existing navtree no-op-while-
     current behavior (a scroll-into-view; the pane's view
     is unchanged because it's already on today).
@@ -5633,7 +5642,7 @@ test T-Bramble-Nav-today-opens-todays-day-node: Today item navigates to today's 
   when: the user activates the "Today" item in the sidebar's
     "Bramble" section
   then:
-    - the active pane's subject becomes `bramble.today` per
+    - the active pane's subject becomes the Today alias per
       R-Bramble-Subject-Path, which the resolver maps to the
       Node representing today's date (the Node carrying the
       `#Day` supertag whose date is today's local-tz
@@ -5648,13 +5657,13 @@ test T-Today-Resets-Zoom: activating Today from any non-today subject navigates 
     `D` and a Bramble.Node `X` reachable in the space
     (e.g. a descendant of `D`, a supertag-node, an
     `@`-mention destination, or any other Bramble.Node)
-  and: the active pane's subject is `bramble.<X-id>` —
+  and: the active pane's subject is `X`'s canonical path —
     i.e. the pane is on any Node other than today's day-Node
-    via its `bramble.today` alias
+    via the Today alias
   when: the user activates the "Today" item in the sidebar's
     "Bramble" section
   then:
-    - the pane's subject becomes `bramble.today` via
+    - the pane's subject becomes the Today alias via
       `LayoutOperation.Open` per
       `F-Bramble-Nav.today-resets-zoom` +
       R-Bramble-Subject-Path — independent of what `X` was;
@@ -5667,13 +5676,13 @@ test T-Today-Resets-Zoom: activating Today from any non-today subject navigates 
 ```
 
 ```mdl
-test T-Zoom-Writes-Subject-Path: clicking a bullet's marker changes the pane subject to `bramble.<bullet-id>`
+test T-Zoom-Writes-Subject-Path: clicking a bullet's marker changes the pane subject to that Node's canonical path
   given: a pane displays Bramble.Node `R` as its current
     subject; `R` has a structural child `X` rendered as a
     bullet in the pane
   when: the user clicks `X`'s bullet (no modifier)
   then:
-    - the pane's subject becomes `bramble.<X-id>` via
+    - the pane's subject becomes `X`'s canonical path via
       `LayoutOperation.Open` per F-Zoom.click-changes-subject
       + R-Bramble-Subject-Path;
     - the Article re-renders with `X` as its pageNode — the
