@@ -5170,6 +5170,28 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `F-Supertag.eager-materialization` says "outliner mount").
   No in-scope mechanism today catches an agent paraphrasing a
   predecessor-shaped shadow.
+- **Bramble sidebar section still collapsed on first creation
+  (flagged 2026-05-16, fix attempt landed but didn't take).**
+  Spec'd as `F-Bramble-Nav.section-expands-on-bramble-creation`
+  (+ acceptance test). Initial implementation:
+  BramblePlugin.createObject explicitly calls
+  `NavTreeCapabilities.State.setItem(['root', spaceId,
+  'org.dxos.plugin.bramble.section'], 'open', true)` after
+  find-or-create + ensureDayNodeForDate. Smoke test post-commit
+  `5082df3cf7` confirmed the section is STILL collapsed on first
+  appearance. Diagnosis (next session): the path the navtree
+  uses for the section is probably different from `['root',
+  spaceId, '<section-id>']` — could be wrapped (e.g. nested
+  under a space-tree-root id), could include linked-segment
+  prefixes, OR the setItem fires before the section's node
+  exists in the navtree graph so the open-state isn't read at
+  render. To debug: log `getItem(...)` for paths that include
+  the section id (probably observable via the existing
+  NavTreeCapabilities.State atoms) to find the actual path the
+  navtree uses, then setItem that path. Also consider invoking
+  `LayoutOperation.Expose` with a subject derived from the
+  navtree's path-to-section rather than mutating state directly
+  — Expose handles the "expand path" walk for us.
 - **Hide Bramble.Node from the generic per-typename navigator
   listing (flagged 2026-05-16, deferred).** Surfaced during the
   F-No-Root smoke test: the just-created today-Node appeared
