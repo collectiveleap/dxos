@@ -279,6 +279,45 @@ rule R-Substrate-Types-Are-Plugin-Bramble-Local:
     not after.
 ```
 
+```mdl
+rule R-DAG-First-Class
+  desc: |
+    Bramble's data model is a DAG (per F-DAG), not a tree.
+    Don't ship tree-shape artifacts: no designated root, no
+    sole-parent assumptions, no parent-chain navigation
+    primitives baked into the substrate. The structural top
+    is an EMERGENT set (Nodes with no incoming `'child'`
+    predecessor edges), not a designated entity. Multi-
+    parent is first-class (F-DAG.Phase3e); predecessor
+    navigation walks the emergent set (PredecessorNav); the
+    user lands on a specific Node via explicit nav (today's
+    Node per F-Bramble-Nav, supertag pages per F-Supertag,
+    F-Zoom, @-mention, etc.).
+
+    Watch for tree-shape leaks during design. The most
+    common: a "root" / "container" / "head" field on a
+    parent type. When such a field feels needed, the design
+    has probably reverted to tree-think; the right question
+    is "which Node should the user be focused on?" — answered
+    by an explicit nav primitive, not by a designated root
+    on the data side.
+
+    How to apply: reject new schema fields that designate a
+    structural root. Reject helpers that assume "the parent"
+    (singular) of a Node. When reviewing a new feat, ask:
+    does this work if the Node has zero parents? Two parents?
+    If the feat ASSUMES one, surface the assumption — it's
+    probably a tree-shape leak.
+
+    Concrete example: 2026-05-17 session — `Graph.root:
+    Ref<Node>` field had been on Bramble.Graph for the
+    plugin's whole life (predating F-DAG) and persisted
+    through F-One-Graph + F-Bramble-Nav + F-Today before
+    Steve caught it as a tree-shape artifact in the
+    F-No-Root design conversation. Retired entirely (Graph
+    became a marker; the DAG speaks for itself).
+```
+
 ## Extensions
 
 | Term        | URI                            |
