@@ -15,7 +15,7 @@
 import * as Schema from 'effect/Schema';
 
 import { Annotation, Obj, Ref, Type } from '@dxos/echo';
-import { LabelAnnotation } from '@dxos/echo/internal';
+import { LabelAnnotation, SystemTypeAnnotation } from '@dxos/echo/internal';
 
 // ─── Inline content segments ────────────────────────────────────────
 // Used by Node.content. An ordered sequence of text spans (with
@@ -291,6 +291,38 @@ export const Run = Schema.Struct({
 
 export interface Run extends Schema.Schema.Type<typeof Run> {}
 
+// ─── Day ────────────────────────────────────────────────────────────
+// F-Today / type Day: supertag marking a Node as the bullet that
+// represents a specific date. The Node carrying `#Day` is the user's
+// "today" / "March 5" / "last Friday" anchor — a noun (a day), not a
+// content field. Day-as-noun, consistent with Wnfs.File representing
+// file-as-noun (and distinct from JournalEntry, which represents
+// content-tied-to-a-date — a semantic mismatch for what's wanted here).
+//
+// Invariant: at most one Node per (date, space) carries `#Day` — a
+// date-keyed extension of F-Supertag.uniqueness. Find-or-create at
+// every write path (see `ensureDayNodeForDate` in
+// `components/Day/day-node.ts`).
+//
+// Marked SystemType so the generic per-typename navigator listing
+// does not surface a flat list of Day instances.
+
+export const Day = Schema.Struct({
+  date: Schema.String,
+}).pipe(
+  Type.object({
+    typename: 'org.dxos.type.bramble.day',
+    version: '0.1.0',
+  }),
+  SystemTypeAnnotation.set(true),
+  Annotation.IconAnnotation.set({
+    icon: 'ph--calendar--regular',
+    hue: 'amber',
+  }),
+);
+
+export interface Day extends Schema.Schema.Type<typeof Day> {}
+
 // ─── Graph ──────────────────────────────────────────────────────────
 // Navigator-openable container. Holds a reference to the root Node;
 // the rest of the structure unfolds via `Edge`s (and legacy
@@ -305,6 +337,11 @@ export const Graph = Schema.Struct({
     version: '0.1.0',
   }),
   LabelAnnotation.set(['name']),
+  // F-One-Graph.bramble-not-listed-under-types: marking the Graph
+  // as SystemType keeps plugin-space's generic per-typename
+  // navigator section from listing it. The Bramble is reached via
+  // the "Bramble" sidebar section (F-Bramble-Nav) instead.
+  SystemTypeAnnotation.set(true),
   Annotation.IconAnnotation.set({
     icon: 'ph--list-bullets--regular',
     hue: 'indigo',

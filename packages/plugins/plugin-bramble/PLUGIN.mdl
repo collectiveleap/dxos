@@ -340,11 +340,26 @@ type Graph
   fields:
     name?: string
     root: Ref<Node>
-    # F-Day-Page: per-date day-page Nodes. Each value is the
-    # Node that holds the user's bullets for that day. Keys
-    # are ISO-format date strings (YYYY-MM-DD) in the user's
-    # local timezone.
-    entries?: Record<string, Ref<Node>>
+```
+
+```mdl
+type Day
+  desc: |
+    Supertag schema marking a Node as the bullet that represents a
+    specific date. A Node carrying `#Day` is the "today" / "March
+    5" / "last Friday" anchor — a noun, not a content field. Day-
+    as-noun, consistent with how Wnfs.File represents file-as-noun
+    (and pointedly distinct from the older JournalEntry pattern,
+    which represents content-tied-to-a-date, not a date itself).
+
+    Invariant: at most one Node per (date, space) carries `#Day`.
+    Date-keyed extension of F-Supertag.uniqueness — find-or-create
+    semantics at every write path.
+
+    Marked SystemType so the generic per-typename navigator
+    listing does not surface a flat list of Day instances.
+  fields:
+    date: string                   # ISO YYYY-MM-DD, user's local timezone
 ```
 
 ## Components
@@ -2789,76 +2804,160 @@ feat F-DAG: parent/child as first-class edges     # Increment DAG
 ```
 
 ```mdl
-feat F-Day-Page: open to today's day-page on outliner mount   # Increment Day-Page
+feat F-One-Graph: a space has at most one Bramble    # Increment One-Graph
   desc: |
-    On opening a Bramble graph the user lands on TODAY'S
-    day-page — a Node whose role is "today's bullets". Each
-    day has its own day-page Node; the outline's `entries`
-    field is a per-date map from ISO date to that day's
-    Node. Modelled on plugin-outliner's Journal type, but
-    with Nodes (and the full outliner UX — bullets,
-    supertags, predecessor-nav, all of it) instead of
-    plain-text JournalEntry content.
+    A space carries zero or one Bramble. New spaces have none;
+    the user creates the Bramble explicitly via the space's
+    create-menu, and once a Bramble exists, any subsequent
+    invocation of that same menu item is idempotent — no second
+    Bramble is created.
 
-    Why: the empty/awkward outliner landing screen is a real
-    pain point — opening to a blank page leaves the user
-    without an anchor. Tana solves this with a per-day page;
-    F-Day-Page adopts the same convention so the outliner
-    has a natural start of work each day.
+    Why: Bramble's data model is space-wide (the per-space
+    Schema Node, Library Node, supertag instances, tag-Nodes,
+    and option-Nodes are all space-singletons). "Two Brambles"
+    would be two roots into the same underlying graph — not two
+    isolated outlines — so the multi-instance posture is a
+    user-visible lie. Singleton makes the model honest.
 
-    Key data shape (additive to Graph; no other plugin
-    affected):
+    Greenfield per R-Greenfield-Stance: test spaces with
+    multiple pre-existing Bramble instances are out of scope;
+    user wipes and re-seeds.
 
-        Graph.entries: Record<ISO-date-string, Ref<Node>>
-
-    Helpers (to be added under
-    `components/Article/day-page.ts` or similar):
-      - `getOrCreateDayPage(outline, date)` — find-or-create
-        semantics. Returns `outline.entries[date]` if it
-        exists; otherwise creates a fresh Node, attaches it
-        as `outline.entries[date]`, and returns it.
-      - `today()` — the user's local-tz date as
-        `YYYY-MM-DD`.
-  req F-Day-Page.open-to-today:
-    given: I open a Bramble graphr (first mount in a session,
-      or revisit after navigating away)
-    when: the article surface attaches and resolves its
-      pageNode
+  req F-One-Graph.singleton-per-space:
+    given: any space in the user's deck
+    when: the user observes the space's content
     then:
-      - the pageNode is the day-page for today's local-tz
-        date, found-or-created via
-        `getOrCreateDayPage(outline, today())`.
-      - the day-page renders as a regular outliner page —
-        H1 header sourced from its content, with whatever
-        children the user has typed (initially empty).
-  req F-Day-Page.navigation-between-days:
-    given: I am viewing the day-page for some date D in
-      the outliner
-    when: I activate a day-navigation control (date picker,
-      keyboard shortcut, or "previous / next day"
-      affordance)
+      - the space carries zero or one Bramble, never more.
+
+  req F-One-Graph.bramble-created-via-space-menu:
+    given: a space with no Bramble; the Bramble plugin is
+      enabled
+    when: the user opens the space's create-menu and selects
+      the "Bramble" item
     then:
-      - the pageNode switches to the day-page for the
-        selected date D', found-or-created as needed via
-        `getOrCreateDayPage(outline, D')`.
-      - when the active day-page is not today's, a quick-
-        return affordance ("← back to today" or
-        equivalent) is available to navigate back to today.
-  req F-Day-Page.day-page-is-bullet-shaped:
-    given: a day-page Node reachable via
-      `Graph.entries`
-    when: I view or edit it
+      - a single Bramble is created in the space;
+      - the user is navigated to it.
+
+  req F-One-Graph.create-action-is-idempotent:
+    given: a space that already contains a Bramble; the
+      Bramble plugin is enabled
+    when: the user opens the space's create-menu and selects
+      the "Bramble" item
     then:
-      - it is a Node exactly like any other (per
-        F-Page-Header and F-Zoom semantics); typing sets its
-        content, Tab / Shift+Tab / Enter all work as for a
-        regular bullet.
-      - it can be tagged with supertags via the `#` picker
-        (per F-Supertag.types-shown), have children, take
-        predecessor edges, etc.
+      - no second Bramble is created;
+      - the user is navigated to the existing Bramble (the
+        same outcome they would get from any other navigation
+        path to it).
+
+  req F-One-Graph.bramble-not-listed-under-types:
+    given: a space containing a Bramble; the user expands the
+      generic per-typename navigator section (today shown as
+      "Database" or similar)
+    when: the user scans the listing
+    then:
+      - the Bramble does NOT appear there. It is reachable
+        via the "Bramble" sidebar section (see F-Bramble-Nav),
+        not via the per-typename listing.
+```
+
+```mdl
+feat F-Bramble-Nav: per-space "Bramble" sidebar section    # Increment Bramble-Nav
+  desc: |
+    The space's sidebar carries a "Bramble" section that is
+    present whenever the space contains a Bramble. The section
+    is visible regardless of which Node, page, or Lens the user
+    is currently viewing — it is part of the navigator chrome,
+    not a per-page surface.
+
+    The section's purpose: navigation entry-points into the
+    Bramble. v1 contains two items; future increments add more
+    (Recents, Capture, Pinned, Search, etc.).
+
+  req F-Bramble-Nav.section-present-iff-bramble-exists:
+    given: a space; the Bramble plugin is enabled
+    when: the user opens the space and observes the sidebar
+    then:
+      - if the space contains a Bramble, the sidebar shows a
+        section labeled "Bramble";
+      - if the space contains no Bramble, no section is
+        rendered.
+
+  req F-Bramble-Nav.today-opens-todays-day-node:
+    given: a space whose Bramble exists; the sidebar's
+      "Bramble" section is visible
+    when: the user activates the "Today" item inside the
+      section
+    then:
+      - the active pane navigates to the Node that represents
+        today's date (the Node carrying the `#Day` supertag
+        whose date is today's local-tz `YYYY-MM-DD`);
+      - if no such Node exists yet, one is created (per
+        F-Today's find-or-create semantics) and the pane
+        navigates to it.
+
+  req F-Bramble-Nav.all-tags-opens-schema-node:
+    given: a space whose Bramble exists
+    when: the user activates the "All Tags" item inside the
+      section
+    then:
+      - the active pane navigates to the per-space Schema
+        Node — the Node under which every supertag class is
+        materialised per F-Supertag.eager-materialization.
+```
+
+```mdl
+feat F-Today: opening a Bramble lands on today's Node    # Increment Today
+  desc: |
+    Opening a Bramble surfaces the user immediately into the
+    Node that represents today's date. That Node is the user's
+    "what am I doing now" anchor — a noun (a day), not a
+    content field on the graph.
+
+    The today-Node is a Bramble.Node whose supertags carry the
+    `#Day` instance for today's local-tz `YYYY-MM-DD`. Per
+    `type Day`'s uniqueness invariant, exactly one such Node
+    exists per (date, space). First-time entry on a given date
+    creates both the Day instance and the wrapping Bramble.Node
+    via find-or-create semantics; subsequent entries on the
+    same date reuse them.
+
+    Why: the empty / awkward landing screen on outliner mount
+    is a real pain point — opening to a blank page leaves the
+    user without an anchor. Today's date is the universal
+    starting point.
+
+    Greenfield migration: per R-Greenfield-Stance, the prior
+    `Graph.entries: Record<…>` dictionary pattern is gone. Test
+    spaces with day-pages stored under that field are out of
+    scope; user wipes and re-seeds.
+
+    Out of scope for v1: cross-day navigation (prev/next day,
+    date picker, back-to-today affordance). That's a separate
+    increment once mount-lands-on-today is shipped.
+
+  req F-Today.mount-lands-on-todays-day-node:
+    given: a Bramble exists in the space; the user opens it
+      (first mount in a session, or revisit)
+    when: the article surface attaches
+    then:
+      - the active page Node resolves to the Node that
+        represents today's date (the Node carrying the `#Day`
+        supertag for today's local-tz `YYYY-MM-DD`);
+      - if no such Node exists yet, one is created (along
+        with the `#Day` instance for today).
+
+  req F-Today.todays-day-node-edits-like-any-node:
+    given: a today-Node (a Node carrying the `#Day` supertag)
+    when: the user views, types into, tags, or restructures it
+    then:
+      - it behaves identically to any other Bramble.Node —
+        F-Page-Header / F-Zoom semantics apply, typing sets
+        its content, Tab / Shift+Tab / Enter all work, it can
+        be supertag-tagged via the `#` picker, accept
+        children, take predecessor edges, etc.;
       - F-Supertag.uniqueness, F-DAG, and all other cross-
         cutting invariants apply without special-casing — a
-        day-page is a Node first, a date-indexed entry
+        today-Node is a Node first, a date-anchored marker
         second.
 ```
 
@@ -4668,6 +4767,106 @@ test T-PDF-Mention-renders-attachment: an @-mention to a PDF-wrapping Node rende
 
   Current behavior (2026-05-16): the inline reference
   surfaces a blank node — the PDF chip is missing.
+```
+
+```mdl
+test T-One-Graph-create-via-menu: invoking the space menu's "Bramble" item creates one
+  given: a space with no Bramble; the Bramble plugin is
+    enabled; the user has the space's create-menu open
+  when: the user selects "Bramble"
+  then:
+    - a single Bramble is created in the space;
+    - the navigator's "Bramble" section appears (per
+      F-Bramble-Nav.section-present-iff-bramble-exists);
+    - the user is navigated to the new Bramble.
+```
+
+```mdl
+test T-One-Graph-create-action-idempotent: re-invoking "Bramble" when one exists is a no-op
+  given: a space already containing one Bramble; the
+    Bramble plugin is enabled
+  when: the user re-invokes the space menu's "Bramble"
+    item
+  then:
+    - the total count of Bramble instances in the space
+      remains exactly 1;
+    - the user is navigated to the existing Bramble (same
+      object as before the second invocation).
+```
+
+```mdl
+test T-One-Graph-not-in-typename-listing: Bramble does not appear in the generic types section
+  given: a space containing a Bramble
+  when: the user expands the generic per-typename navigator
+    section (today shown as "Database")
+  then:
+    - the Bramble is NOT listed there;
+    - the user reaches the Bramble exclusively via the
+      "Bramble" sidebar section (per F-Bramble-Nav).
+```
+
+```mdl
+test T-Bramble-Nav-section-present-iff-bramble-exists: the section follows Bramble existence
+  given: a space; the Bramble plugin is enabled
+  when: the user observes the sidebar tree
+  then:
+    - if the space contains a Bramble, a "Bramble" section
+      is visible in the tree;
+    - if the space contains no Bramble, no such section
+      appears.
+```
+
+```mdl
+test T-Bramble-Nav-today-opens-todays-day-node: Today item navigates to today's Node
+  given: a space whose Bramble exists; the user is viewing
+    some unrelated Node in any pane
+  when: the user activates the "Today" item in the sidebar's
+    "Bramble" section
+  then:
+    - the active pane navigates to the Node that represents
+      today's date (the Node carrying the `#Day` supertag
+      whose date is today's local-tz `YYYY-MM-DD`);
+    - if no such Node existed yet, one is created (along
+      with the `#Day` instance for today).
+```
+
+```mdl
+test T-Bramble-Nav-all-tags-opens-schema-node: All Tags item navigates to the per-space Schema Node
+  given: a space whose Bramble exists
+  when: the user activates the "All Tags" item in the
+    sidebar's "Bramble" section
+  then:
+    - the active pane navigates to the per-space Schema
+      Node — the Node under which every supertag class is
+      materialised per F-Supertag.eager-materialization.
+```
+
+```mdl
+test T-Today-mount-lands-on-todays-day-node: opening a Bramble surfaces today's Node
+  given: a Bramble exists in the space; the user opens it
+    (first mount in a session, or revisits after navigating
+    away)
+  when: the article surface attaches
+  then:
+    - the active page Node is the Node that represents
+      today's date (the Node carrying the `#Day` supertag
+      for today's local-tz `YYYY-MM-DD`);
+    - if no such Node existed yet, one was created during
+      the mount.
+```
+
+```mdl
+test T-Today-day-node-edits-like-any-node: a today-Node behaves like any other Bramble bullet
+  given: a today-Node is the active page Node
+  when: the user types into it, indents (Tab), outdents
+    (Shift+Tab), creates a sibling (Enter), tags it via the
+    `#` picker, or adds a structural child
+  then:
+    - every interaction behaves identically to the same
+      interaction on any other Bramble.Node — no special-
+      casing for "this is the today-Node";
+    - F-Supertag.uniqueness, F-DAG, and all other cross-
+      cutting invariants apply unchanged.
 ```
 
 ```mdl

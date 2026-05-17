@@ -585,27 +585,6 @@ When the consolidation of §8.2 lands, the user-facing feature name
 should be **Lenses** (plural). Reasoning in §7. The product remains
 Bramble; Lenses is what you *do* in Bramble.
 
-### 8.6 Day-pages and the singleton question
-
-Adjacent open thread from the same conversation: should Bramble be a
-**singleton per ECHO space** (one Graph object per space) or
-multi-instance (each Graph instance is independent)? Today multi-
-instance is shipped (`createObject` creates a new Graph each time).
-But the data model is space-wide (Schema/Library Blocks, supertag
-instances, all queryable across the space), so "two Graphs" today
-means "two roots into the same graph" — not two isolated graphs.
-
-The cleanest position is **option 2 from the conversation**:
-singleton-per-space. Internal precedents: Schema Block, Library
-Block, tag Blocks, option Blocks are all already singleton-per-
-space via `findOrCreate*Block + acquireLock`. A fifth singleton (the
-Bramble Graph itself) extends the pattern instead of introducing a
-new abstraction.
-
-Captured here so the next session can pick it up — was a planned
-F-One-Graph increment in the original conversation, deferred to do
-the rename first.
-
 ---
 
 ## 9. Lens — from concept to operational primitive
@@ -1051,11 +1030,13 @@ means as a first-instance feature.
 
 **Today Lens (single anchor, dynamic resolver):**
 
-- Point: `() => getOrCreateDayPage(graph, today())` — a function
-  resolving to a date-specific Node each open.
-- View: standard Article surface, page-block = today's day-page.
-- UX: Bramble opens to today's date as an H1, ready for typing.
-  Subsequent opens same day resolve to the same Node; next day
+- Point: a function resolving to "the Node representing today's
+  date" each time the Bramble is opened — the Node carrying the
+  `#Day` supertag for today's local-tz date. Find-or-create
+  semantics (per `type Day`'s uniqueness invariant + F-Today).
+- View: standard Article surface, page Node = today's Node.
+- UX: Bramble opens on today's Node ready for typing. Subsequent
+  opens the same day resolve to the same Node; the next day
   resolves to a fresh one.
 - Open decisions (deferred):
   - Date in `content` (renamable) vs typed field (stable label

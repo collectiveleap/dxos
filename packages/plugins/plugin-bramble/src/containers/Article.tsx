@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { LayoutOperation, SettingsOperation, getObjectPathFromObject } from '@dxos/app-toolkit';
@@ -31,11 +31,13 @@ import {
   ZoomContext,
   childEdgesOf,
   createEdge,
+  ensureDayNodeForDate,
   ensureMigratedChildren,
   getDisplayLabel,
   hasSupertagOfTypename,
   moveToAdjacentVisibleBlock,
   orderBetween,
+  today,
   useBacklinks,
   useEnsureAllSupertagNodes,
   useNormalizeSupertagUniqueness,
@@ -91,6 +93,12 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // The "page node" within this pane is the current zoom target. `null`
   // means "at pane root".
   const [pageNodeId, setPageNodeId] = useState<string | null>(null);
+  // F-Today: tracks whether the once-per-Article-mount "land on today"
+  // resolver has fired. After the first run, subsequent transitions to
+  // pageNodeId === null (e.g. the user back-navigating to the graph
+  // root) do NOT re-trigger the today-jump — only a fresh Article
+  // mount does. The ref resets on unmount.
+  const todayResolvedRef = useRef(false);
   // F-Run-Lens (Iteration 2c.5): per-pane Lens activation state.
   // Default false; "+ New Run" sets it to true (the user is about
   // to do the work). Stop / Done deactivates. Resume re-activates.
@@ -124,6 +132,39 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // also materialize live. Idempotent across panes via a shared
   // per-typename lock.
   useEnsureAllSupertagNodes(paneRootNode ? Obj.getDatabase(paneRootNode) : undefined);
+
+  // F-Today.mount-lands-on-todays-day-node: once per Article mount,
+  // resolve today's Node (find-or-create the `#Day` instance for
+  // today's local-tz date AND the wrapping Bramble.Node, both
+  // idempotent per `type Day`'s uniqueness invariant) and set it as
+  // the initial pageNodeId. Only fires when the Article is mounted
+  // with a Graph subject AND pageNodeId is still null (user hasn't
+  // navigated). Subsequent back-to-root navigation does NOT re-fire
+  // (todayResolvedRef guards it).
+  useEffect(() => {
+    if (todayResolvedRef.current) {
+      return;
+    }
+    if (!isGraph || !paneRootNode) {
+      return;
+    }
+    if (pageNodeId !== null) {
+      // The mount opened with a non-null pageNodeId (deep-link or
+      // similar); honour it and treat today-resolution as already
+      // done.
+      todayResolvedRef.current = true;
+      return;
+    }
+    const db = Obj.getDatabase(paneRootNode);
+    if (!db) {
+      return;
+    }
+    const result = ensureDayNodeForDate(db, today());
+    if (result) {
+      setPageNodeId(result.node.id);
+      todayResolvedRef.current = true;
+    }
+  }, [isGraph, paneRootNode, pageNodeId]);
 
   // F-Supertag.uniqueness: one-time-per-(db, session) normalisation
   // sweep — for every (instance, supertag) pair represented by more

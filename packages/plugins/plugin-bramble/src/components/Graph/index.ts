@@ -3,3 +3,4 @@
 //
 
 export * from './Graph';
+export * from './singleton';

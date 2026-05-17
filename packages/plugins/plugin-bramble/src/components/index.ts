@@ -4,6 +4,7 @@
 
 export * from './BacklinksPanel';
 export * from './Content';
+export * from './Day';
 export * from './Editor';
 export * from './Node';
 export * from './Graph';
