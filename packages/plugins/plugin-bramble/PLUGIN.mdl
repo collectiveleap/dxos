@@ -1514,21 +1514,19 @@ feat F-Page-Header: root as editable header with parent breadcrumb   # Increment
     given: the cursor is in the H1 editor of page node P
     when: the user presses Shift+Enter
     then:
-      - a pending row Z renders at P's first-structural-child
-        slot (same insertion slot as F-Page-Header.8) per
-        R-Pending-Row-Is-The-Empty-Bullet; P's content is
-        preserved (all current text/refs retained);
-      - focus moves to Z; the caret renders at Z's editable
-        area per `F-Pending-Child.cursor-alignment`;
-      - on first meaningful input into Z, Z promotes to a real
-        Bramble.Node as P's first structural child via the
-        pending-row promotion paths;
-      - the F-Pending-Child.page-root row at the end of the page
-        body renders independently of Z.
-    Note: mirrors F-Shift-Enter.1 (pending-row-at-sibling-slot-
-    below) translated to the page-header context: the H1's "next
-    sibling in the visible flow" IS its first child, since the
-    page renders the H1 above its child column.
+      - the keystroke is consumed as a no-op: P.content is
+        unchanged; focus and caret stay in the H1; no Node
+        is created; no pending row renders.
+    Note: F-Shift-Enter.1 in body bullets means "render a
+    pending row at the sibling slot below." For the H1, the
+    page node is being viewed in a zoomed-in frame whose only
+    visible sibling-flow is the H1 itself — there is no
+    "sibling below" the page node visible in the current view
+    (predecessor / successor navigation across the wider DAG
+    is covered by F-DAG.Phase3e predecessor-nav, not by
+    Shift+Enter). The H1 consumes Shift+Enter without effect,
+    matching the F-Page-Header.10 (Cmd+Shift+Enter) no-op for
+    the symmetric "sibling above" gesture.
   req F-Page-Header.10:
     given: the cursor is in the H1 editor of page node P
     when: the user presses Cmd+Shift+Enter (Mod+Shift+Enter)

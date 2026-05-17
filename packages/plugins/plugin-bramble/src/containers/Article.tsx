@@ -213,24 +213,16 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     [pageNode],
   );
 
-  // F-Page-Header.9: Shift+Enter on the H1 creates an empty new first child
-  // without splitting the H1's content. Same insertion semantics as
-  // handleHeaderEnter, just with empty content.
+  // F-Page-Header.9: Shift+Enter on the H1 is a no-op. The H1 is the
+  // zoomed-in view of the page node; sibling-creation gestures
+  // (which Shift+Enter and Cmd+Shift+Enter are per F-Shift-Enter.1 /
+  // F-Cmd-Shift-Enter.1) have no visible target in this frame —
+  // the page node's siblings in the wider DAG are reached via
+  // predecessor-nav, not from the H1 (matches F-Page-Header.10's
+  // existing Cmd+Shift+Enter no-op).
   const handleHeaderShiftEnter = useCallback(() => {
-    if (!pageNode) {
-      return;
-    }
-    const db = Obj.getDatabase(pageNode);
-    if (!db) {
-      return;
-    }
-    ensureMigratedChildren(db, pageNode);
-    const newChild = Bramble.makeNode({ content: [], state: { expanded: false } });
-    db.add(newChild);
-    const edgesNow = childEdgesOf(db, pageNode);
-    createEdge(db, pageNode, newChild, { order: orderBetween(undefined, edgesNow[0]) });
-    setFocusId(newChild.id);
-  }, [pageNode]);
+    // No-op per F-Page-Header.9.
+  }, []);
 
   // F-Page-Header.11: ArrowDown on the H1 moves the caret into the first
   // visible body bullet via the same F-Nav DOM walk body bullets use.
