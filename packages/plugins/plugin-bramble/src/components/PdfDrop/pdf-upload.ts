@@ -182,7 +182,16 @@ export const ensurePdfBrambleNode = async ({
     return { node: existing, wnfsFile, deduped: true };
   }
 
+  // F-PDF-Upload.drop-seeds-content-with-filename: the wrapping
+  // Node's `content` is a copy of the dropped file's name so the
+  // bullet displays the filename as editable text on creation.
+  // The user can rename it like any other bullet; the file
+  // association (the supertag Ref to the Wnfs.File) is unchanged
+  // by rename, and a future drop of the same bytes still finds
+  // the existing wrapper via the cid-based dedup path.
+  const filename = (file.name ?? '').length > 0 ? file.name : 'PDF';
   const wrapper = Bramble.makeNode({
+    content: [{ kind: 'text', text: filename }],
     supertags: [db.makeRef(Obj.getDXN(wnfsFile))],
   });
   db.add(wrapper);

@@ -31,7 +31,6 @@ export class RefNodeView {
   readonly dom: HTMLElement;
   #dxn: string;
   #resolveRef: ResolveRef;
-  #navigateToObject?: NavigateToObject;
   #unsubscribe?: () => void;
 
   constructor(
@@ -39,11 +38,15 @@ export class RefNodeView {
     _view: EditorView,
     _getPos: () => number | undefined,
     resolveRef: ResolveRef,
-    navigateToObject?: NavigateToObject,
+    // F-PDF-Upload.chip-rendering (revised 2026-05-16): the PDF
+    // icon is no longer interactive; this parameter is retained
+    // for API stability but currently unused. Re-enable if a
+    // future feat needs cross-typename navigation from an inline
+    // ref again.
+    _navigateToObject?: NavigateToObject,
   ) {
     this.#dxn = (node.attrs.dxn as string) ?? '';
     this.#resolveRef = resolveRef;
-    this.#navigateToObject = navigateToObject;
     this.dom = document.createElement('span');
     // F-V3 styling: link-blue, no underline by default, underline on hover.
     // The PDF-chip branch in #renderChip swaps this className for a
@@ -121,20 +124,33 @@ export class RefNodeView {
   }
 
   #renderChip(target: any, file: any): void {
-    // F-PDF-Upload.chip-rendering: label = wrapper's content
-    // (user-renameable) when non-empty, else the file's name.
+    // F-PDF-Upload.chip-rendering + T-PDF-Mention-renders-
+    // attachment: an inline ref to a PDF-wrapping Node renders
+    // the wrapper's content text (the filename per
+    // F-PDF-Upload.drop-seeds-content-with-filename) followed by
+    // a non-interactive PDF icon. The inline-ref TEXT remains an
+    // active link to the target (per F-4 standard inline-ref
+    // behavior); the icon is purely visual.
     const fromTarget = getDisplayLabel(target).trim();
     const label = fromTarget.length > 0 ? fromTarget : getFileLabel(file);
 
-    // Swap the span to chip styling — same visual treatment as the
-    // standalone <PdfChip /> React component.
+    // Standard inline-ref styling on the outer span (matches
+    // #renderLabel) — the label text is the navigable link.
     this.dom.className =
-      'inline-flex items-baseline gap-1 shrink-0 text-xs leading-none px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900/40 no-underline align-baseline';
-    this.dom.setAttribute('data-bramble-pdf-chip', '');
-    this.dom.setAttribute('title', label);
+      'block-ref text-blue-600 dark:text-blue-400 hover:underline cursor-pointer';
+    this.dom.removeAttribute('data-bramble-pdf-chip');
+    this.dom.removeAttribute('title');
 
-    // Build the icon + label DOM. Mirrors the JSX in PdfChip.tsx so
-    // visual parity is automatic.
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = label;
+
+    // Non-interactive PDF icon, styled identically to <PdfChip />.
+    const iconSpan = document.createElement('span');
+    iconSpan.className =
+      'inline-flex items-center shrink-0 ml-1 text-rose-600 dark:text-rose-400 align-baseline';
+    iconSpan.setAttribute('aria-label', 'PDF');
+    iconSpan.setAttribute('title', getFileLabel(file));
+    iconSpan.setAttribute('data-bramble-pdf-chip', '');
     const svgNs = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNs, 'svg');
     svg.setAttribute('width', '12');
@@ -142,27 +158,18 @@ export class RefNodeView {
     svg.setAttribute('viewBox', '0 0 256 256');
     svg.setAttribute('fill', 'currentColor');
     svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('class', 'self-center');
     const path = document.createElementNS(svgNs, 'path');
     path.setAttribute(
       'd',
       'M213.66 82.34l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.34-5.66ZM152 40l48 48h-48ZM200 216H56V40h80v56a8 8 0 0 0 8 8h56ZM112 144v32a8 8 0 0 1-16 0v-8H88v8a8 8 0 0 1-16 0v-32a16 16 0 0 1 16-16h8a16 16 0 0 1 16 16Zm-16 8v-8h-8v8Zm56-16h-12a8 8 0 0 0-8 8v32a8 8 0 0 0 8 8h12a20 20 0 0 0 20-20v-8a20 20 0 0 0-20-20Zm4 28a4 4 0 0 1-4 4h-4v-16h4a4 4 0 0 1 4 4Zm44-20a8 8 0 0 1-8 8h-8v8h4a8 8 0 0 1 0 16h-4v8a8 8 0 0 1-16 0v-32a8 8 0 0 1 8-8h16a8 8 0 0 1 8 8Z',
     );
     svg.appendChild(path);
+    iconSpan.appendChild(svg);
 
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'truncate max-w-[16rem]';
-    labelSpan.textContent = label;
-
-    this.dom.replaceChildren(svg, labelSpan);
-
-    // Chip click navigates to the wrapped Wnfs.File per
-    // F-PDF-Upload.chip-rendering. preventDefault keeps ProseMirror
-    // from treating it as a selection change.
-    this.dom.onclick = (event: MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.#navigateToObject?.(file);
-    };
+    this.dom.replaceChildren(labelSpan, iconSpan);
+    // Per F-PDF-Upload.chip-rendering: the icon is non-interactive.
+    // The OUTER span still navigates (inline-ref link), but no
+    // dedicated chip-click handler.
+    this.dom.onclick = null;
   }
 }

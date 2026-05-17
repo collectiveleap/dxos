@@ -378,9 +378,7 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
               attachment. Click opens the wrapped Wnfs.File inline. */}
           {(() => {
             const file = findFileSupertag(snapshot as any);
-            return file && isPdfFile(file) ? (
-              <PdfChip node={snapshot as any} wnfsFile={file} />
-            ) : null;
+            return file && isPdfFile(file) ? <PdfChip wnfsFile={file} /> : null;
           })()}
           {backlinkCount > 0 && (
             <span
