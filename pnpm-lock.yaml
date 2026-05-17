@@ -8331,6 +8331,9 @@ importers:
       '@dxos/plugin-graph':
         specifier: workspace:*
         version: link:../plugin-graph
+      '@dxos/plugin-navtree':
+        specifier: workspace:*
+        version: link:../plugin-navtree
       '@dxos/plugin-space':
         specifier: workspace:*
         version: link:../plugin-space

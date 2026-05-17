@@ -5,10 +5,11 @@
 import * as Effect from 'effect/Effect';
 import * as Option from 'effect/Option';
 
-import { Plugin } from '@dxos/app-framework';
+import { Capability, Plugin } from '@dxos/app-framework';
 import { AppPlugin, getObjectPathFromObject } from '@dxos/app-toolkit';
 import { Operation } from '@dxos/compute';
 import { Annotation } from '@dxos/echo';
+import { NavTreeCapabilities } from '@dxos/plugin-navtree';
 import { SpaceOperation } from '@dxos/plugin-space/operations';
 import { type CreateObject } from '@dxos/plugin-space/types';
 
@@ -62,6 +63,26 @@ export const BramblePlugin = Plugin.define(meta).pipe(
             // Bramble.Graph itself.
             const dayResult = ensureDayNodeForDate(db, today());
             const target = (dayResult?.node as any) ?? (graph as any);
+
+            // F-Bramble-Nav.section-expands-on-bramble-creation:
+            // explicitly open the "Bramble" sidebar section in the
+            // navtree's per-path state, so the user sees Today / All
+            // Tags immediately without a click on the section's
+            // chevron. The deck's normal expose-to-subject logic
+            // expands the path through plugin-space's per-typename
+            // listing (Database/...) rather than through our section
+            // — without this explicit setItem, the section would
+            // remain collapsed on first appearance.
+            const spaceId = db?.spaceId as string | undefined;
+            if (spaceId) {
+              const sectionPath = ['root', spaceId, `${meta.id}.section`];
+              const navState = yield* Capability.get(NavTreeCapabilities.State);
+              const itemState = navState.getItem(sectionPath);
+              if (!itemState.open) {
+                navState.setItem(sectionPath, 'open', true);
+              }
+            }
+
             return {
               id: target.id,
               subject: [getObjectPathFromObject(target)],

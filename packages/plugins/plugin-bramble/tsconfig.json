@@ -66,6 +66,9 @@
       "path": "../plugin-graph"
     },
     {
+      "path": "../plugin-navtree"
+    },
+    {
       "path": "../plugin-space"
     },
     {

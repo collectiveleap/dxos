@@ -2908,6 +2908,23 @@ feat F-Bramble-Nav: per-space "Bramble" sidebar section    # Increment Bramble-N
       - the active pane navigates to the per-space Schema
         Node — the Node under which every supertag class is
         materialised per F-Supertag.eager-materialization.
+
+  req F-Bramble-Nav.section-expands-on-bramble-creation:
+    given: a space with no Bramble
+    and: the Bramble plugin is enabled
+    when: a Bramble is created and the sidebar's "Bramble"
+      section first appears (per
+      F-Bramble-Nav.section-present-iff-bramble-exists)
+    then:
+      - the section is rendered EXPANDED on first appearance
+        — Today, All Tags, and any other children are
+        immediately visible without a separate click on the
+        section's chevron.
+
+  Subsequent collapse / expand of the section by the user is
+  not affected by this req — the user can collapse the section
+  after creation and that choice persists per the navigator's
+  normal state behavior.
 ```
 
 ```mdl
@@ -2980,6 +2997,17 @@ feat F-No-Root: the Bramble is a marker; the DAG has no designated root    # Inc
         date, find-or-created per `type Day`'s uniqueness
         invariant);
       - NOT to the Bramble.Graph object itself.
+
+  req F-No-Root.create-focuses-pane-cursor:
+    given: a space with no Bramble
+    and: the Bramble plugin is enabled
+    when: a Bramble is created
+    then:
+      - the cursor is focused on the Node content for the
+        Node currently zoomed into in the pane (e.g. today's
+        Node by default per F-No-Root.create-navigates-to-
+        today; the specific focused Node may change with
+        future reqs).
 ```
 
 ```mdl
@@ -4863,6 +4891,18 @@ test T-Bramble-Nav-all-tags-opens-schema-node: All Tags item navigates to the pe
 ```
 
 ```mdl
+test T-Bramble-Nav-section-expands-on-bramble-creation: section is open on first appearance
+  given: a space with no Bramble; the Bramble plugin is
+    enabled; the user has the space create-menu open
+  when: the user selects "Bramble" and the navigator
+    re-renders with the new section present
+  then:
+    - the new "Bramble" section is visible AND its chevron
+      is in the open state — Today and All Tags are visible
+      without a click.
+```
+
+```mdl
 test T-No-Root-graph-has-no-root-field: a Bramble.Graph carries no root reference
   given: a Bramble.Graph exists in any space
   when: an observer inspects the Graph's fields
@@ -4897,6 +4937,17 @@ test T-No-Root-create-navigates-to-today: creating a Bramble lands the user on t
     - NOT to the Bramble.Graph object;
     - the navigator's "Bramble" section appears per
       F-Bramble-Nav.section-present-iff-bramble-exists.
+```
+
+```mdl
+test T-No-Root-create-focuses-pane-cursor: after creation the pane cursor is ready to type
+  given: a space with no Bramble; the Bramble plugin is
+    enabled; the user has the space create-menu open
+  when: the user selects "Bramble"
+  then:
+    - after the create-flow completes, the cursor is in the
+      pane's focused Node's editor — typing a key delivers
+      the keystroke without a separate click.
 ```
 
 ```mdl
@@ -5119,6 +5170,20 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `F-Supertag.eager-materialization` says "outliner mount").
   No in-scope mechanism today catches an agent paraphrasing a
   predecessor-shaped shadow.
+- **Hide Bramble.Node from the generic per-typename navigator
+  listing (flagged 2026-05-16, deferred).** Surfaced during the
+  F-No-Root smoke test: the just-created today-Node appeared
+  under "Database / org.dxos.type.bramble.node / All" labeled
+  "New item" — a confusing double-listing alongside the proper
+  Bramble nav section (the today-Node is the same object
+  reached via Today). Bramble.Graph and Day are already
+  hidden via SystemTypeAnnotation; the same treatment for
+  Bramble.Node would resolve this. Out of scope question:
+  whether to also hide Step / Run / other Bramble-defined
+  typed-instance types — those are user-facing entities
+  reachable via supertag pages, so the secondary per-typename
+  listing might still be useful. Not addressing now; user
+  asked to defer.
 - **Scrub "page" / "pageNode" vocabulary from spec + code
   (flagged 2026-05-16).** "Page" is a rendering metaphor, not a
   substrate noun — a pane shows a Node; the Node is the
