@@ -1987,3 +1987,508 @@ The first three are rules to add to `## Rules`. The fourth is an
 user signs off on §12; without that, all four are premature.
 
 ---
+
+## 13. Substrate handles — Bramble.Node as the only Bramble-facing identity
+
+Captures the design conversation surfaced 2026-05-17 by the
+@-mention duplicate-rows bug. The outcome is a substrate
+invariant (codified as `R-Bramble-Surfaces-Wrap-Only` in
+PLUGIN.mdl) that resolves a class of bugs the older
+per-typename-filter pattern could only patch one-at-a-time. The
+section also captures the three-class supertag model that
+emerged in the same conversation, the relationship to what's
+already implemented, and the variants rejected en route.
+
+### 13.1 The surfacing event
+
+Reported bug, verbatim:
+
+  > * add a new pdf called "XXX"
+  > * go into another node
+  > * use @-mention to add the existing PDF
+  > * bug: i see two "XXX" entries in @-mention menu
+
+Root cause: F-PDF-Upload creates two ECHO objects per upload —
+a `Wnfs.File` payload (typename `org.dxos.type.file`, carries
+`name`, `cid`, bytes) and a wrapping `Bramble.Node` (carries the
+payload as a supertag Ref, content seeded from filename per
+`F-PDF-Upload.drop-seeds-content-with-filename`). Both share the
+display label "XXX" by design — the wrapper's `content` is
+seeded from the payload's filename so the bullet reads
+naturally.
+
+The `MentionPicker`'s pre-fix query (cited from the version
+before commit `79d52be1bf`) enumerated `db.schemaRegistry` and
+OR-ed `Filter.typename` across every non-Relation, non-System
+typename, then substring-matched the display label. Both wrapper
+and payload passed every filter — they were two distinct objects
+with two distinct ids and the same label. React keys (`item.id`)
+didn't dedup them; the picker rendered two indistinguishable
+rows.
+
+The surface-level fix is obvious: hide raw `Wnfs.File`s in
+@-mention. But that's a per-typename suppression rule that grows
+every time a similar wrap-pattern lands (Person + plugin-people,
+Task + plugin-tasks, agent-output-blob, future Wnfs.Url, …).
+Each new wrapped typename adds a suppression entry; the picker's
+filter list becomes a parallel registry of "things Bramble
+hides," coupled to every adjacent plugin's schema. That's
+accreting complexity for a problem that has a structural answer
+one level up.
+
+### 13.2 The substrate invariant
+
+The structural answer:
+
+  > **Bramble's user-facing reference / selection / drag / drop /
+  > nav surfaces target `Bramble.Node` instances ONLY.** Payload
+  > ECHO objects (Wnfs.File, typed-instance Person / Task / …, any
+  > object created outside Bramble) enter Bramble's world via the
+  > F-Supertag wrap pattern — a Bramble.Node is created carrying
+  > the payload as a supertag Ref — and become referenceable
+  > through that wrapper, never directly.
+
+Codified as `R-Bramble-Surfaces-Wrap-Only` in PLUGIN.mdl
+`## Rules` (added 2026-05-17 in the same commit as the
+MentionPicker fix). Once the invariant holds, the duplicate-rows
+class of bugs dissolves: only one Bramble.Node per payload can
+ever exist (per `F-Supertag.uniqueness`); the payload itself
+never appears in surfaces; no per-typename suppression needed.
+
+The shape of the resolution matters as much as the resolution
+itself. Per-typename hiding lives forever as a registry that
+every surface consults at runtime — coupling Bramble's surfaces
+to every plugin whose objects might be wrappable. The
+substrate-invariant version lives as a single filter
+(`Filter.typename(Bramble.Node.typename)`) in each surface
+component; new wrappable payloads add nothing to any surface's
+code. The system gets simpler as new wrap patterns land, not
+more complex.
+
+#### 13.2.1 The library catalog as the analogue
+
+The clearest non-tool framing: a library catalog card and the
+book itself. Every book on the shelf is the payload. The card
+is the wrapper — what's referenceable in bibliographies,
+classmark indexes, cross-references. A book without a card is
+inaccessible to the citation system; a card without a book is
+the rare orphan. Citation surfaces (footnotes, indices,
+suggestions) resolve through cards, never directly to spines.
+
+Two implications fall out for free:
+
+- *Lazy-not-eager wrapping is fine.* The library doesn't
+  catalogue every book that arrives — only ones the librarian
+  has chosen to admit to the citation system. Books in the
+  back room, the donation pile, the in-process queue exist;
+  they're invisible to citations until catalogued.
+- *Wrap need not be exclusive.* Two cards for one book is a
+  bibliographic question, not a substrate question — the
+  citation system handles "see also" cross-references between
+  cards without flinching.
+
+§1.1's anti-Tana stance ("Bramble is not the universal
+wrapper") is preserved by this framing. Tana's defining move
+is "every text-paragraph is a node"; the library-catalog model
+is "every *referenceable* thing has a card." Those are
+different claims. Bramble adopts the latter.
+
+### 13.3 Three classes of supertag
+
+The conversation surfaced a sharper-than-current taxonomy of
+supertag kinds, distinguished by whether orphans (payload
+instances without a wrapper) can exist:
+
+| Class | Backing type | Orphan instances possible? | Supertag-node body |
+|---|---|---|---|
+| **Native supertag** (future, not built) | None — pure Bramble marker (e.g. `#starred`, `#important`, `#review`) | No — there are no instances at all without a wrapper to hold the marker | One query: Bramble.Nodes carrying this supertag |
+| **Bramble-defined ECHO type** (`Bramble.Step`, `Bramble.Run`, `Bramble.Day` today) | Owned by plugin-bramble | No — only created via M-Apply or Bramble's own flows (`ensureDayNodeForDate` etc.), wrapped at birth | One query: Bramble.Nodes carrying this supertag |
+| **External ECHO type** (`org.dxos.type.task`, `…person`, `…file`, `…discord.bot`, etc.) | Owned by other plugins or pre-existing in the space | YES — created by other plugins, by scripts, by drag-drop, by paste; may pre-exist Bramble's installation in the space | Two queries: (A) orphan instances (= promote candidates), (B) Bramble.Nodes carrying this supertag |
+
+The unifying principle: **promote-from-orphan-query (Query A)
+exists iff orphan instances can exist** — which is iff the
+backing type is owned externally. Steve's exact words:
+
+  > For a supertag that has no ECHO type (not done yet, but
+  > envisioned) OR for a Bramble type that is a supertag
+  > (currently Step, Run, Day) the supertag node page only shows
+  > the query of existing Bramble nodes with that supertag. The
+  > extra query (ECHO types instances without Bramble node
+  > wrapper) only appear when the supertag represents an external
+  > type (ECHO type), so that the user can promote and instance
+  > of the external type to be a Bramble node.
+
+#### 13.3.1 The "blacklist" reduces to a predicate
+
+In the working session Steve first framed this as "exclude any
+type starting with `Bramble.` from the build-time blacklist."
+The cleaner positive formulation that emerged: the Query-A
+(promote-from-orphan) rendering is *conditional* on a
+type-classification predicate — "is this an external ECHO
+type?" — applied per supertag at supertag-node render time. No
+list-to-exclude-from-everything; a single per-class shape rule.
+
+The predicate today:
+
+  > External-ECHO predicate := the supertag has an ECHO-type
+  > backing AND its typename does not start with the Bramble
+  > namespace prefix (`org.dxos.type.bramble.`).
+
+This is the form `F-Promote-Generalisation` (queued as a
+separate feat spec) will codify.
+
+### 13.4 M-Apply vs M-Promote — two mechanisms not to conflate
+
+A naming discipline that the conversation pulled out (and
+without which "the blacklist" is ambiguous):
+
+#### 13.4.1 M-Apply — supertag application
+
+The `#` picker. User types `#T` on a bullet → fresh instance of
+type `T` is created and wrapped in a new Bramble.Node (or finds
+the existing wrapper if one already exists for that instance,
+per `F-Supertag.uniqueness`).
+
+Already implemented: `collectTagTypes` (PLUGIN.mdl
+F-Supertag.types-shown, code `tag-types.ts:128-148`) discovers
+the candidate types from the schema registry. Exclusion list:
+Relations + `Bramble.Node` + `Bramble.Graph` (mechanical
+incoherence — `#Edge` is an edge-on-an-edge, `#Node` is
+recursive nonsense, `#Graph` materialises a marker as a tag).
+Step, Run, Day all pass through and are user-applicable.
+
+Steve's framing: "M-Apply should be very simple — show all
+supertags regardless of their origin." The exclusion list stays
+minimal (mechanical incoherence only); origin-based filtering
+is M-Promote's concern, not M-Apply's.
+
+#### 13.4.2 M-Promote — wrap an existing orphan
+
+User has an existing unwrapped ECHO instance (a Wnfs.File
+uploaded by plugin-wnfs, a Person created by plugin-people, …)
+and wants it in Bramble. Mechanism: navigate to the per-type
+supertag-node landing page (eagerly materialised per
+`F-Supertag.eager-materialization`), click a row in the orphans
+query (Query A), get a wrapper Bramble.Node attached to today's
+Day-Node (per `F-Today`).
+
+Already partially implemented: `queryRef` Node (Bramble.ts
+docstring at lines 152-161) materialises as the sole child of
+each tag-node; clicking a wrapper-less row promotes it into a
+wrapper Node "under the per-space Library." The wrap path goes
+through the same `F-Supertag.uniqueness` find-or-create
+discipline as M-Apply, so concurrent M-Apply and M-Promote
+gestures on the same instance converge on the same wrapper.
+
+#### 13.4.3 Drop-create — a third path that fuses both
+
+F-PDF-Upload's drop flow doesn't fit M-Apply or M-Promote
+cleanly. The drop *creates* the ECHO instance (the Wnfs.File)
+AND wraps it (the Bramble.Node) in one act. From the user's
+perspective: drag a file in, get a bullet. The intermediate
+ECHO object is incidental; the user never sees it un-wrapped.
+
+The drop-create path's landing rule differs from M-Promote's:
+the wrapper lands at the drop-site hotspot the user dropped on
+(per `F-PDF-Upload.drop-creates-node`), not under today.
+That's UX-correct — the user gestured at a specific location.
+
+Future drop-create generalisations (drag-a-URL, paste-an-image,
+agent-tool-output-snapshot) follow this pattern: source →
+create-payload-and-wrap-in-one-act → land at the drop-site
+hotspot.
+
+### 13.5 What's already implemented vs the actual deltas
+
+A significant fraction of the working session was spent
+re-establishing what the current code already does, after the
+agent paraphrased older predecessor shapes as if they were
+current. (See §13.10 for the failure mode that produced this
+and the rule that mitigates it.) The accurate picture:
+
+#### 13.5.1 Already in place — to be preserved unchanged
+
+- **Schema-registry-driven discovery, no allowlist.** Per
+  PLUGIN.mdl `F-Supertag.types-shown` and code
+  `tag-types.ts:128-148`. Every non-Relation, non-{Node, Graph}
+  schema discovered in `db.schemaRegistry.query({ location:
+  ['database', 'runtime'] })` is supertag-eligible. Person /
+  Task / Org / Discord.Bot / Wnfs.File — none are declared;
+  all are discovered. There is no hardcoded allowlist anywhere
+  in plugin-bramble. (The agent confabulated declared classes
+  from a 2026-05-17 paraphrase of a superseded predecessor.
+  See §13.10.)
+
+- **Eager materialisation of supertag-nodes for every
+  discovered typename.** Per PLUGIN.mdl
+  `F-Supertag.eager-materialization` and code
+  `tag-supertags.ts:294-310` (`useEnsureAllSupertagNodes`).
+  On outliner mount, walks `collectTagTypes` and find-or-
+  creates a tag-node per qualifying typename. Idempotent —
+  re-runs against unchanged registry state produce zero
+  writes. Concurrent mounts use the per-(db, typename) lock
+  in `acquireLock` to serialise creates.
+
+- **Reactive registry subscription.** Same hook
+  (`tag-supertags.ts:300-301`) subscribes to
+  `db.schemaRegistry.query(...)` and re-runs
+  `ensureAllSupertagNodes` on each registry change event.
+  Schemas registered post-mount get tag-nodes without a
+  remount. (The agent confabulated "today fires only on
+  apply" from a paraphrase of a superseded predecessor;
+  current code fires on mount AND on registry-change.)
+
+- **The query-node child + click-to-promote.** Per
+  `Bramble.ts:152-161` docstring on `Node.queryRef`. Each
+  tag-node has a query-node child rendering "every ECHO
+  instance whose typename matches, including instances that
+  don't have a wrapping Node yet"; clicking a wrapper-less
+  row promotes. The promote action exists today.
+
+- **Wrapper-with-Ref + bi-directional field pass-through.**
+  Per F-Supertag's Phase 2 group. Reads and writes on the
+  wrapped ECHO object's fields pass through the wrapper.
+  Already works for arbitrary discovered ECHO types
+  (Steve's worked example: type `#Bot` for
+  `org.dxos.type.discord.bot`, click the bullet, see and
+  edit the Bot's fields). The wrapper may also carry its
+  own additional fields that don't pass through to the
+  payload (currently unused; reserved as wrapper-private
+  internals).
+
+#### 13.5.2 Net deltas vs current implementation
+
+The actual changes `F-Promote-Generalisation` (queued as
+commit 4) needs to introduce:
+
+- **Two-query split in the supertag-node body for external
+  ECHO types.** Today: one mixed query (per Bramble.ts:152-
+  161 — "every instance, wrapped or not"). New: split into
+  Query A (orphans, with promote affordance per row) + Query
+  B (wrapped Bramble.Nodes). Both visible per Steve's Q3
+  answer ("Both are visible, this is new vs the current
+  implementation").
+
+- **Conditional rendering of Query A.** Only external ECHO
+  types render Query A. Bramble-defined ECHO types and
+  (future) native supertags render Query B only — there are
+  no orphans to promote.
+
+- **The MentionPicker substrate-invariant change** (landed in
+  commit `79d52be1bf`, ahead of `F-Promote-Generalisation`)
+  is independent of the two-query work — the picker filters
+  to `Bramble.Node.typename` regardless of whether the
+  per-type supertag-node body shows one query or two.
+
+That's the entire delta. The implementation lift is small; the
+conceptual lift (the substrate invariant, the three-class
+taxonomy, the M-Apply / M-Promote / drop-create distinction)
+is what made this conversation valuable.
+
+### 13.6 Native supertags — future direction
+
+A supertag with no ECHO-type backing. Pure Bramble marker.
+Examples that suggest themselves: `#starred`, `#important`,
+`#review`, `#draft`, `#archived`. The wrapper Bramble.Node
+carries the marker via a slot TBD (a new field on Node? a
+literal-string in `supertags`? a special marker schema?). No
+instance to point to; nothing to find-or-create on M-Apply
+beyond the wrapper itself.
+
+Supertag-node body for a native supertag: Query B only
+(Bramble.Nodes carrying this supertag). No Query A — there are
+no orphans of a marker that has no instances apart from
+"Bramble.Nodes with the marker," which is what Query B
+already covers.
+
+Not in this iteration. The model accommodates it by keeping
+"is this an external ECHO type?" as a predicate over
+supertags-in-general, not a tag-shape-coupled property — a
+native supertag fails the predicate (no ECHO backing) and
+trivially falls into the "Query B only" branch.
+
+### 13.7 Non-ECHO promote sources — future direction
+
+Drop-create today only fires for PDF (F-PDF-Upload). The model
+preserves room for additional promote-source kinds:
+
+- **URL.** Drop a URL onto a bullet → create a payload
+  (`Wnfs.Url`? a new `Bramble.Bookmark` ECHO type? content-
+  segment only?) and wrap. Open question what the payload
+  type is.
+- **Local file (non-PDF).** Drop arbitrary file → upload via
+  FileUploader → create Wnfs.File + wrap. Generalises
+  F-PDF-Upload across MIME types.
+- **Paste.** F-7 Tana paste already spec'd. Generalises to
+  arbitrary clipboard payloads: image, rich text, files-on-
+  clipboard, Tana-paste, plain text.
+- **Agent-tool output.** An agent produces a structured
+  payload (a fact, a result, a snapshot); drop / commit
+  promotes it. The non-ECHO direction is most relevant here
+  — the agent might produce content that isn't an ECHO
+  object yet.
+
+Per Steve's Q6 ("none — just a future direction; only for
+consideration when designing to allow for expansion, minimal
+investment in generalizing for now"), no code or spec work
+invested now. The drop-create dispatch in plugin-bramble
+remains PDF-specific; future drops add new dispatch entries.
+
+### 13.8 Rejected variants
+
+Variants surfaced and rejected during this conversation:
+
+- **Auto-wrap (push-based).** Bramble subscribes to every
+  non-blacklisted ECHO type and creates a wrapper Node
+  whenever a new instance appears. **Rejected.** Side-effect
+  heavy; couples Bramble to every cross-plugin object event;
+  breaks the "Bramble is a thin marker per-space" disposition
+  from `F-One-Graph` and `F-No-Root`. Bramble should be
+  silent about objects in the space until the user invokes
+  promote on a specific one.
+
+- **Universal wrap, eager, all-encompassing (Tana-mode).**
+  Every ECHO object in the space gets a wrapper at all
+  times. **Rejected** per §1.1's anti-Tana stance. The
+  library-catalog framing (§13.2.1) carves the principled
+  middle: wrap *referenceable* things, not *every* thing.
+
+- **Per-typename suppression rules in MentionPicker.** Hide
+  `org.dxos.type.file`; later hide `org.dxos.type.task`;
+  later hide … **Rejected.** Accretes complexity proportional
+  to the number of wrap patterns; couples surface code to
+  every adjacent plugin's schema. The substrate-invariant
+  fix does the same job structurally in one filter.
+
+- **Annotate Wnfs.File with `SystemTypeAnnotation` upstream.**
+  Out of scope per the scope-map (plugin-wnfs is outside
+  plugin-bramble); changes the appearance of Wnfs.File in
+  every other plugin (e.g. plugin-wnfs's own UI). **Rejected**
+  per "Don't fix upstream silently" (global CLAUDE.md).
+
+- **Mention-dedup-by-Ref (filter the picker's results to
+  drop a payload if a wrapper references it).** Local Bramble
+  fix; precise. **Near-miss; not chosen.** The
+  substrate-invariant version (filter to Bramble.Node only)
+  fixes the same bug AND every other surface that would have
+  the same problem (drop targets, drag sources, edge
+  endpoints), so it's strictly more general for the same
+  diff size.
+
+### 13.9 Open questions carried forward
+
+Settled enough to land the MentionPicker fix and queue
+`F-Promote-Generalisation`. The following remain open and
+should be answered before or during the F-Promote-Generalisation
+spec pass:
+
+- **`Bramble.Day`'s posture in M-Apply.** `#Day` currently
+  appears in the `#` picker as an artifact of the generic
+  discovery (Day is a non-Relation, non-{Node, Graph} ECHO
+  type owned by Bramble). Is `#Day` a meaningful gesture for
+  the user to invoke, or vestigial? If vestigial, add Day to
+  the M-Apply exclusion list; if meaningful, document the
+  intended UX.
+
+- **Wrapper-private fields lifecycle.** Steve's Q2 confirmed
+  the wrapper Node may carry additional fields not exposed
+  on the wrapped ECHO type ("not used yet and/or currently
+  hidden as internals to the node data structure"). When
+  does a wrapper-private field land? What's the surface that
+  edits it? Is the wrapper's `content` itself one of these
+  (it has no analogue in many wrapped types)?
+
+- **Lifecycle: delete-wrapper vs delete-payload.** Today the
+  payload outlives wrapper deletion (per F-PDF-Upload's
+  cid-based dedup; same shape in F-Supertag). At scale this
+  generates orphan payloads. Acceptable? Eventually
+  garbage-collected? Cascaded on delete? Per-typename rule?
+  Open.
+
+- **Multi-wrap.** Can one ECHO instance carry two wrapper
+  Bramble.Nodes (e.g. for "the same Person in two contexts")?
+  `F-Supertag.uniqueness` forbids this today (at most one
+  wrapper per (instance, typename)). The new model doesn't
+  require multi-wrap, but doesn't preclude it either; if
+  multi-wrap becomes desirable, the uniqueness invariant
+  needs a per-(context, instance, typename) refinement.
+
+- **Native supertag schema shape.** When v1 lands, what's the
+  marker representation? A new field on Bramble.Node? A
+  literal-string entry in `supertags`? A `Bramble.Marker`
+  ECHO type with no instances apart from the per-type
+  supertag-node? Open.
+
+- **Non-ECHO source taxonomy.** When v1 lands, what's the
+  minimal set? URL is the most obvious. Per-source payload
+  type decisions deferred until the first non-PDF source is
+  spec'd.
+
+- **The promote affordance shape.** Today the promote action
+  is a click on a wrapper-less row in `queryRef`'s
+  rendered list. When the two-query split lands (Query A +
+  Query B), is the promote action a bare click? A primary
+  action button? A drop target ("drop here to promote")?
+  Steve's Q1 answer ("the supertag node page only shows the
+  query…") suggests the click-on-row pattern continues. To
+  confirm in the F-Promote-Generalisation spec.
+
+### 13.10 Process note — the canon-partition failure mode this conversation surfaced
+
+Two confabulations occurred during this conversation, both the
+same paraphrase-from-shadow failure mode:
+
+1. **Declared supertag classes** `[Person, Task, Org, Run,
+   Step]` — agent claim. Real state: no allowlist exists in
+   spec (PLUGIN.mdl `F-Supertag.types-shown` says "no
+   allowlist") or code (`tag-types.ts:128-148` discovers from
+   registry). Source of the shadow: a `Note:` in PLUGIN.mdl
+   `## Remaining` preserving the superseded hardcoded
+   allowlist `[Task, Person, Organization]` "for explanatory
+   purposes." The agent paraphrased the retired list +
+   Bramble-declared types (Run, Step) into a frankenstein.
+
+2. **"Today fires only on apply"** — agent claim about
+   eager-materialisation. Real state: per PLUGIN.mdl
+   `F-Supertag.eager-materialization` and code
+   `tag-supertags.ts:294-310`, fires on mount AND on every
+   schema-registry-change event. Source of the shadow: a
+   superseded predecessor (`F-6.Phase3.tag-node.materialize`)
+   that had a different trigger.
+
+The 2026-05-16 session encountered the same failure mode and
+documented it in PLUGIN.mdl `## Remaining` (the entry that
+became `R-Consolidation-Scrub` in commit `fd20d38dd7`). The
+2026-05-17 session repeated it twice in the same
+conversation, including once *after* an explicit warning
+from Steve ("I'm concerned Claude is not understanding the
+current spec and/or implementation").
+
+Mitigations now operative:
+
+- **`R-Consolidation-Scrub` is a rule** (PLUGIN.mdl
+  `## Rules`, landed 2026-05-17 commit `fd20d38dd7`). Every
+  commit retiring a name MUST scrub in-scope leftovers. The
+  shadow-source for confabulation 1 was removed in the same
+  commit (the `Note:` paragraph in `## Remaining`).
+
+- **The cite-before-paraphrase discipline** from global
+  CLAUDE.md is treated as session-visible going forward. For
+  every claim about current spec or current code state,
+  cite a `path:line` range. If the agent can't cite, the
+  agent can't claim.
+
+- **A one-time audit sweep** of the remaining prior
+  consolidations (`F-V6`, `F-6.Phase3.tag-node.*`,
+  `F-6.Phase3.all-echo-types`, `tag block` → `supertag
+  node`) is queued under PLUGIN.mdl `## Remaining` as a
+  separate commit. The rule governs all future commits
+  regardless of when the audit lands.
+
+The lesson generalises: **design conversations that take a
+predecessor-shaped shadow as input produce frankenstein
+descriptions of current behaviour.** Removing the shadow-
+source (canon-partition) is the structural fix; cite-before-
+paraphrase is the procedural safety net.
+
+---
