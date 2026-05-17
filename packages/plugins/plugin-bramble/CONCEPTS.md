@@ -2492,3 +2492,263 @@ source (canon-partition) is the structural fix; cite-before-
 paraphrase is the procedural safety net.
 
 ---
+
+## 14. Pane subject as source of truth — addressing & zoom
+
+Captures the design conversation surfaced 2026-05-17 by a
+"clicking Today does nothing" bug. The outcome is an
+addressing rule (`R-Bramble-Subject-Path`) and an F-Zoom
+rewrite that collapses two parallel mechanisms — the pane's
+deck subject and the Article's local React zoom state —
+into one: the pane subject is the zoom.
+
+### 14.1 The surfacing event
+
+Reported bug:
+
+  > when I am viewing a node that's not today and I click on
+  > "Today" in the left nav, nothing happens
+
+Reproduced: zoom into a child of today's day-Node via
+F-Zoom; click Today in the left nav; the page stays on the
+zoomed child. Confirmed in the dev server.
+
+Root cause (cited path:line). Two parallel mechanisms held
+different views of "what the pane is on":
+
+- The deck holds the pane's subject as a navtree path —
+  `root/<space-id>/.../org.dxos.plugin.bramble.today`. Last
+  segment names the navtree node (an abstract id, not an
+  ECHO id).
+- The Article holds local React state for F-Zoom — a
+  `pageNodeId: string | null` in `Article.tsx:88`. When the
+  user clicks a bullet to zoom in (F-Zoom), this state
+  records the zoom target; the deck subject is unchanged.
+
+When the user clicks Today while already on Today's deck
+subject (`current === true` at `NavTreeContainer.tsx:144`),
+the click handler fires `LayoutOperation.ScrollIntoView`
+only — no subject change. The Article's `pageNodeId` is
+preserved across this ScrollIntoView (no remount), so the
+rendered view stays at the zoomed child. The deck thinks
+the pane is on Today; the Article thinks the pane is on
+the zoomed child. Both are right within their own model.
+The two models disagree.
+
+### 14.2 The addressing rule
+
+The fix is to collapse the two views into one source of
+truth: the pane subject. Codified as
+`R-Bramble-Subject-Path`:
+
+- Every Bramble.Node is addressable as a pane subject via
+  the canonical path `bramble.<id>`, where `<id>` is the
+  Node's ECHO id.
+- Role-named entry points get stable aliases that resolve
+  to whichever Node currently fills the role. Today is
+  one such alias: `bramble.today` resolves to today's
+  day-Node via `ensureDayNodeForDate(db, today())`. Future
+  aliases (e.g. `bramble.all-tags` for the per-space
+  Schema Node) follow the same pattern.
+- The subject resolver accepts either form for the same
+  Node (alias and canonical id name the same target).
+
+The left-nav button keeps its alias `bramble.today` — the
+link auto-rolls daily without needing to rebuild navtree
+state. Specific-node gestures (F-Zoom, F-Open-Pane,
+`@`-mention commits) write the canonical `bramble.<id>`
+form — each Node has a stable, shareable, history-
+navigable subject.
+
+### 14.3 F-Zoom under the new model
+
+Before: F-Zoom set a React `useState` (`pageNodeId`) in
+Article. The deck subject didn't change. Other panes / the
+URL / browser history didn't know about the zoom.
+
+After: F-Zoom invokes `LayoutOperation.Open` with subject
+`bramble.<bullet-id>`. The deck subject changes. The
+Article reads `subject` and renders. There is no local
+zoom state — `pageNode = subject`.
+
+The bug-fix flow:
+1. User zooms into bullet "a" → pane subject becomes
+   `bramble.<a-id>`.
+2. User clicks Today → Today's nav id `bramble.today`
+   doesn't match the current subject's last segment
+   `bramble.<a-id>`. Today is NOT current. Handler fires
+   `Open` with `bramble.today`. Subject changes.
+3. Article re-renders with today's day-Node as
+   pageNode. Bug fixed structurally.
+
+When the user clicks Today while already on Today (deck
+subject = `bramble.today`, no zoom): handler fires
+ScrollIntoView only. The Article doesn't re-render. No
+state to reset because there's no local zoom state to
+preserve. Correct.
+
+### 14.4 Benefits that fall out for free
+
+The bug fix is the immediate payoff. The structural change
+unlocks a handful of correlated wins:
+
+- **Browser back / forward undoes zoom.** Each zoom is a
+  subject change pushed to history. Back navigates to the
+  prior pane subject — which IS the prior zoom level.
+- **URL / bookmark sharing.** Copy the URL on bullet "a";
+  send it to a colleague; they land on bullet "a" directly.
+  Today's alias `bramble.today` shares "your today" — the
+  recipient lands on their today. Both behaviors are
+  explicit; neither is a footgun.
+- **F-Zoom and F-Open-Pane symmetric.** F-Open-Pane already
+  writes object-path subjects to a new pane. After: F-Zoom
+  writes the same shape to the current pane. The two
+  gestures differ only in which pane receives the new
+  subject — not in what they do to the deck's state.
+- **Cross-plugin convention.** Other DXOS plugins (tasks,
+  files, ECHO objects in general) use object-id-based pane
+  subjects. Bramble's prior `bramble.today`-as-pane-subject
+  abstraction was the odd one out. After: Bramble aligns
+  with the convention.
+
+### 14.5 Daily rollover
+
+A subtle UX point. Under the old model:
+
+- Pane subject = `org.dxos.plugin.bramble.today`. Midnight
+  passes. The Today navtree node's `data` field is re-
+  resolved to tomorrow's day-Node. The pane's view
+  silently updates to tomorrow.
+
+Under the new model, two implementation choices:
+
+- **Resolver evaluates per render.** Article subscribes to
+  "whatever `bramble.today` resolves to right now." At
+  midnight, the resolver returns tomorrow's day-Node; the
+  pane silently re-renders. Same auto-rollover behavior as
+  before.
+- **Resolver evaluates at navigation time.** Article holds
+  the resolved day-Node from the click that landed the
+  pane there. Midnight passes; the pane stays on the
+  specific day it was on. User clicks Today to advance.
+
+The second is probably the right default — "I left my pane
+open on May 17" should not silently morph into May 18 at
+midnight. Today-as-shortcut works either way; Today-as-
+pane-anchor is more predictable when it stays put. Pick
+the second; CONCEPTS reserves the option to revisit.
+
+### 14.6 Rejected variants
+
+Variants surfaced and rejected during this conversation:
+
+- **Add a default-disposition action on the Today nav node
+  that re-fires Open even when Today is current** (Option A
+  in the design conversation). Surgical fix to the reported
+  bug; doesn't address the deeper "two parallel views of
+  pane state" problem; doesn't yield the back/forward /
+  share / symmetric-with-F-Open-Pane benefits. **Rejected**
+  as a patch that wouldn't have improved the underlying
+  model.
+- **Article subscribes to layout state and resets local
+  zoom on re-navigate.** Smaller surface than the full
+  refactor, but keeps the dual-model problem (two views of
+  pane state with synchronization logic between them).
+  **Rejected** for the same reason.
+- **Tana-style "the page subject IS today's data
+  permanently."** No alias resolution — Today nav directly
+  references the Node by id; daily rollover requires the
+  nav to rebuild. Considered briefly, rejected for the
+  rebuild complexity and for losing the auto-rolling
+  behavior that aliases give.
+
+### 14.7 Future direction — non-today aliases
+
+The aliases-for-roles pattern generalises beyond Today.
+Candidates that may want aliases in future iterations:
+
+- `bramble.all-tags` → the per-space Schema system Node
+  (today reachable via the left nav's "All Tags" item).
+- `bramble.library` → the per-space Library system Node
+  (the parent of orphan-instance wrappers per the existing
+  F-Supertag pattern).
+- Possibly per-supertag-type aliases (e.g.
+  `bramble.tag.<typename>` → the per-typename supertag-
+  node) if there's a UX need.
+
+Implementation cost per alias is small: extend the subject
+resolver with one more case. No spec work invested now;
+when a use case lands, draft the alias spec and the
+resolver case in the same commit.
+
+### 14.8 Open questions carried forward
+
+Settled enough to land the rule + the F-Zoom rewrite. The
+following remain open:
+
+- **Pane attendable-id collision when the alias and the
+  canonical id name the same Node.** If a pane is opened
+  via the alias (subject `bramble.today`) and another pane
+  is opened via the canonical id (subject
+  `bramble.<dayNode-id>`), are they treated as the same
+  pane or two separate panes by the deck's pane-uniqueness
+  logic? Probably "two separate panes" today; might want to
+  consolidate at the deck level. Out of scope for the rule.
+- **Navtree highlighting when the canonical id is the
+  pane subject.** Today nav item's id is `bramble.today`;
+  if the pane's subject is the canonical id form, the
+  navtree's `layout.active` matching might not flag Today
+  as current. Three options: (a) accept the wrinkle (Today
+  doesn't highlight until the user clicks it); (b) feed
+  BOTH the alias and the canonical id into `layout.active`
+  so either form highlights Today; (c) extend the navtree's
+  current-detection to consult the subject resolver. The
+  first is OK for v1; the second is the cleanest.
+- **Daily rollover policy** (per 14.5). Pick
+  "resolved-at-navigation-time" as the v1 default. Revisit
+  if it's surprising.
+- **What happens to the `← Outline` link.** Under the old
+  model, F-Zoom rendered a "← Outline" link to return to
+  the unzoomed view. Under the new model, browser back
+  serves this purpose AND `F-DAG.Phase3e.predecessor-nav`
+  (the predecessor breadcrumb) gives a richer view of "go
+  back up." The "← Outline" UI primitive is retired — its
+  role is subsumed.
+
+### 14.9 The shape of the implementation
+
+Spec changes (`R-Bramble-Subject-Path` + F-Zoom rewrite +
+`F-Bramble-Nav.today-resets-zoom` + tests + this §14)
+land together in one commit. Code changes land separately:
+
+- New subject resolver registered in `BramblePlugin.ts`:
+  given `bramble.<id>` → DB lookup by id; given
+  `bramble.today` → `ensureDayNodeForDate(db, today())`.
+- `Article.tsx`: drop `pageNodeId` useState; `pageNode =
+  subject` (or resolve via `paneRootNode` ref already
+  there). Remove the local zoom derivation.
+- `Node.tsx`: F-Zoom click handler invokes
+  `LayoutOperation.Open` with `bramble.<id>` subject
+  instead of setting `setFocusId` / `pageNodeId`.
+- `components/backlinks.ts`: `ZoomContext`'s callback
+  signature changes — was `(nodeId: string) => void`
+  (local state setter); becomes a `LayoutOperation.Open`
+  invocation.
+
+Risks to verify during implementation:
+
+- The current pane attendable-id includes a navtree path;
+  switching to a `bramble.<id>` segment might break the
+  per-pane state persistence (focus, scroll position).
+  Need to verify.
+- F-Open-Pane already uses object-path subjects in a
+  related shape; confirm alignment.
+- The R-Bramble-Surfaces-Wrap-Only invariant — mention
+  picker, @-mention, drop targets — interacts with the
+  resolver. Mentions resolve to specific Nodes; their
+  subject form should match the new canonical
+  `bramble.<id>` shape, OR the resolver should accept
+  the existing object-path form too.
+
+---
+
