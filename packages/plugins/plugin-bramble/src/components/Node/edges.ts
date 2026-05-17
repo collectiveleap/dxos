@@ -638,3 +638,132 @@ export const addExistingAtSlot = (
   setPendingSlot(null);
   setFocusId(target.id);
 };
+
+// R-Pending-Row-Is-The-Empty-Bullet predicate: a Node carries
+// meaningful state on at least one axis. Returns true when EVERY
+// axis is empty (the retirement condition).
+//
+// Axes checked:
+// - `content`: any non-empty text segment OR any ref segment with a
+//   resolvable target.
+// - `supertags`: any entries.
+// - `structuralChildren`: any merged structural children (legacy
+//   `Node.children` + outgoing `'child'` Edges).
+// - `fields`: any field with at least one entry.
+// - F-Supertag marker fields (`tagTypename`, `systemNode`,
+//   `queryRef`, `tagOption`): any of these set.
+// - `attachment`: legacy file / image attachment present.
+// - `kind`: any non-`'bullet'` syntactic kind (e.g. `'todo'`,
+//   `'heading'`, `'image'`, `'url'`, `'search'`, `'view'`,
+//   `'code'`) counts as meaningful state on its own (an empty-
+//   content todo is still a placeholder for a task; same for the
+//   other kinds).
+export const isFullyEmpty = (node: any, structuralChildren: readonly any[]): boolean => {
+  // Content axis.
+  const segments = (node.content ?? []) as readonly any[];
+  for (const segment of segments) {
+    if (segment?.kind === 'text' && ((segment.text ?? '') as string).length > 0) {
+      return false;
+    }
+    if (segment?.kind === 'ref' && segment.target?.target) {
+      return false;
+    }
+  }
+  // Supertags axis.
+  if (((node.supertags ?? []) as readonly any[]).length > 0) {
+    return false;
+  }
+  // Structural children axis (merge of legacy `children` + outgoing
+  // `'child'` Edges).
+  if (structuralChildren.length > 0) {
+    return false;
+  }
+  // Fields axis.
+  const fields = node.fields ?? {};
+  for (const key of Object.keys(fields)) {
+    if (((fields[key] ?? []) as readonly any[]).length > 0) {
+      return false;
+    }
+  }
+  // Marker fields.
+  if (node.tagTypename || node.systemNode || node.queryRef || node.tagOption) {
+    return false;
+  }
+  // Legacy attachment.
+  if (node.attachment) {
+    return false;
+  }
+  // Non-default syntactic kind.
+  if (node.kind && node.kind !== 'bullet') {
+    return false;
+  }
+  return true;
+};
+
+// F-Retire-Empty-Node: retire a real `Bramble.Node` whose meaningful
+// state has collapsed to zero on every axis. Removes every incoming
+// `'child'` Edge to the Node via the existing Edge-deletion path
+// (R-Edges-First-Class); the Node itself remains in ECHO as a
+// retired orphan per substrate-principles §10 (history preserved,
+// `Obj.checkoutVersion` continues to resolve prior versions).
+//
+// Sets the Article-level `pendingSlot` so the renderer projects a
+// pending row at the slot the retiring Node was rendered at — its
+// position in `currentParent`'s children list, anchored to whichever
+// flanking sibling is available (previous sibling 'after' if there
+// is one; otherwise next sibling 'before'). When no flanking
+// siblings exist (the Node was the only child), the pending slot
+// stays unset and the existing leaf-row-end / page-root pending
+// row affordance covers the empty case.
+export const retireNode = (
+  db: any,
+  node: Bramble.Node,
+  currentParent: Bramble.Node,
+  setPendingSlot: (slot: { nodeId: string; position: 'before' | 'after' } | null) => void,
+  setFocusId: (id: string | null) => void,
+  pendingRowFocusId: (nodeId: string, position: 'before' | 'after') => string,
+): void => {
+  if (!db || !node || !currentParent) {
+    return;
+  }
+  // Find the flanking siblings BEFORE removing the edges so we know
+  // where to anchor the pending slot.
+  const edgesBefore = childEdgesOf(db, currentParent);
+  const myEdgeIndex = edgesBefore.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === node.id);
+  const prevSiblingEdge = myEdgeIndex > 0 ? edgesBefore[myEdgeIndex - 1] : undefined;
+  const nextSiblingEdge =
+    myEdgeIndex >= 0 && myEdgeIndex < edgesBefore.length - 1 ? edgesBefore[myEdgeIndex + 1] : undefined;
+
+  let nextPendingSlot: { nodeId: string; position: 'before' | 'after' } | null = null;
+  if (prevSiblingEdge) {
+    const prev = Relation.getTarget(prevSiblingEdge) as any;
+    if (prev?.id) {
+      nextPendingSlot = { nodeId: prev.id, position: 'after' };
+    }
+  } else if (nextSiblingEdge) {
+    const next = Relation.getTarget(nextSiblingEdge) as any;
+    if (next?.id) {
+      nextPendingSlot = { nodeId: next.id, position: 'before' };
+    }
+  }
+
+  // Remove every incoming `'child'` Edge to the retiring Node. The
+  // spec says ALL incoming edges, not just the current view's — a
+  // multi-parent (DAG) Node with zero meaningful state has nothing
+  // left to anchor in any view.
+  const incomingEdges = parentEdgesOf(db, node);
+  for (const edge of incomingEdges) {
+    try {
+      db.remove(edge);
+    } catch {
+      /* defensive — concurrent removal, etc. */
+    }
+  }
+
+  if (nextPendingSlot) {
+    setPendingSlot(nextPendingSlot);
+    setFocusId(pendingRowFocusId(nextPendingSlot.nodeId, nextPendingSlot.position));
+  } else {
+    setFocusId(null);
+  }
+};

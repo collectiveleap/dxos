@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
@@ -18,8 +18,10 @@ import {
   createEdge,
   ensureMigratedChildren,
   findEdge,
+  isFullyEmpty,
   orderBetween,
   promotePendingAtSlot,
+  retireNode,
   setEdgeExpanded,
   useEdgeExpanded,
   useParentEdgeCount,
@@ -110,6 +112,35 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
   // empty real Node; the children render loop below injects a
   // PendingChildRow at the matching slot.
   const { pendingSlot, setPendingSlot } = usePendingSlot();
+
+  // F-Retire-Empty-Node: watch the transition from "carries
+  // meaningful state on at least one axis" to "empty across every
+  // axis." On that transition (e.g. user backspaces through the
+  // last character of an otherwise-empty bullet) retire this Node
+  // via incoming-edge removal; the renderer projects a pending row
+  // at the vacated slot per R-Pending-Row-Is-The-Empty-Bullet.
+  // Initial mount is treated as a baseline read — a Node that is
+  // already empty on mount (legacy / test-space state) is NOT
+  // retired retroactively per R-Greenfield-Stance.
+  const wasEmptyRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const currentlyEmpty = isFullyEmpty(snapshot, childRefs);
+    const previouslyEmpty = wasEmptyRef.current;
+    wasEmptyRef.current = currentlyEmpty;
+    if (previouslyEmpty === null) {
+      // First render — establish baseline only; never retire on
+      // initial mount.
+      return;
+    }
+    if (previouslyEmpty || !currentlyEmpty || !parent) {
+      return;
+    }
+    const db = Obj.getDatabase(block);
+    if (!db) {
+      return;
+    }
+    retireNode(db, block, parent, setPendingSlot, setFocusId, pendingRowFocusId);
+  }, [snapshot, childRefs, parent, block, setPendingSlot, setFocusId]);
 
   const toggleExpanded = () => {
     // F-DAG Phase 4: persist collapse on the edge `parent → block`
