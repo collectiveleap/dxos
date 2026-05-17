@@ -318,6 +318,70 @@ rule R-DAG-First-Class
     became a marker; the DAG speaks for itself).
 ```
 
+```mdl
+rule R-Consolidation-Scrub:
+  desc: |
+    PLUGIN.mdl, CONCEPTS.md, `src/**` comments, README, and the
+    agent memory file carry only CURRENT canon. Superseded reqs,
+    retired vocabulary, and deprecated patterns live in git
+    history alone — no `## Superseded` section, no `_archive/`
+    directory, no in-scope summaries, no `Note:` entries that
+    preserve the retired shape for explanatory purposes. Every
+    commit that consolidates, renames, or retires a req /
+    pattern / vocabulary item MUST grep PLUGIN.mdl, CONCEPTS.md,
+    `src/**`, README, and the agent memory file for the retired
+    name and scrub in-scope leftovers in the SAME commit.
+
+    Why: superseded-but-in-scope text is the shadow-source for
+    agent paraphrase. When a retired allowlist, an older
+    trigger, or a renamed primitive lives in the corpus an
+    agent reads as current state, the agent's paraphrase from
+    memory blends current and superseded shapes into a
+    frankenstein description of "current" behaviour.
+
+    How to apply: when authoring a commit that retires or
+    consolidates a name (req id, pattern name, vocabulary
+    item), run a final pass before staging:
+
+        git grep -F '<retired-name>' -- '*.mdl' '*.md' src/
+
+    plus the agent memory file. Every match either gets
+    removed or gets edited to use the current canonical name.
+    Explanatory "this used to be called X" content goes in the
+    COMMIT MESSAGE (where it lives in git log alongside the
+    rename diff), not in any in-scope file.
+
+    Concrete examples — both on this branch, both the same
+    paraphrase-from-shadow failure mode:
+
+    - 2026-05-16 — agent confabulated a "first apply" trigger
+      for the predecessor `F-6.Phase3.tag-node.materialize`.
+      Real predecessor said "first chip render"; current spec
+      `F-Supertag.eager-materialization` (PLUGIN.mdl) says
+      "outliner mount + on schemaRegistry change."
+    - 2026-05-17 — agent confabulated declared supertag
+      classes `[Person, Task, Org, Run, Step]`. No allowlist
+      exists in current spec or code: PLUGIN.mdl says "no
+      allowlist" and `tag-types.ts`'s `collectTagTypes`
+      excludes only Relations + `Bramble.Node` +
+      `Bramble.Graph`. The confabulation blended the
+      SUPERSEDED hardcoded allowlist `[Task, Person,
+      Organization]` (preserved at the time as a `Note:` in
+      `## Remaining`) with the in-code Bramble-declared types
+      Run / Step.
+
+    Companion artefact: a one-time audit sweep of existing
+    leftovers from prior consolidations on this branch
+    (`F-V6`, `F-6.Phase3.tag-node.materialize`,
+    `F-6.Phase3.tag-node.click`,
+    `F-6.Phase3.tag-node.shift-click`,
+    `F-6.Phase3.tag-node.schema-parent`,
+    `F-6.Phase3.all-echo-types`, the `tag block` → `supertag
+    node` vocabulary rename) is queued separately under
+    `## Remaining`. This rule governs all FUTURE commits
+    regardless of when the audit lands.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -5089,9 +5153,6 @@ Branch:         `claude/agitated-nash-bd0b0f`
   a popover (or new pane via F-Open-Pane). Array and nested-struct
   field editing inside the Phase 2 group (currently rendered as
   muted placeholders).
-  Note: `F-6.Phase3.all-echo-types` shipped — the old hardcoded
-  `[Task, Person, Organization]` allowlist is gone; every ECHO
-  schema in the space is available as a supertag now.
 - F-7 Tana Paste import — parse a payload starting with `%%tana%%` into
   Nodes + TagDefs, preserving structure, supertags, fields, refs, and
   dates via a stable-id translation table. Schema is already a faithful
@@ -5168,32 +5229,21 @@ Branch:         `claude/agitated-nash-bd0b0f`
   typename already exists in `node.supertags`. Then promote
   `R-Supertag-Type-Uniqueness` to a real rule citing both
   invariants (instance-uniqueness AND typename-uniqueness).
-- **Canon-partition discipline + R-Consolidation-Scrub rule
-  (flagged 2026-05-16).** Adopt the principle: PLUGIN.mdl,
-  CONCEPTS.md, `src/**` comments, README, and the agent memory
-  file carry only CURRENT canon; superseded reqs, retired
-  vocabulary, and deprecated patterns live in git history
-  alone — no `## Superseded` section, no `_archive/` dir, no
-  in-scope summaries. Two parts:
-
-  1. Draft `R-Consolidation-Scrub` for `## Rules`: every commit
-     that consolidates or deletes a req / pattern must grep
-     PLUGIN.mdl, CONCEPTS.md, `src/**`, README, and the agent
-     memory for the retired name and scrub in-scope leftovers
-     in the same commit.
-  2. One-time audit of leftovers from this branch's existing
-     consolidations — `F-V6`, `F-6.Phase3.tag-node.materialize`,
-     `F-6.Phase3.tag-node.click`, `F-6.Phase3.tag-node.shift-click`,
-     `F-6.Phase3.tag-node.schema-parent`, `F-6.Phase3.all-echo-types`,
-     and the `tag block` → `supertag node` vocabulary rename
-     (already listed below).
-
-  Why: 2026-05-16 session — confabulated a "first apply"
-  trigger for the predecessor `F-6.Phase3.tag-node.materialize`
-  (real predecessor said "first chip render"; current spec
-  `F-Supertag.eager-materialization` says "outliner mount").
-  No in-scope mechanism today catches an agent paraphrasing a
-  predecessor-shaped shadow.
+- **R-Consolidation-Scrub one-time audit sweep.** The rule
+  itself is operative for all future commits (see `## Rules`).
+  The audit covers existing leftovers from prior
+  consolidations on this branch: `F-V6`,
+  `F-6.Phase3.tag-node.materialize`,
+  `F-6.Phase3.tag-node.click`,
+  `F-6.Phase3.tag-node.shift-click`,
+  `F-6.Phase3.tag-node.schema-parent`,
+  `F-6.Phase3.all-echo-types`, the `tag block` → `supertag
+  node` vocabulary rename. Sweep PLUGIN.mdl, CONCEPTS.md,
+  `src/**`, README, and the agent memory file; remove every
+  in-scope mention of the retired names. The rule body's
+  Concrete examples cite two real-world confabulations that
+  the in-scope shadows generated; the audit removes the
+  shadow-sources.
 - **Bramble sidebar section still collapsed on first creation
   (flagged 2026-05-16, fix attempt landed but didn't take).**
   Spec'd as `F-Bramble-Nav.section-expands-on-bramble-creation`
