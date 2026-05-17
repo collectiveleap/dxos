@@ -83,34 +83,20 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
 
   const { list, countByTargetId } = useBacklinks(paneRootNode ?? undefined);
 
-  // The "page node" within this pane is the current zoom target. `null`
-  // means "at pane root".
-  const [pageNodeId, setPageNodeId] = useState<string | null>(null);
   // F-Run-Lens (Iteration 2c.5): per-pane Lens activation state.
   // Default false; "+ New Run" sets it to true (the user is about
   // to do the work). Stop / Done deactivates. Resume re-activates.
   // Not persisted to ECHO yet — per-session state per F-Run-Lens.
   const [runLensActive, setRunLensActive] = useState<boolean>(false);
-  const pageNode = useMemo(() => {
-    if (!paneRootNode) {
-      return null;
-    }
-    if (!pageNodeId) {
-      return paneRootNode;
-    }
-    const inTree = findNodeById(paneRootNode, pageNodeId);
-    if (inTree) {
-      return inTree;
-    }
-    // F-Supertag tag-node: a chip click can target a top-level Node
-    // outside this pane's graph (e.g. the per-space `#Task` tag
-    // Node). Fall back to a whole-DB lookup so cross-tree zoom
-    // works. Falls all the way back to `paneRootNode` when the id
-    // isn't anywhere in the space.
-    const db = Obj.getDatabase(paneRootNode);
-    const foreign = db?.getObjectById?.(pageNodeId) as Bramble.Node | undefined;
-    return foreign ?? paneRootNode;
-  }, [paneRootNode, pageNodeId]);
+  // R-Bramble-Subject-Path: the pane subject is the single source
+  // of truth for "which Node the pane is on." `pageNode` equals
+  // `paneRootNode` (the resolved subject). No per-pane local
+  // zoom state — F-Zoom, F-Run-Lens "+ New Run", F-DAG.Phase3e
+  // predecessor-nav, and the F-Open-Pane deck-disabled fallback
+  // all navigate via `LayoutOperation.Open` with the target's
+  // canonical path (see handleZoom / handleCreateRun /
+  // handleSelectPredecessor / handleOpenPane below).
+  const pageNode = paneRootNode;
 
   // F-Supertag.eager-materialization: on each space the outliner
   // mounts in, find-or-create one supertag-node per qualifying
@@ -241,17 +227,60 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     moveToAdjacentVisibleBlock(pageNode.id, 'up', setFocusId);
   }, [pageNode]);
 
-  const handleZoom = useCallback((nodeId: string) => {
-    setPageNodeId(nodeId);
-  }, []);
+  // F-Zoom + R-Bramble-Subject-Path: zoom navigates the pane to
+  // the target Node by changing the pane subject. Replaces the
+  // prior `setPageNodeId(nodeId)` local-state mechanism so that
+  // the pane subject is the single source of truth for "which
+  // Node the pane is on" — gives back / forward / share /
+  // navtree-highlighting consistency for free, and means that
+  // navigating to a different subject (e.g. clicking Today per
+  // `F-Bramble-Nav.today-resets-zoom`) naturally replaces the
+  // zoomed view because the subject changes.
+  const handleZoom = useCallback(
+    (nodeId: string) => {
+      if (!paneRootNode) {
+        return;
+      }
+      const db = Obj.getDatabase(paneRootNode);
+      if (!db) {
+        return;
+      }
+      const target = (db.getObjectById?.(nodeId) ?? undefined) as Bramble.Node | undefined;
+      if (!target) {
+        return;
+      }
+      void invokePromise(LayoutOperation.Open, {
+        subject: [getObjectPathFromObject(target)],
+      });
+    },
+    [paneRootNode, invokePromise],
+  );
 
   // F-Run-Lens (2c.5): "+ New Run" navigates to the new Run AND
   // activates the Lens — the user just asked to do the work, so
   // the wizard should be on.
-  const handleCreateRun = useCallback((runNodeId: string) => {
-    setPageNodeId(runNodeId);
-    setRunLensActive(true);
-  }, []);
+  // R-Bramble-Subject-Path: navigate via subject change so pane
+  // state stays anchored to the deck's source of truth.
+  const handleCreateRun = useCallback(
+    (runNodeId: string) => {
+      if (!paneRootNode) {
+        return;
+      }
+      const db = Obj.getDatabase(paneRootNode);
+      if (!db) {
+        return;
+      }
+      const target = (db.getObjectById?.(runNodeId) ?? undefined) as Bramble.Node | undefined;
+      if (!target) {
+        return;
+      }
+      void invokePromise(LayoutOperation.Open, {
+        subject: [getObjectPathFromObject(target)],
+      });
+      setRunLensActive(true);
+    },
+    [paneRootNode, invokePromise],
+  );
 
   // F-Run-Lens (2c.5): Stop / Done exit the Lens but leave the
   // user on the same Run page (so they can review what they did,
@@ -264,18 +293,20 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     setRunLensActive(true);
   }, []);
 
-  // F-DAG.Phase3e.predecessor-nav-switch: select a predecessor from
-  // the page-top control. The current pane swaps its page node to
-  // the chosen predecessor; if that predecessor IS the pane root,
-  // clear `pageNodeId` so the pane renders its natural root view.
+  // F-DAG.Phase3e.predecessor-nav-switch + R-Bramble-Subject-Path:
+  // select a predecessor from the page-top control. Navigate via
+  // subject change — the pane's subject becomes the picked
+  // predecessor's canonical path. If the picked predecessor IS
+  // the pane's current subject, the deck treats the Open as a
+  // no-op, which is the right behavior (the user is already on
+  // that Node).
   const handleSelectPredecessor = useCallback(
     (target: Bramble.Node) => {
-      if (!paneRootNode) {
-        return;
-      }
-      setPageNodeId(target.id === paneRootNode.id ? null : target.id);
+      void invokePromise(LayoutOperation.Open, {
+        subject: [getObjectPathFromObject(target)],
+      });
     },
-    [paneRootNode],
+    [invokePromise],
   );
 
   // F-Open-Pane: invoke `LayoutOperation.Open` with the pane's
@@ -304,7 +335,12 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   const handleOpenPane = useCallback(
     async (target: Bramble.Node) => {
       if (!deckSettings?.enableDeck) {
-        setPageNodeId(target.id);
+        // R-Bramble-Subject-Path: fallback navigates the current
+        // pane to the target via subject change (same path the
+        // F-Zoom click takes).
+        await invokePromise(LayoutOperation.Open, {
+          subject: [getObjectPathFromObject(target)],
+        });
         await invokePromise?.(LayoutOperation.AddToast, {
           id: `${meta.id}/open-pane-disabled/${target.id}`,
           title: t('open-pane.disabled.toast.title'),
@@ -603,24 +639,6 @@ const PageHeader = ({ node, focused, focusedAtEnd, onEnter, onShiftEnter, onMove
       />
     </h1>
   );
-};
-
-const findNodeById = (root: Bramble.Node, id: string): Bramble.Node | null => {
-  const stack: Bramble.Node[] = [root];
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (current.id === id) {
-      return current;
-    }
-    const childRefs = (current.children ?? []) as readonly any[];
-    for (const ref of childRefs) {
-      const child = ref?.target;
-      if (child) {
-        stack.push(child);
-      }
-    }
-  }
-  return null;
 };
 
 // True iff the Node has at least one renderable content segment.
