@@ -336,10 +336,15 @@ type Node
 
 ```mdl
 type Graph
-  desc: navigator-openable container for a Node tree.
+  desc: |
+    Marker on the space — proves the singleton-per-space Bramble
+    exists (F-One-Graph) and carries metadata. Bramble's data is a
+    DAG, not a tree; the Graph object does NOT designate a
+    structural root (F-No-Root). It is NOT directly viewable —
+    the user reaches the Bramble through its Nodes, never through
+    the Graph object.
   fields:
     name?: string
-    root: Ref<Node>
 ```
 
 ```mdl
@@ -2892,7 +2897,7 @@ feat F-Bramble-Nav: per-space "Bramble" sidebar section    # Increment Bramble-N
         today's date (the Node carrying the `#Day` supertag
         whose date is today's local-tz `YYYY-MM-DD`);
       - if no such Node exists yet, one is created (per
-        F-Today's find-or-create semantics) and the pane
+        `type Day`'s uniqueness invariant) and the pane
         navigates to it.
 
   req F-Bramble-Nav.all-tags-opens-schema-node:
@@ -2906,59 +2911,75 @@ feat F-Bramble-Nav: per-space "Bramble" sidebar section    # Increment Bramble-N
 ```
 
 ```mdl
-feat F-Today: opening a Bramble lands on today's Node    # Increment Today
+feat F-No-Root: the Bramble is a marker; the DAG has no designated root    # Increment No-Root
   desc: |
-    Opening a Bramble surfaces the user immediately into the
-    Node that represents today's date. That Node is the user's
-    "what am I doing now" anchor — a noun (a day), not a
-    content field on the graph.
+    Bramble's data is a DAG (per F-DAG), not a tree. A DAG has no
+    single "top" — any Node can have multiple parents; the
+    structural top is an emergent set (Nodes with no incoming
+    `'child'` predecessor edges), not a designated entity.
 
-    The today-Node is a Bramble.Node whose supertags carry the
-    `#Day` instance for today's local-tz `YYYY-MM-DD`. Per
-    `type Day`'s uniqueness invariant, exactly one such Node
-    exists per (date, space). First-time entry on a given date
-    creates both the Day instance and the wrapping Bramble.Node
-    via find-or-create semantics; subsequent entries on the
-    same date reuse them.
+    The Bramble.Graph object is a marker on the space: it carries
+    metadata (today: `name`) and proves the singleton-per-space
+    Bramble exists (F-One-Graph). It does NOT designate a
+    structural root and is NOT directly viewable. The user
+    reaches the Bramble through its Nodes (today's Node, supertag
+    pages, @-mention navigation, F-Zoom, the Bramble nav section
+    per F-Bramble-Nav) — never through the Graph object itself.
 
-    Why: the empty / awkward landing screen on outliner mount
-    is a real pain point — opening to a blank page leaves the
-    user without an anchor. Today's date is the universal
-    starting point.
+    Why: the prior `Graph.root: Ref<Node>` field was a tree-shape
+    artifact — the Bramble's contents framed as descendants of
+    one designated Node. The DAG model has no use for it.
+    Multi-parent is first-class (F-DAG.Phase3e); predecessor
+    navigation is first-class (PredecessorNav); zoom addresses
+    any Node (F-Zoom); the canonical landing is today's Node
+    (per F-Bramble-Nav.today-opens-todays-day-node). Root has
+    no remaining responsibility.
 
-    Greenfield migration: per R-Greenfield-Stance, the prior
-    `Graph.entries: Record<…>` dictionary pattern is gone. Test
-    spaces with day-pages stored under that field are out of
-    scope; user wipes and re-seeds.
+    Subsumes F-Today: the prior F-Today.mount-lands-on-todays-
+    day-node req was a roundabout way to say "the user is
+    navigated to today's Node when there is no specific Node in
+    mind." Under F-No-Root that's expressed at the navigation
+    layer — F-Bramble-Nav and F-No-Root.create-navigates-to-
+    today together cover the user-visible behavior. The day-
+    Node's "behaves like any other Node" invariant is implicit
+    in `type Day` (a Node carrying #Day is structurally
+    identical to any other Node — supertags don't special-case).
 
-    Out of scope for v1: cross-day navigation (prev/next day,
-    date picker, back-to-today affordance). That's a separate
-    increment once mount-lands-on-today is shipped.
+    Greenfield per R-Greenfield-Stance: test spaces with
+    pre-No-Root Bramble.Graphs (carrying `root` Refs to Nodes
+    that may or may not have been persisted) become invisible
+    to the new render paths; user wipes + reseeds.
 
-  req F-Today.mount-lands-on-todays-day-node:
-    given: a Bramble exists in the space; the user opens it
-      (first mount in a session, or revisit)
-    when: the article surface attaches
+  req F-No-Root.graph-has-no-root-field:
+    given: any Bramble.Graph in a space
+    when: an observer inspects the Graph's data
     then:
-      - the active page Node resolves to the Node that
-        represents today's date (the Node carrying the `#Day`
-        supertag for today's local-tz `YYYY-MM-DD`);
-      - if no such Node exists yet, one is created (along
-        with the `#Day` instance for today).
+      - the Bramble.Graph carries no field designating a root
+        Node. The Graph's only observable fields are metadata
+        (today: `name`).
 
-  req F-Today.todays-day-node-edits-like-any-node:
-    given: a today-Node (a Node carrying the `#Day` supertag)
-    when: the user views, types into, tags, or restructures it
+  req F-No-Root.graph-not-directly-viewable:
+    given: a Bramble.Graph exists in a space
+    when: any path tries to open the Bramble.Graph as the
+      subject of an article pane (deep-link URL, programmatic
+      navigation, etc.)
     then:
-      - it behaves identically to any other Bramble.Node —
-        F-Page-Header / F-Zoom semantics apply, typing sets
-        its content, Tab / Shift+Tab / Enter all work, it can
-        be supertag-tagged via the `#` picker, accept
-        children, take predecessor edges, etc.;
-      - F-Supertag.uniqueness, F-DAG, and all other cross-
-        cutting invariants apply without special-casing — a
-        today-Node is a Node first, a date-anchored marker
-        second.
+      - no article surface renders the Bramble.Graph as its
+        subject. The user does not encounter "the Bramble" as
+        a viewable object — only Nodes are viewable.
+
+  req F-No-Root.create-navigates-to-today:
+    given: the user invokes the space's create-menu "Bramble"
+      item (the F-One-Graph creation flow)
+    when: the Bramble is created — OR located via the
+      idempotent find-or-create path per
+      F-One-Graph.create-action-is-idempotent
+    then:
+      - the user is navigated to today's Node (the Node
+        carrying the `#Day` supertag for today's local-tz
+        date, find-or-created per `type Day`'s uniqueness
+        invariant);
+      - NOT to the Bramble.Graph object itself.
 ```
 
 ```mdl
@@ -4842,31 +4863,40 @@ test T-Bramble-Nav-all-tags-opens-schema-node: All Tags item navigates to the pe
 ```
 
 ```mdl
-test T-Today-mount-lands-on-todays-day-node: opening a Bramble surfaces today's Node
-  given: a Bramble exists in the space; the user opens it
-    (first mount in a session, or revisits after navigating
-    away)
-  when: the article surface attaches
+test T-No-Root-graph-has-no-root-field: a Bramble.Graph carries no root reference
+  given: a Bramble.Graph exists in any space
+  when: an observer inspects the Graph's fields
   then:
-    - the active page Node is the Node that represents
-      today's date (the Node carrying the `#Day` supertag
-      for today's local-tz `YYYY-MM-DD`);
-    - if no such Node existed yet, one was created during
-      the mount.
+    - the Graph carries no field designating a root Node;
+    - the Graph's observable fields are metadata only
+      (today: `name`).
 ```
 
 ```mdl
-test T-Today-day-node-edits-like-any-node: a today-Node behaves like any other Bramble bullet
-  given: a today-Node is the active page Node
-  when: the user types into it, indents (Tab), outdents
-    (Shift+Tab), creates a sibling (Enter), tags it via the
-    `#` picker, or adds a structural child
+test T-No-Root-graph-not-directly-viewable: opening the Bramble.Graph itself renders nothing
+  given: a Bramble exists in the space
+  when: the active pane is navigated to the Bramble.Graph
+    object (via a deep-link URL or programmatic open)
   then:
-    - every interaction behaves identically to the same
-      interaction on any other Bramble.Node — no special-
-      casing for "this is the today-Node";
-    - F-Supertag.uniqueness, F-DAG, and all other cross-
-      cutting invariants apply unchanged.
+    - no article surface renders the Bramble.Graph as its
+      subject — the user does not see "the Bramble" as a
+      viewable object;
+    - the practical entry points to the Bramble's content
+      are its Nodes (Today, All Tags, …) per F-Bramble-Nav.
+```
+
+```mdl
+test T-No-Root-create-navigates-to-today: creating a Bramble lands the user on today's Node
+  given: a space with no Bramble; the user invokes the space
+    create-menu's "Bramble" item
+  when: the create-menu action completes
+  then:
+    - the active pane is navigated to today's Node (the Node
+      carrying the `#Day` supertag for today's local-tz
+      date — find-or-created as needed);
+    - NOT to the Bramble.Graph object;
+    - the navigator's "Bramble" section appears per
+      F-Bramble-Nav.section-present-iff-bramble-exists.
 ```
 
 ```mdl
@@ -5089,6 +5119,19 @@ Branch:         `claude/agitated-nash-bd0b0f`
   `F-Supertag.eager-materialization` says "outliner mount").
   No in-scope mechanism today catches an agent paraphrasing a
   predecessor-shaped shadow.
+- **Scrub "page" / "pageNode" vocabulary from spec + code
+  (flagged 2026-05-16).** "Page" is a rendering metaphor, not a
+  substrate noun — a pane shows a Node; the Node is the
+  substrate. Reify-as-entity is the failure mode (e.g.
+  `pageNode`, "the page Node", "page-block"). Sweep PLUGIN.mdl
+  feats (F-Page-Header, F-Pending-Child, F-Caret, F-Headline,
+  several `## Acceptance` tests reference "page Node"), then
+  source comments / identifiers. Rename to "focused Node" /
+  "Node in focus." F-Page-Header's NAME is fine — it's a UI
+  element (an H1 row); only entity-flavoured uses need
+  scrubbing. Surfaced 2026-05-16 during F-No-Root design,
+  alongside the more sweeping "Bramble is just a marker, the
+  DAG has no designated root" reframe.
 - **Reconcile DXOS capabilities × what Bramble has built ×
   what substrate-principles describes (flagged 2026-05-16).**
   Three-way audit:

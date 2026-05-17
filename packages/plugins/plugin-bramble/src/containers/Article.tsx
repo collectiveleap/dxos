@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { LayoutOperation, SettingsOperation, getObjectPathFromObject } from '@dxos/app-toolkit';
@@ -31,13 +31,11 @@ import {
   ZoomContext,
   childEdgesOf,
   createEdge,
-  ensureDayNodeForDate,
   ensureMigratedChildren,
   getDisplayLabel,
   hasSupertagOfTypename,
   moveToAdjacentVisibleBlock,
   orderBetween,
-  today,
   useBacklinks,
   useEnsureAllSupertagNodes,
   useNormalizeSupertagUniqueness,
@@ -72,33 +70,20 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // `enableDeck === false`) and fall back to F-Zoom + a toast.
   const deckSettings = useAtomCapability(DeckCapabilities.Settings);
 
-  // Subject can be a Bramble.Graph (has `root`) or a Bramble.Node (opened in a
-  // new pane via F-Open-Pane). The pane's root is the graph's root
-  // for graph subjects, or the subject itself for Node subjects.
-  const isGraph = isBrambleGraph(subject);
-  const liveGraph = isGraph ? (subject as Bramble.Graph) : null;
-  const paneRootNode = (isGraph
-    ? (subject as any).root?.target
-    : (subject as Bramble.Node)) as Bramble.Node | null;
+  // F-No-Root: subject is always a Bramble.Node (the Bramble.Graph
+  // object is no longer directly viewable). The pane's "root Node"
+  // is just the subject itself — the focused Node for this pane.
+  const paneRootNode = subject as Bramble.Node | null;
 
   // Subscribe to the pane root so a change to its content (e.g. typing
-  // in the H1) re-renders this component (used by the rootLabel auto-sync).
-  // Falls back to `subject` when paneRootNode is briefly null (e.g. a
-  // graph whose root ref hasn't resolved yet) since useObject expects
-  // a non-null reactive object.
+  // in the H1) re-renders this component.
   useObject(paneRootNode ?? subject);
 
-  const { list, countByTargetId } = useBacklinks(isGraph ? (subject as Bramble.Graph) : undefined);
+  const { list, countByTargetId } = useBacklinks(paneRootNode ?? undefined);
 
   // The "page node" within this pane is the current zoom target. `null`
   // means "at pane root".
   const [pageNodeId, setPageNodeId] = useState<string | null>(null);
-  // F-Today: tracks whether the once-per-Article-mount "land on today"
-  // resolver has fired. After the first run, subsequent transitions to
-  // pageNodeId === null (e.g. the user back-navigating to the graph
-  // root) do NOT re-trigger the today-jump — only a fresh Article
-  // mount does. The ref resets on unmount.
-  const todayResolvedRef = useRef(false);
   // F-Run-Lens (Iteration 2c.5): per-pane Lens activation state.
   // Default false; "+ New Run" sets it to true (the user is about
   // to do the work). Stop / Done deactivates. Resume re-activates.
@@ -133,38 +118,13 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // per-typename lock.
   useEnsureAllSupertagNodes(paneRootNode ? Obj.getDatabase(paneRootNode) : undefined);
 
-  // F-Today.mount-lands-on-todays-day-node: once per Article mount,
-  // resolve today's Node (find-or-create the `#Day` instance for
-  // today's local-tz date AND the wrapping Bramble.Node, both
-  // idempotent per `type Day`'s uniqueness invariant) and set it as
-  // the initial pageNodeId. Only fires when the Article is mounted
-  // with a Graph subject AND pageNodeId is still null (user hasn't
-  // navigated). Subsequent back-to-root navigation does NOT re-fire
-  // (todayResolvedRef guards it).
-  useEffect(() => {
-    if (todayResolvedRef.current) {
-      return;
-    }
-    if (!isGraph || !paneRootNode) {
-      return;
-    }
-    if (pageNodeId !== null) {
-      // The mount opened with a non-null pageNodeId (deep-link or
-      // similar); honour it and treat today-resolution as already
-      // done.
-      todayResolvedRef.current = true;
-      return;
-    }
-    const db = Obj.getDatabase(paneRootNode);
-    if (!db) {
-      return;
-    }
-    const result = ensureDayNodeForDate(db, today());
-    if (result) {
-      setPageNodeId(result.node.id);
-      todayResolvedRef.current = true;
-    }
-  }, [isGraph, paneRootNode, pageNodeId]);
+  // F-No-Root: the prior mount-time today-resolver effect lived here.
+  // Removed — F-No-Root.create-navigates-to-today now lands the user
+  // on today's Node at Bramble-creation time (via BramblePlugin's
+  // createObject callback) and F-Bramble-Nav.today-opens-todays-day-
+  // node handles every subsequent return-to-today navigation. The
+  // Article's subject is always a Bramble.Node now; there is no
+  // "mount of a Graph" path needing a today-resolver.
 
   // F-Supertag.uniqueness: one-time-per-(db, session) normalisation
   // sweep — for every (instance, supertag) pair represented by more
@@ -362,43 +322,20 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
     [invokePromise, attendableId, deckSettings?.enableDeck, t],
   );
 
-  // F-Page-Header.5 (graph subject only): one-time migration — copy
-  // `graph.name` into `root.content` if root is empty AND name is set.
-  useEffect(() => {
-    if (!liveGraph || !paneRootNode) {
-      return;
-    }
-    if (hasContent(paneRootNode) || !liveGraph.name || liveGraph.name.length === 0) {
-      return;
-    }
-    const initialName = liveGraph.name;
-    Obj.update(paneRootNode, (paneRootNode) => {
-      (paneRootNode as any).content = [{ kind: 'text', text: initialName }];
-    });
-    // Run once at mount per graph.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // F-PDF-Upload: wire the drop-target onto the article's scroll
   // container. The hook returns DragEvent handlers (spread onto the
   // scroll div) and a visual overlay (rendered inside the same
   // container) — the editor underneath keeps its normal pointer
   // events; only DragEnter/Over/Leave/Drop hit the wrapper. The
-  // current `pageNode` is the default drop-site parent.
+  // current focused Node is the default drop-site parent.
   const pdfDrop = usePdfDropTarget({ pageNode });
 
-  // F-Page-Header.6 (graph subject only): keep `graph.name` in step
-  // with `root.content`'s rendered text so the navigator label always
-  // reflects what the user sees in the H1.
-  const rootLabel = paneRootNode ? getDisplayLabel(paneRootNode) : '';
-  useEffect(() => {
-    if (!liveGraph || rootLabel.length === 0 || liveGraph.name === rootLabel) {
-      return;
-    }
-    Obj.update(liveGraph, (liveGraph) => {
-      (liveGraph as any).name = rootLabel;
-    });
-  }, [liveGraph, rootLabel]);
+  // F-No-Root: the prior F-Page-Header.5/.6 graph.name <-> root.content
+  // sync effects lived here. Removed — under F-No-Root the Bramble.Graph
+  // carries name only as metadata and the subject is always a
+  // Bramble.Node (no `liveGraph` to sync with). If a "Bramble rename"
+  // gesture is added later, it operates directly on the Graph's name
+  // field, not via root-content reflection.
 
   return (
     <Panel.Root role={role}>
@@ -539,7 +476,7 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
                 </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>
-            {isGraph && <BacklinksPanel backlinks={list} />}
+            <BacklinksPanel backlinks={list} />
           </div>
         ) : (
           <div className='p-4 text-sm opacity-60'>(loading…)</div>
@@ -655,10 +592,6 @@ const PageHeader = ({ node, focused, focusedAtEnd, onEnter, onShiftEnter, onMove
     </h1>
   );
 };
-
-// True when `obj` is a Bramble.Graph (has a `root` field). Distinguishes
-// graph subjects from raw Node subjects opened via F-Open-Pane.
-const isBrambleGraph = (obj: any): boolean => Boolean(obj && 'root' in obj && obj.root);
 
 const findNodeById = (root: Bramble.Node, id: string): Bramble.Node | null => {
   const stack: Bramble.Node[] = [root];

@@ -324,13 +324,15 @@ export const Day = Schema.Struct({
 export interface Day extends Schema.Schema.Type<typeof Day> {}
 
 // ─── Graph ──────────────────────────────────────────────────────────
-// Navigator-openable container. Holds a reference to the root Node;
-// the rest of the structure unfolds via `Edge`s (and legacy
-// `Node.children`).
+// F-No-Root: the Graph is a marker on the space — proves the
+// singleton-per-space Bramble exists (F-One-Graph) and carries
+// metadata (name). It does NOT designate a structural root and
+// is NOT directly viewable (no Article surface registered for
+// Bramble.Graph subjects). Bramble's data is a DAG; the user
+// reaches the Bramble through its Nodes, not through this object.
 
 export const Graph = Schema.Struct({
   name: Schema.optional(Schema.String.annotations({ title: 'Name' })),
-  root: Ref.Ref(Node),
 }).pipe(
   Type.object({
     typename: 'org.dxos.type.bramble.graph',
@@ -350,15 +352,10 @@ export const Graph = Schema.Struct({
 
 export interface Graph extends Schema.Schema.Type<typeof Graph> {}
 
-// Creates a Graph with an invisible root Node. The root starts
-// CHILDLESS — the first visible bullet is seeded on mount by the
-// Graph view's auto-seed effect, which creates the seed Node and
-// attaches it via an Edge rather than by pushing onto `root.children`.
-// Keeps Graph creation aligned with R-Edges-First-Class.
+// F-No-Root: makes a Graph as a metadata-only marker. No root
+// Node is created — Bramble's DAG has no designated root; entry
+// points come from F-Bramble-Nav (Today, All Tags, …) and from
+// any other navigation gesture into specific Nodes.
 export const makeGraph = ({ name }: { name?: string } = {}): Graph => {
-  const root = makeNode();
-  return Obj.make(Graph, {
-    name,
-    root: Ref.make(root),
-  });
+  return Obj.make(Graph, { name });
 };

@@ -37,15 +37,21 @@ const empty: BacklinkData = { list: [], countByTargetId: new Map() };
 // union segments, so the scan reads each Node's `content` array directly.
 // For perf at scale, populate a typed `Node.references: Array<Ref<Obj.Unknown>>`
 // sidecar at save and switch to db.query.referencedBy(Node, 'references').
-export const useBacklinks = (graph: Bramble.Graph | undefined): BacklinkData => {
+//
+// F-No-Root: takes a Bramble.Node (the focused Node in the pane) and
+// derives the db from it. Drops the prior "inner-ids walk from
+// graph.root" — under F-One-Graph + F-No-Root, every Bramble.Node in
+// the space is in the (one) Bramble by definition, so the walk
+// degenerates to "every Node is inner."
+export const useBacklinks = (subject: Bramble.Node | undefined): BacklinkData => {
   const [data, setData] = useState<BacklinkData>(empty);
 
   useEffect(() => {
-    if (!graph) {
+    if (!subject) {
       setData(empty);
       return;
     }
-    const db = Obj.getDatabase(graph);
+    const db = Obj.getDatabase(subject);
     if (!db) {
       return;
     }
@@ -56,26 +62,17 @@ export const useBacklinks = (graph: Bramble.Graph | undefined): BacklinkData => 
         return;
       }
 
-      // Walk the graph's tree to collect every Node id "inside" the
-      // graph. Read live from `graph` (not a snapshot) so the most
-      // recent structure is reflected on every recompute.
-      const innerIds = new Set<string>();
-      const collectIds = (node: any): void => {
-        if (!node || innerIds.has(node.id)) {
-          return;
-        }
-        innerIds.add(node.id);
-        const childRefs = (node.children ?? []) as readonly any[];
-        for (const ref of childRefs) {
-          collectIds(ref?.target);
-        }
-      };
-      const root = (graph as any)?.root?.target;
-      if (root) {
-        collectIds(root);
-      }
-
       const allNodes = db.query(Filter.typename(Bramble.Node.typename)).runSync() ?? [];
+      // F-No-Root: all Bramble.Nodes in the space are "inner" by
+      // definition (singleton Bramble per space). Build the set
+      // from the typename query directly.
+      const innerIds = new Set<string>();
+      for (const node of allNodes) {
+        const id = (node as any)?.id as string | undefined;
+        if (id) {
+          innerIds.add(id);
+        }
+      }
 
       const list: Backlink[] = [];
       const counts = new Map<string, number>();
@@ -180,7 +177,7 @@ export const useBacklinks = (graph: Bramble.Graph | undefined): BacklinkData => 
         }
       }
     };
-  }, [graph]);
+  }, [subject]);
 
   return data;
 };

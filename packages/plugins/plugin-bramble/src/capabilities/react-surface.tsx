@@ -15,17 +15,11 @@ import { Bramble } from '#types';
 export default Capability.makeModule(() =>
   Effect.succeed(
     Capability.contributes(Capabilities.ReactSurface, [
-      // Top-level Bramble Graph opened via the navigator.
-      Surface.create({
-        id: 'article',
-        filter: AppSurface.object(AppSurface.Article, Bramble.Graph),
-        component: ({ data, role }) => (
-          <Article role={role} subject={data.subject} attendableId={data.attendableId} />
-        ),
-      }),
-      // F-Open-Pane: a single Node opened in a new pane via shift-click on
-      // a child bullet. Same `Article` renders the Node as the pane's
-      // root (no name auto-sync, no backlinks panel).
+      // F-No-Root: the Bramble's Article surface renders a Bramble.Node
+      // (the user always views a specific Node — today's by default,
+      // any other Node via F-Bramble-Nav / @-mention / F-Zoom). The
+      // Bramble.Graph object itself is NOT directly viewable per
+      // F-No-Root.graph-not-directly-viewable.
       Surface.create({
         id: 'article-block',
         filter: AppSurface.object(AppSurface.Article, Bramble.Node),

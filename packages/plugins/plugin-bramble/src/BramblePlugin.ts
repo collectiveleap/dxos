@@ -12,6 +12,7 @@ import { Annotation } from '@dxos/echo';
 import { SpaceOperation } from '@dxos/plugin-space/operations';
 import { type CreateObject } from '@dxos/plugin-space/types';
 
+import { ensureDayNodeForDate, today } from './components/Day';
 import { findBrambleGraph } from './components/Graph/singleton';
 
 import { AppGraphBuilder, ReactSurface } from '#capabilities';
@@ -26,29 +27,46 @@ export const BramblePlugin = Plugin.define(meta).pipe(
       metadata: {
         icon: Annotation.IconAnnotation.get(Bramble.Graph).pipe(Option.getOrThrow).icon,
         iconHue: Annotation.IconAnnotation.get(Bramble.Graph).pipe(Option.getOrThrow).hue ?? 'white',
-        // F-One-Graph.create-action-is-idempotent: re-invoking the
-        // create-menu's "Bramble" item when one already exists is a
-        // no-op — return the existing Bramble's CreateObjectResult
-        // shape so the dialog navigates the user to the existing
-        // graph. Per F-One-Graph.singleton-per-space, at most one
-        // Bramble.Graph exists per space.
-        createObject: ((props, options) =>
+        // F-One-Graph + F-No-Root: invoking the space create-menu's
+        // "Bramble" item either creates the singleton Bramble.Graph
+        // (when none exists) or returns the existing one (idempotent
+        // per F-One-Graph.create-action-is-idempotent). Either way,
+        // ensure today's Node exists and navigate the user to it
+        // (NOT to the Bramble.Graph object, which is a marker and is
+        // not directly viewable per F-No-Root.graph-not-directly-
+        // viewable). Per F-No-Root.create-navigates-to-today.
+        createObject: ((_props, options) =>
           Effect.gen(function* () {
-            const existing = findBrambleGraph(options.db as any);
-            if (existing) {
-              return {
-                id: (existing as any).id,
-                subject: [getObjectPathFromObject(existing as any)],
-                object: existing as any,
-              };
+            const db = options.db as any;
+            // F-One-Graph: at most one Bramble.Graph per space.
+            // If one exists, skip creation (idempotent per
+            // create-action-is-idempotent). Otherwise create via
+            // SpaceOperation.AddObject (the canonical add path —
+            // hidden:true keeps it out of generic listings, in
+            // concert with the SystemTypeAnnotation set on
+            // Bramble.Graph per F-One-Graph.bramble-not-listed-
+            // under-types).
+            let graph = findBrambleGraph(db);
+            if (!graph) {
+              const fresh = Bramble.makeGraph();
+              const created = yield* Operation.invoke(SpaceOperation.AddObject, {
+                object: fresh,
+                target: options.target,
+                hidden: true,
+                targetNodeId: options.targetNodeId,
+              });
+              graph = (created.object as any) ?? fresh;
             }
-            const object = Bramble.makeGraph({ name: props.name });
-            return yield* Operation.invoke(SpaceOperation.AddObject, {
-              object,
-              target: options.target,
-              hidden: true,
-              targetNodeId: options.targetNodeId,
-            });
+            // F-No-Root.create-navigates-to-today: navigate the user
+            // to today's Node (find-or-created), NOT to the
+            // Bramble.Graph itself.
+            const dayResult = ensureDayNodeForDate(db, today());
+            const target = (dayResult?.node as any) ?? (graph as any);
+            return {
+              id: target.id,
+              subject: [getObjectPathFromObject(target)],
+              object: target,
+            };
           })) satisfies CreateObject,
       },
     },
