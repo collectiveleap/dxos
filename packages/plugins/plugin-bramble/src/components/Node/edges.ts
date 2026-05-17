@@ -559,3 +559,82 @@ export const orderBetween = (before: any | undefined, after: any | undefined): n
   }
   return (beforeOrder + (afterOrder as number)) / 2;
 };
+
+// R-Pending-Row-Is-The-Empty-Bullet: locate the pair of adjacent
+// edges on either side of a pending sibling slot so `orderBetween`
+// can compute the new edge's order. `parent` owns the children list
+// the slot lives in; `anchor` is the existing sibling the slot is
+// adjacent to; `position` is the side.
+const computeSlotEdges = (
+  db: any,
+  parent: Bramble.Node,
+  anchor: Bramble.Node,
+  position: 'before' | 'after',
+): { beforeEdge: any; afterEdge: any } => {
+  const edgesNow = childEdgesOf(db, parent);
+  const anchorIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === anchor.id);
+  if (position === 'before') {
+    const beforeEdge = anchorIndex > 0 ? edgesNow[anchorIndex - 1] : undefined;
+    const afterEdge = anchorIndex >= 0 ? edgesNow[anchorIndex] : undefined;
+    return { beforeEdge, afterEdge };
+  }
+  const beforeEdge = anchorIndex >= 0 ? edgesNow[anchorIndex] : undefined;
+  const afterEdge = anchorIndex >= 0 ? edgesNow[anchorIndex + 1] : undefined;
+  return { beforeEdge, afterEdge };
+};
+
+// R-Pending-Row-Is-The-Empty-Bullet: promote a pending sibling slot
+// to a real `Bramble.Node`. Creates a new Node carrying
+// `initialText` as its content, attaches it via a `'child'` `Edge`
+// per R-Edges-First-Class with an `order` landing between the
+// adjacent edges, clears the pending slot, and focuses the new Node
+// (caret at end so the user's next keystroke appends after the
+// just-typed character).
+export const promotePendingAtSlot = (
+  parent: Bramble.Node,
+  anchor: Bramble.Node,
+  position: 'before' | 'after',
+  initialText: string,
+  setPendingSlot: (slot: null) => void,
+  setFocusIdAtEnd: (id: string | null) => void,
+): void => {
+  const db = Obj.getDatabase(parent);
+  if (!db) {
+    return;
+  }
+  ensureMigratedChildren(db, parent);
+  const newChild = Bramble.makeNode({
+    content: initialText.length > 0 ? [{ kind: 'text', text: initialText }] : [],
+    state: { expanded: false },
+  });
+  db.add(newChild);
+  const { beforeEdge, afterEdge } = computeSlotEdges(db, parent, anchor, position);
+  createEdge(db, parent, newChild, { order: orderBetween(beforeEdge, afterEdge) });
+  setPendingSlot(null);
+  setFocusIdAtEnd(newChild.id);
+};
+
+// R-Pending-Row-Is-The-Empty-Bullet + R-Bramble-Surfaces-Wrap-Only:
+// commit an `@`-mention target on a pending sibling slot. Attaches
+// `target` as a structural successor of `parent` at the slot via a
+// new `'child'` `Edge` (no inline ref, no wrapper duplication).
+// Clears the pending slot and focuses the target so the user lands
+// on the just-attached Node.
+export const addExistingAtSlot = (
+  parent: Bramble.Node,
+  anchor: Bramble.Node,
+  position: 'before' | 'after',
+  target: Bramble.Node,
+  setPendingSlot: (slot: null) => void,
+  setFocusId: (id: string | null) => void,
+): void => {
+  const db = Obj.getDatabase(parent);
+  if (!db) {
+    return;
+  }
+  ensureMigratedChildren(db, parent);
+  const { beforeEdge, afterEdge } = computeSlotEdges(db, parent, anchor, position);
+  createEdge(db, parent, target, { order: orderBetween(beforeEdge, afterEdge) });
+  setPendingSlot(null);
+  setFocusId(target.id);
+};

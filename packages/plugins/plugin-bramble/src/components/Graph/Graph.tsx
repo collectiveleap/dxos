@@ -7,8 +7,15 @@ import React, { useEffect } from 'react';
 import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
+import { pendingRowFocusId, usePendingSlot } from '../backlinks';
 import { Node, PendingChildRow } from '../Node';
-import { createEdge, getStructuralChildren, useStructuralChildren } from '../Node/edges';
+import {
+  addExistingAtSlot,
+  createEdge,
+  getStructuralChildren,
+  promotePendingAtSlot,
+  useStructuralChildren,
+} from '../Node/edges';
 
 import { Bramble } from '#types';
 
@@ -125,20 +132,58 @@ export const Graph = ({ rootBlock, focusId, focusAtEnd, setFocusId, setFocusIdAt
   // past the last bullet), or as the only body row when the page node
   // has no children. Independent of `rootBlock.state.expanded`.
 
+  // R-Pending-Row-Is-The-Empty-Bullet: read the Article-level pending
+  // sibling slot so this loop can inject a `PendingChildRow` at the
+  // matching slot when a creation gesture (Shift+Enter, Cmd+Shift+
+  // Enter, Enter-at-end-of-content) requested one adjacent to a
+  // top-level child.
+  const { pendingSlot, setPendingSlot } = usePendingSlot();
+
   return (
     <div className='space-y-1' onContextMenu={handleContextMenu}>
       {childRefs.map((ref) => {
         const child = ref.target as Bramble.Node;
+        const slotBefore = pendingSlot?.nodeId === child.id && pendingSlot.position === 'before';
+        const slotAfter = pendingSlot?.nodeId === child.id && pendingSlot.position === 'after';
         return (
-          <Node
-            key={child.id}
-            block={child}
-            parent={rootBlock}
-            focusId={focusId}
-            focusAtEnd={focusAtEnd}
-            setFocusId={setFocusId}
-            setFocusIdAtEnd={setFocusIdAtEnd}
-          />
+          <React.Fragment key={child.id}>
+            {slotBefore && (
+              <PendingChildRow
+                parent={rootBlock}
+                setFocusId={setFocusId}
+                focusId={focusId}
+                rowFocusId={pendingRowFocusId(child.id, 'before')}
+                onPromote={(initialText) =>
+                  promotePendingAtSlot(rootBlock, child, 'before', initialText, setPendingSlot, setFocusIdAtEnd)
+                }
+                onAddExisting={(target) =>
+                  addExistingAtSlot(rootBlock, child, 'before', target as Bramble.Node, setPendingSlot, setFocusId)
+                }
+              />
+            )}
+            <Node
+              block={child}
+              parent={rootBlock}
+              focusId={focusId}
+              focusAtEnd={focusAtEnd}
+              setFocusId={setFocusId}
+              setFocusIdAtEnd={setFocusIdAtEnd}
+            />
+            {slotAfter && (
+              <PendingChildRow
+                parent={rootBlock}
+                setFocusId={setFocusId}
+                focusId={focusId}
+                rowFocusId={pendingRowFocusId(child.id, 'after')}
+                onPromote={(initialText) =>
+                  promotePendingAtSlot(rootBlock, child, 'after', initialText, setPendingSlot, setFocusIdAtEnd)
+                }
+                onAddExisting={(target) =>
+                  addExistingAtSlot(rootBlock, child, 'after', target as Bramble.Node, setPendingSlot, setFocusId)
+                }
+              />
+            )}
+          </React.Fragment>
         );
       })}
       <PendingChildRow

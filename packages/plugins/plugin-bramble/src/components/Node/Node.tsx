@@ -7,17 +7,19 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
 
-import { useBacklinkCount, useOpenPane, useZoom } from '../backlinks';
+import { pendingRowFocusId, useBacklinkCount, useOpenPane, usePendingSlot, useZoom } from '../backlinks';
 import { Editor } from '../Editor';
 import { findTagTypeByTypename } from '../Editor/tag-types';
 import { MentionPicker } from '../MentionPicker';
 import { PdfChip, findFileSupertag, isPdfFile } from '../PdfDrop';
 import {
+  addExistingAtSlot,
   childEdgesOf,
   createEdge,
   ensureMigratedChildren,
   findEdge,
   orderBetween,
+  promotePendingAtSlot,
   setEdgeExpanded,
   useEdgeExpanded,
   useParentEdgeCount,
@@ -102,6 +104,12 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
   // F-Open-Pane: shift-clicking the bullet opens the Block in a new pane
   // to the right.
   const openPane = useOpenPane();
+  // R-Pending-Row-Is-The-Empty-Bullet: Article-level pending sibling
+  // slot state. Creation gestures (Shift+Enter, Cmd+Shift+Enter,
+  // Enter-at-end-of-content) set this rather than persisting an
+  // empty real Node; the children render loop below injects a
+  // PendingChildRow at the matching slot.
+  const { pendingSlot, setPendingSlot } = usePendingSlot();
 
   const toggleExpanded = () => {
     // F-DAG Phase 4: persist collapse on the edge `parent → block`
@@ -141,44 +149,36 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
     setFocusId(newBlock.id);
   };
 
-  // F-Cmd-Shift-Enter: insert a new empty sibling BEFORE this one
-  // (visually above). Mirror of insertSiblingAfter; chooses the
-  // adjacent-sibling pair on the OTHER side of `block`'s edge.
-  const insertSiblingBefore = (initialContent: any[]) => {
-    if (siblingIndex < 0) {
-      return;
-    }
-    const db = Obj.getDatabase(parent);
-    if (!db) {
-      return;
-    }
-    ensureMigratedChildren(db, parent);
-    // F-V2.12: new sibling Nodes are created collapsed.
-    const newBlock = Bramble.makeNode({ content: initialContent, state: { expanded: false } });
-    db.add(newBlock);
-    const edgesNow = childEdgesOf(db, parent);
-    const currentIndex = edgesNow.findIndex((edge: any) => (Relation.getTarget(edge) as any)?.id === block.id);
-    const beforeEdge = currentIndex > 0 ? edgesNow[currentIndex - 1] : undefined;
-    const afterEdge = currentIndex >= 0 ? edgesNow[currentIndex] : undefined;
-    createEdge(db, parent, newBlock, { order: orderBetween(beforeEdge, afterEdge) });
-    setFocusId(newBlock.id);
-  };
-
   const handleEnter = (_beforeText: string, afterText: string) => {
-    insertSiblingAfter(afterText.length > 0 ? [{ kind: 'text', text: afterText }] : []);
+    if (afterText.length > 0) {
+      // Non-empty after-cursor content: the new sibling carries
+      // meaningful state at creation, so it's a real Bramble.Node per
+      // R-Pending-Row-Is-The-Empty-Bullet.
+      insertSiblingAfter([{ kind: 'text', text: afterText }]);
+      return;
+    }
+    // Enter at end of content: the new sibling would carry zero
+    // meaningful state at creation. Per
+    // R-Pending-Row-Is-The-Empty-Bullet's creation-gestures corollary,
+    // render a pending row at the sibling slot below instead.
+    setPendingSlot({ nodeId: block.id, position: 'after' });
+    setFocusId(pendingRowFocusId(block.id, 'after'));
   };
 
-  // F-Shift-Enter: create an empty sibling Block AFTER this one without
-  // splitting the current bullet's content. Cursor moves to the new sibling.
+  // F-Shift-Enter: render a pending row at the sibling slot below per
+  // R-Pending-Row-Is-The-Empty-Bullet. First meaningful input promotes
+  // it to a real Bramble.Node at the slot.
   const handleShiftEnter = () => {
-    insertSiblingAfter([]);
+    setPendingSlot({ nodeId: block.id, position: 'after' });
+    setFocusId(pendingRowFocusId(block.id, 'after'));
   };
 
-  // F-Cmd-Shift-Enter: create an empty sibling Block BEFORE this one
-  // (visually above) without splitting current content. Cursor moves
-  // to the new sibling.
+  // F-Cmd-Shift-Enter: render a pending row at the sibling slot above
+  // per R-Pending-Row-Is-The-Empty-Bullet. First meaningful input
+  // promotes it to a real Bramble.Node at the slot.
   const handleShiftEnterAbove = () => {
-    insertSiblingBefore([]);
+    setPendingSlot({ nodeId: block.id, position: 'before' });
+    setFocusId(pendingRowFocusId(block.id, 'before'));
   };
 
   const handleIndent = () => {
@@ -402,17 +402,52 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
           <FieldGroups block={block} />
           {childRefs.map((ref) => {
             const child = ref.target as Bramble.Node;
+            // R-Pending-Row-Is-The-Empty-Bullet: inject a
+            // PendingChildRow at this child's slot if a creation
+            // gesture (Shift+Enter, Cmd+Shift+Enter, Enter-at-end)
+            // requested one adjacent to this child.
+            const slotBefore = pendingSlot?.nodeId === child.id && pendingSlot.position === 'before';
+            const slotAfter = pendingSlot?.nodeId === child.id && pendingSlot.position === 'after';
             return (
-              <Node
-                key={child.id}
-                block={child}
-                parent={block}
-                grandparent={parent}
-                focusId={focusId}
-                focusAtEnd={focusAtEnd}
-                setFocusId={setFocusId}
-                setFocusIdAtEnd={setFocusIdAtEnd}
-              />
+              <React.Fragment key={child.id}>
+                {slotBefore && (
+                  <PendingChildRow
+                    parent={block}
+                    setFocusId={setFocusId}
+                    focusId={focusId}
+                    rowFocusId={pendingRowFocusId(child.id, 'before')}
+                    onPromote={(initialText) =>
+                      promotePendingAtSlot(block, child, 'before', initialText, setPendingSlot, setFocusIdAtEnd)
+                    }
+                    onAddExisting={(target) =>
+                      addExistingAtSlot(block, child, 'before', target as Bramble.Node, setPendingSlot, setFocusId)
+                    }
+                  />
+                )}
+                <Node
+                  block={child}
+                  parent={block}
+                  grandparent={parent}
+                  focusId={focusId}
+                  focusAtEnd={focusAtEnd}
+                  setFocusId={setFocusId}
+                  setFocusIdAtEnd={setFocusIdAtEnd}
+                />
+                {slotAfter && (
+                  <PendingChildRow
+                    parent={block}
+                    setFocusId={setFocusId}
+                    focusId={focusId}
+                    rowFocusId={pendingRowFocusId(child.id, 'after')}
+                    onPromote={(initialText) =>
+                      promotePendingAtSlot(block, child, 'after', initialText, setPendingSlot, setFocusIdAtEnd)
+                    }
+                    onAddExisting={(target) =>
+                      addExistingAtSlot(block, child, 'after', target as Bramble.Node, setPendingSlot, setFocusId)
+                    }
+                  />
+                )}
+              </React.Fragment>
             );
           })}
           {/* F-Pending-Child: leaves with no real children render a faint
@@ -855,6 +890,8 @@ export const PendingChildRow = ({
   onPromote,
   onAddExisting,
   setFocusId,
+  focusId,
+  rowFocusId,
 }: {
   parent: Bramble.Node;
   onPromote: (initialText: string) => void;
@@ -865,6 +902,16 @@ export const PendingChildRow = ({
   // the DOM walk. Real-Node targets route through `setFocusId`;
   // pending-child targets get focused directly via the helper.
   setFocusId?: (id: string | null) => void;
+  // R-Pending-Row-Is-The-Empty-Bullet: when this pending row is
+  // rendered at a sibling slot (rather than as a leaf-row-end /
+  // page-root affordance), `rowFocusId` is the deterministic id
+  // assigned by `pendingRowFocusId(anchorId, position)` and
+  // `focusId` is the current Article focus target. When they match,
+  // the editable area auto-focuses on mount so the user lands on it
+  // immediately after the gesture (Shift+Enter, Cmd+Shift+Enter,
+  // Enter-at-end-of-content).
+  focusId?: string | null;
+  rowFocusId?: string;
 }) => {
   const editableRef = useRef<HTMLDivElement | null>(null);
   const [pickerState, setPickerState] = useState<
@@ -876,6 +923,17 @@ export const PendingChildRow = ({
   const focusEditable = () => {
     editableRef.current?.focus();
   };
+
+  // R-Pending-Row-Is-The-Empty-Bullet: auto-focus the editable area
+  // when this row's deterministic focus id matches the Article's
+  // current focus target. Mounting after a Shift+Enter / Cmd+Shift+
+  // Enter / Enter-at-end-of-content gesture lands the caret here
+  // without an extra click.
+  React.useEffect(() => {
+    if (rowFocusId && focusId === rowFocusId) {
+      focusEditable();
+    }
+  }, [focusId, rowFocusId]);
 
   const closePicker = () => {
     setPickerState(null);

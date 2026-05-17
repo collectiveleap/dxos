@@ -21,6 +21,8 @@ import {
   Graph,
   FieldGroups,
   OpenPaneContext,
+  type PendingSlot,
+  PendingSlotContext,
   PredecessorNav,
   RunExecutionView,
   RunLensShell,
@@ -149,6 +151,22 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
   // (correct for Enter-split, F-Nav arrow nav, empty-page autofocus).
   const [focusId, setFocusIdState] = useState<string | null>(null);
   const [focusAtEnd, setFocusAtEnd] = useState<boolean>(false);
+
+  // R-Pending-Row-Is-The-Empty-Bullet: single locus per Article for
+  // the currently-rendered sibling pending row. Set when a creation
+  // gesture (Shift+Enter, Cmd+Shift+Enter, Enter at end of content)
+  // requests a pending row at a sibling slot; cleared when the row
+  // promotes (typed input, mention commit) or is dismissed. Consumed
+  // by Node / Graph children loops to inject a PendingChildRow at
+  // the matching slot.
+  const [pendingSlot, setPendingSlotState] = useState<PendingSlot | null>(null);
+  const setPendingSlot = useCallback((slot: PendingSlot | null) => {
+    setPendingSlotState(slot);
+  }, []);
+  const pendingSlotValue = useMemo(
+    () => ({ pendingSlot, setPendingSlot }),
+    [pendingSlot, setPendingSlot],
+  );
   // `setFocusId(id)` always places the caret at the START — same
   // semantics it had before this refactor. Callers that need the
   // caret at the END (currently: pending-child promote) call
@@ -432,6 +450,7 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
             <BacklinkCountContext.Provider value={countByTargetId}>
               <ZoomContext.Provider value={handleZoom}>
                 <OpenPaneContext.Provider value={handleOpenPane}>
+                  <PendingSlotContext.Provider value={pendingSlotValue}>
                   {hasSupertagOfTypename(pageNode, Bramble.Run.typename) ? (
                     runLensActive ? (
                       <RunLensShell
@@ -473,6 +492,7 @@ export const Article = ({ role, subject, attendableId }: ArticleProps) => {
                       setFocusIdAtEnd={setFocusIdAtEnd}
                     />
                   )}
+                  </PendingSlotContext.Provider>
                 </OpenPaneContext.Provider>
               </ZoomContext.Provider>
             </BacklinkCountContext.Provider>

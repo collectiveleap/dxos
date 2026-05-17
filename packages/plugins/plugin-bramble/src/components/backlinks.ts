@@ -209,3 +209,47 @@ export const useZoom = () => useContext(ZoomContext);
 export const OpenPaneContext = createContext<(node: Bramble.Node) => void>(() => {});
 
 export const useOpenPane = () => useContext(OpenPaneContext);
+
+// R-Pending-Row-Is-The-Empty-Bullet: a single locus per Article for
+// "where is the pending sibling row currently rendered." Set when a
+// creation gesture (Shift+Enter, Cmd+Shift+Enter, Enter at end of
+// content) requests a pending row at a sibling slot of a real Node;
+// cleared when the pending row promotes (typed input, mention
+// commit) or is dismissed. The slot references an EXISTING real
+// sibling Node and a position relative to it (`before` / `after`);
+// the renderer in Node.tsx's children loop injects a PendingChildRow
+// at the matching slot.
+//
+// State lives at the Article level so a single source of truth
+// covers every Node render under it; the deterministic focus id of
+// a pending row is `pending-row:${nodeId}:${position}` so
+// setFocusId can be wired uniformly with the existing focus
+// machinery.
+export type PendingSlot = {
+  // The real `Bramble.Node` id whose slot the pending row is
+  // adjacent to.
+  nodeId: string;
+  // Position relative to the referenced Node: `before` renders the
+  // pending row immediately above it in its parent's children list;
+  // `after` renders immediately below it.
+  position: 'before' | 'after';
+};
+
+export const PendingSlotContext = createContext<{
+  pendingSlot: PendingSlot | null;
+  setPendingSlot: (slot: PendingSlot | null) => void;
+}>({
+  pendingSlot: null,
+  setPendingSlot: () => {},
+});
+
+export const usePendingSlot = () => useContext(PendingSlotContext);
+
+// Deterministic focus id for a pending row at a given slot. Used by
+// gestures that set the slot + immediately want to focus the pending
+// row's editable area (e.g. Shift+Enter on Node X sets the slot to
+// `{X.id, 'after'}` AND calls `setFocusId(pendingRowFocusId(X.id,
+// 'after'))`; the PendingChildRow rendered at that slot reads the
+// matching id and calls `view.focus()`).
+export const pendingRowFocusId = (nodeId: string, position: 'before' | 'after'): string =>
+  `pending-row:${nodeId}:${position}`;
