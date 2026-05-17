@@ -2,13 +2,13 @@
 // Copyright 2025 DXOS.org
 //
 
-import * as Option from 'effect/Option';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { type Database, Filter, Obj, Query, Type } from '@dxos/echo';
-import { EntityKind, SystemTypeAnnotation, getTypeAnnotation } from '@dxos/echo/internal';
+import { type Database, Filter, Obj, Query } from '@dxos/echo';
 
 import { getDisplayLabel } from '../labels';
+
+import { Bramble } from '#types';
 
 export type MentionPickerProps = {
   db: Database.Database | undefined;
@@ -25,9 +25,12 @@ export type MentionPickerProps = {
 const POPOVER_GAP = 4;
 const VIEWPORT_PADDING = 8;
 
-// Increment 4: minimal mention-picker popover. Lifts the database query
-// pattern from plugin-markdown's useLinkQuery (filter to non-system,
-// non-relation typenames; substring match on label).
+// Increment 4: mention-picker popover. Per
+// R-Bramble-Surfaces-Wrap-Only the picker filters to
+// `Bramble.Node` only — payload ECHO objects (Wnfs.File,
+// typed-instance Person / Task / …) are reached through their
+// wrapping Bramble.Node, never directly. Substring match runs
+// on the resolved display label (`getDisplayLabel`).
 //
 // F-4 keyboard nav: ArrowUp/ArrowDown move the active item, Enter
 // commits the active item — mirrors F-6.Phase1.keyboard-nav for the
@@ -90,14 +93,13 @@ export const MentionPicker = ({ db, query, cursor, excludeId, onSelect, onClose 
     }
     let cancelled = false;
     void (async () => {
-      const schemas = db.schemaRegistry.query({ location: ['database', 'runtime'] }).runSync() ?? [];
-      const filter = Filter.or(
-        ...schemas
-          .filter((schema) => getTypeAnnotation(schema)?.kind !== EntityKind.Relation)
-          .filter((schema) => !SystemTypeAnnotation.get(schema).pipe(Option.getOrElse(() => false)))
-          .map((schema) => Filter.typename(Type.getTypename(schema))),
-      );
-      const results = (await db.query(Query.select(filter)).run()) ?? [];
+      // R-Bramble-Surfaces-Wrap-Only: the picker surfaces Bramble.Node
+      // only. Payload ECHO objects (Wnfs.File, typed-instance Person /
+      // Task / …) are reached through their wrapping Bramble.Node, never
+      // directly — preventing the duplicate-entries failure mode where a
+      // wrapper and its payload (both labelled with the filename) appeared
+      // as two separate "@<name>" picker rows.
+      const results = (await db.query(Query.select(Filter.typename(Bramble.Node.typename))).run()) ?? [];
       if (cancelled) {
         return;
       }

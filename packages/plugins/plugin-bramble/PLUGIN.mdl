@@ -382,6 +382,57 @@ rule R-Consolidation-Scrub:
     regardless of when the audit lands.
 ```
 
+```mdl
+rule R-Bramble-Surfaces-Wrap-Only:
+  desc: |
+    Bramble's user-facing reference / selection / drag /
+    drop / nav surfaces target `Bramble.Node` instances ONLY.
+    The @-mention picker, edge endpoints, drop targets,
+    predecessor nav, page rendering, and position/order
+    operations all consume Bramble.Nodes as their candidate
+    set. Payload ECHO objects (Wnfs.File, typed-instance
+    Person / Task / …, any object created outside Bramble)
+    enter Bramble's world via the F-Supertag wrap pattern —
+    a Bramble.Node is created carrying the payload as a
+    supertag Ref — and become referenceable through that
+    wrapper, never directly.
+
+    Why: payload objects and their wrappers share display
+    labels by design (the wrapper's `content` is seeded from
+    the payload's label per `F-Supertag.title-sync` and
+    `F-PDF-Upload.drop-seeds-content-with-filename`).
+    Surfacing both in the same picker produces duplicate
+    entries that are indistinguishable to the user. Treating
+    the wrapper as the canonical handle everywhere user-
+    facing surfaces resolve identity removes the duplication
+    structurally — no per-typename suppression rules
+    accreting over time.
+
+    How to apply: when building a new picker, list, drag-
+    source, drop-target, or reference-resolver, filter to
+    `Filter.typename(Bramble.Node.typename)` as the candidate
+    type. Do NOT enumerate the schema registry and OR
+    together typename filters — that pattern picks up
+    promotable payloads alongside wrappers.
+
+    Exception — the `#` supertag-application picker (M-Apply,
+    not M-Promote): chooses a TYPE, not an instance, so it
+    legitimately enumerates the schema registry via
+    `collectTagTypes` (`F-Supertag.types-shown`). M-Apply
+    remains the canonical place to discover schemas; every
+    other Bramble surface targets Bramble.Nodes.
+
+    Concrete example — 2026-05-17 reported bug: drop a PDF
+    named "XXX" into a Bramble bullet (creates a `Wnfs.File`
+    payload + a wrapping `Bramble.Node`); open the @-mention
+    picker on another bullet and type `@XXX`; the picker
+    shows two entries labelled "XXX" — the wrapper and the
+    unwrapped payload — indistinguishable to the user. The
+    wrapper IS the user's handle to the PDF; the payload
+    should not appear. Fix: filter `MentionPicker.tsx` to
+    `Bramble.Node` only.
+```
+
 ## Extensions
 
 | Term        | URI                            |
@@ -663,11 +714,14 @@ feat F-4: Inline live-name refs    # Increment 4 (current)
       corner anchored at the @ position. The popover flips above the line
       when there isn't enough room below; otherwise it opens below. Both
       coordinates are clamped to the viewport so it never goes off-screen.
-      The picker shows matching ECHO objects. Individual Nodes (bullets)
-      are first-class candidates and appear labelled by their text content;
-      empty-labelled objects (Nodes with no text, unnamed system rows)
-      are hidden. The Node currently being edited is excluded from
-      results — a bullet cannot reference itself.
+      The picker shows matching Bramble.Nodes per
+      R-Bramble-Surfaces-Wrap-Only — payload ECHO objects (Wnfs.File,
+      typed-instance Person / Task / …) are reached through their
+      wrapping Bramble.Node, never directly. Each candidate is labelled
+      by its resolved display text; empty-labelled candidates (Nodes
+      with no content yet, unnamed system Nodes) are hidden. The Node
+      currently being edited is excluded from results — a bullet cannot
+      reference itself.
   req F-4.2:
     when: user types more letters after @
     then: the picker filters live by case-insensitive substring on the object's label
@@ -4904,6 +4958,41 @@ test T-PDF-Mention-renders-attachment: an @-mention to a PDF-wrapping Node rende
     - the inline-ref text itself remains an active link to P
       (clicking navigates to P) per F-4's standard inline-ref
       behavior — the PDF icon is NOT a link.
+```
+
+```mdl
+test T-Mention-Hides-Promotable-Payloads: payload ECHO objects don't appear in the @-mention picker; the wrapping Bramble.Node does
+  given: a Composer space with a Bramble outline open in editable
+    position
+  and: a payload ECHO instance `X` of an external typename `T`
+    (e.g. a `Wnfs.File` uploaded via plugin-wnfs's drop affordance,
+    a `Task` created by plugin-tasks, or any object created
+    outside Bramble) with a non-empty display label `L`
+  and: a wrapping Bramble.Node `W` that carries `X` in its
+    `supertags` array (per F-Supertag / F-PDF-Upload's wrap
+    pattern)
+  when: I type `@` in any bullet and then type a substring of
+    `L`
+  then:
+    - the picker lists `W` — a single Bramble.Node entry whose
+      resolved display label matches `L` (or matches the renamed
+      wrapper label, if the user has renamed the wrapper);
+    - the payload `X` is NOT listed (the picker surfaces
+      Bramble.Nodes only per R-Bramble-Surfaces-Wrap-Only);
+    - no duplicate "`L`" entries appear from a schema-registry-
+      enumerated typename filter path.
+  given: a payload ECHO instance `Y` of an external typename
+    that has NO wrapping Bramble.Node in the space (an
+    unpromoted orphan)
+  when: I type `@` and type a substring of `Y`'s display label
+  then:
+    - `Y` is NOT listed in the @-mention picker — orphan
+      payloads are reached via the per-typename supertag-node
+      landing page, not via @-mention;
+    - if `Y` is the only matching candidate, the picker shows
+      no matches; otherwise the picker shows only Bramble.Node
+      entries whose resolved display labels also match the
+      substring.
 ```
 
 ```mdl
