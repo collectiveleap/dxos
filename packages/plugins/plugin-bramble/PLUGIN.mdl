@@ -2470,6 +2470,171 @@ feat F-Supertag: typed-instance supertag model    # Increment Supertag (current)
 ```
 
 ```mdl
+feat F-Promote-Generalisation: supertag-node body splits into orphans + wrapped, conditional on type origin    # Increment Promote-Generalisation (not started)
+  desc: |
+    Refines the supertag-node body rendering captured today by
+    `F-6.Phase3b.query-node.render` + `F-6.Phase3b.promote`,
+    and operationalises the three-class supertag model captured
+    in CONCEPTS.md §13.3 (Native / Bramble-defined ECHO /
+    External ECHO).
+
+    Net deltas vs current implementation:
+
+    1. **Two visible queries for external ECHO types.** The
+       supertag-node body splits into Query A (unpromoted
+       instances — the orphan-promote surface) + Query B
+       (wrapped Bramble.Nodes). Today the body renders ONE
+       mixed query (per F-6.Phase3b.query-node.render — "every
+       ECHO instance whose typename matches, including
+       instances that don't have a wrapping Node yet").
+
+    2. **Conditional rendering of Query A.** Query A renders
+       ONLY for supertags whose backing is an external ECHO
+       type. Bramble-defined ECHO types (`Bramble.Step`,
+       `Bramble.Run`, `Bramble.Day`) and (future) native
+       supertags render Query B only — no orphans exist for
+       those classes, so the section is conceptually absent.
+
+    3. **Promoted wrapper lands under today's Day-Node**
+       (per `F-Today` "newly-created lands under Today"),
+       not under the per-space Library Node. This supersedes
+       the landing rule in `F-6.Phase3b.promote`. The
+       drop-create path (F-PDF-Upload) keeps its drop-site
+       hotspot landing — that's a different gesture.
+
+    What stays unchanged (preserves existing implementation):
+
+    - Schema-registry-driven discovery
+      (`F-Supertag.types-shown`, `tag-types.ts:128-148`).
+    - Eager + reactive supertag-node materialisation
+      (`F-Supertag.eager-materialization`,
+      `tag-supertags.ts:294-310`).
+    - The `#` picker (M-Apply) exclusion list remains
+      minimal — Relations + Bramble.Node + Bramble.Graph,
+      per `F-Supertag.types-shown`.
+    - Find-or-create wrapper discipline per
+      `F-Supertag.uniqueness`.
+    - The substrate invariant `R-Bramble-Surfaces-Wrap-Only`
+      — mention surfaces Bramble.Nodes regardless of the
+      two-query body shape; F-Promote-Generalisation does
+      not touch MentionPicker.
+
+    Supersession + R-Consolidation-Scrub: the implementation
+    commit that ships F-Promote-Generalisation MUST scrub the
+    superseded clauses — `F-6.Phase3b.query-node.render`'s
+    single-query description + `F-6.Phase3b.promote`'s
+    "appended to `Library.children`" landing rule + any
+    `src/**` comments referencing those shapes — in the SAME
+    commit per `R-Consolidation-Scrub`.
+
+    Out of scope for F-Promote-Generalisation:
+    - Native supertags (CONCEPTS §13.6) — separate feat.
+    - Non-ECHO promote sources, URL/clipboard/agent-output
+      (CONCEPTS §13.7) — separate feats.
+    - Promote affordance refinements beyond click-on-row
+      (CONCEPTS §13.9) — addressed if and when user
+      research surfaces the need.
+    - Wrapper-private fields lifecycle (CONCEPTS §13.9).
+    - Multi-wrap (one ECHO instance with two Bramble.Node
+      wrappers per CONCEPTS §13.9) — F-Supertag.uniqueness
+      stays.
+  req F-Promote-Generalisation.two-query-body:
+    given: a Bramble outline mounted on a Composer space
+    and: a supertag-node `S` for an external ECHO type `T`
+      (where `T` passes the external-ECHO predicate per
+      `F-Promote-Generalisation.external-echo-predicate`)
+    when: the user navigates to `S` (via the Bramble-Nav
+      "All Tags" landing, via clicking a `#T` chip
+      elsewhere, or via opening `S` in a new pane)
+    then:
+      - the supertag-node body renders TWO visible query
+        sections, in order:
+        - Query A — orphan instances of `T` in the space
+          (those NOT referenced by any Bramble.Node's
+          `supertags` array). Each row carries a promote
+          affordance per
+          `F-Promote-Generalisation.promote-from-row`.
+        - Query B — Bramble.Nodes in the space whose
+          `supertags` array carries a Ref to an instance
+          of `T`.
+      - both queries are live: a new instance of `T`
+        created anywhere in the space appears in Query A
+        within one tick; a promote action on a Query A
+        row moves the row to Query B reactively; deleting
+        a wrapper (when the underlying instance survives,
+        per current lifecycle policy) returns the row to
+        Query A.
+      - each query section renders a user-readable header
+        (translation key TBD by implementation) and an
+        empty-state hint when the section has zero rows
+        (rather than collapsing the header).
+  req F-Promote-Generalisation.conditional-orphan-query:
+    given: a Bramble outline mounted on a Composer space
+    and: a supertag-node `S` for a supertag that does NOT
+      pass the external-ECHO predicate — i.e. either a
+      Bramble-defined ECHO type (typename starts with
+      `org.dxos.type.bramble.`) OR (future) a native
+      supertag with no ECHO backing
+    when: the user navigates to `S`
+    then:
+      - the supertag-node body renders ONLY Query B
+        (Bramble.Nodes carrying the supertag).
+      - Query A is NOT rendered — no section header, no
+        empty-state hint. The conceptual absence of orphan
+        instances is its UX-correct rendering: Bramble-
+        defined types are wrapped at birth by Bramble's own
+        flows; native supertags have no instances apart
+        from the wrappers themselves.
+  req F-Promote-Generalisation.promote-from-row:
+    given: a Query A row on a supertag-node `S` for
+      external ECHO type `T`, rendering an orphan instance
+      `X` of `T`
+    when: the user clicks the row (default promote
+      affordance — alternative affordances per CONCEPTS
+      §13.9 are deferred)
+    then:
+      - a wrapper Bramble.Node `W` is found-or-created per
+        `F-Supertag.uniqueness`: if any Node already
+        references `X` via `supertags`, the existing
+        wrapper is reused; otherwise `W` is created with
+        `supertags: [Ref(X)]` and `content` seeded from
+        `Obj.getLabel(X)` (the externally-originated path
+        in `F-Supertag.title-sync`).
+      - `W` is attached as a successor of today's Day-Node
+        per `F-Today`'s landing rule (find-or-create
+        today's day-Node via `ensureDayNodeForDate`, then
+        create a `'child'` `Edge` from the day-Node to `W`
+        via `createEdge` per `R-Edges-First-Class`).
+      - the Query A row reactively moves to Query B
+        without remount; clicking the row again navigates
+        to `W` (no second wrapper is created, per
+        `F-Supertag.uniqueness`).
+      - the current pane navigates to `W` so the user
+        lands on the new wrapper for editing.
+  req F-Promote-Generalisation.external-echo-predicate:
+    given: any supertag `S` discovered by `collectTagTypes`
+      per `F-Supertag.types-shown`, OR any (future) native
+      supertag declaration
+    when: the supertag-node renderer decides whether to
+      include Query A
+    then:
+      - the renderer evaluates the external-ECHO predicate
+        as a pure function of `S`:
+        - TRUE iff `S` has an ECHO-type backing AND the
+          backing's typename does NOT start with the
+          Bramble namespace prefix
+          (`org.dxos.type.bramble.`).
+        - FALSE otherwise — native supertags fail the
+          first conjunct (no ECHO backing); Bramble-
+          defined ECHO types fail the second.
+      - the predicate is side-effect-free and safe to
+        evaluate every render; no I/O, no query, no
+        registry walk beyond reading `S`'s typename and
+        backing-kind which are already in hand at
+        render time.
+```
+
+```mdl
 feat F-DAG: parent/child as first-class edges     # Increment DAG
   desc: |
     Move the outliner's structural parent/child relationship off
@@ -4318,6 +4483,82 @@ test T-Supertag-browse-reactivity: query row label updates live as the instance 
     - within one tick the query row's label reads "beta"
       (per F-Supertag.title-sync's read path applied to the
       query-row label resolver).
+```
+
+```mdl
+test T-Promote-Two-Query-External: an external-typename supertag-node renders both orphan + wrapped queries
+  given: a Bramble outline mounted in a space; an external
+    ECHO type `T` (e.g. `org.dxos.type.task`) with at
+    least one orphan instance `X` (no wrapping Bramble.Node)
+    and at least one wrapped instance `Y` (some Bramble.Node
+    references `Y` via `supertags`)
+  when: the user navigates to the supertag-node for `T`
+  then:
+    - the body renders two distinct query sections, in
+      order: Query A (orphans) then Query B (wrapped);
+    - Query A's row set contains `X` (and any other orphan
+      instances of `T`); Query B's row set contains the
+      Bramble.Node wrapping `Y` (and any other wrappers);
+    - both sections render a user-readable header;
+    - no row appears in both sections — the partition is
+      exact.
+```
+
+```mdl
+test T-Promote-One-Query-Bramble-Owned: a Bramble-defined supertag-node renders only the wrapped query
+  given: a Bramble outline mounted in a space; a Bramble-
+    defined ECHO type whose typename starts with
+    `org.dxos.type.bramble.` (e.g. `Bramble.Step` or
+    `Bramble.Run`); at least one Bramble.Node carrying the
+    supertag
+  when: the user navigates to the supertag-node for that
+    type
+  then:
+    - the body renders Query B (wrapped Bramble.Nodes) only;
+    - no Query A section is rendered — no header, no empty-
+      state hint, no orphan rows;
+    - the same rule applies when zero wrapped instances
+      exist (Query B renders its empty-state hint; Query A
+      remains absent).
+```
+
+```mdl
+test T-Promote-Row-Click-Creates-Wrapper-Under-Today: clicking an orphan row wraps the instance + attaches the wrapper to Today
+  given: a Bramble outline mounted in a space; an external
+    ECHO type `T` with an orphan instance `X` displayed in
+    Query A of the supertag-node for `T`; today's Day-Node
+    exists (or is find-or-created on first reference per
+    F-Today)
+  when: the user clicks the Query A row showing `X`
+  then:
+    - a wrapper Bramble.Node `W` is created (or
+      find-or-create-reused, per F-Supertag.uniqueness)
+      with `supertags: [Ref(X)]` and `content` seeded from
+      `Obj.getLabel(X)`;
+    - an `Edge` of `kind: 'child'` is created from today's
+      Day-Node to `W` via `createEdge` (per
+      R-Edges-First-Class);
+    - the Query A row reactively moves to Query B without
+      remount;
+    - the current pane navigates to `W`.
+```
+
+```mdl
+test T-Promote-Row-Click-Reuses-Existing-Wrapper: clicking an orphan-shaped row that already has a wrapper navigates instead of duplicating
+  given: a Bramble outline mounted in a space; an external
+    ECHO type `T` with instance `X`; a wrapper `W`
+    already exists for `X` (perhaps created concurrently
+    by another pane, or by a prior promote / drop-create
+    gesture not yet reflected in this pane's render); the
+    user sees a Query A row for `X` due to a stale render
+  when: the user clicks the Query A row showing `X`
+  then:
+    - NO new wrapper is created (`F-Supertag.uniqueness`
+      enforces at-most-one wrapper per (instance,
+      typename));
+    - the current pane navigates to the existing `W`;
+    - the supertag-node body re-derives and the stale
+      Query A row vanishes (now appearing in Query B).
 ```
 
 ```mdl
