@@ -2,7 +2,7 @@
 // Copyright 2025 DXOS.org
 //
 
-import React, { useEffect } from 'react';
+import React from 'react';
 
 import { Obj } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
@@ -12,7 +12,6 @@ import { Node, PendingChildRow } from '../Node';
 import {
   addExistingAtSlot,
   createEdge,
-  getStructuralChildren,
   promotePendingAtSlot,
   useStructuralChildren,
 } from '../Node/edges';
@@ -41,60 +40,21 @@ export type GraphProps = {
 // passes it through and also drives setFocusId from its own
 // pending-child promote handler.
 export const Graph = ({ rootBlock, focusId, focusAtEnd, setFocusId, setFocusIdAtEnd }: GraphProps) => {
-  const [snapshot] = useObject(rootBlock);
+  // Subscribe to rootBlock so this Graph re-renders when its
+  // top-level fields change (e.g. content edits to the pane
+  // root's H1 via `F-Page-Header`).
+  useObject(rootBlock);
 
-  // Migrate I1/I2 outlines: if root has content but no children, demote the
-  // content into a single child Block. Also covers stale outlines lacking
-  // any seeded child.
-  //
-  // F-6 Phase 3+: skip the migration for plugin-managed Blocks —
-  // wrappers (`supertags`), tag nodes (`tagTypename`), system nodes
-  // (`systemNode`), and query nodes (`queryRef`) all have an
-  // intentional structure that the legacy outline migration must not
-  // disturb. Without this guard, zooming into a wrapper wipes its
-  // `content` ref to the linked instance and seeds an empty child.
-  useEffect(() => {
-    const isSpecialBlock = Boolean(
-      ((snapshot as any).supertags ?? []).length > 0 ||
-        (snapshot as any).tagTypename ||
-        (snapshot as any).systemNode ||
-        (snapshot as any).queryRef,
-    );
-    if (isSpecialBlock) {
-      return;
-    }
-    const db = Obj.getDatabase(rootBlock);
-    // F-DAG Phase 3a: use the merged structural view to decide
-    // whether to seed — a freshly-created outline with neither
-    // legacy `Block.children` entries nor ChildEdges should still
-    // get its seed bullet. An outline that's already been used (
-    // either representation) is left alone.
-    const existingStructuralChildren = getStructuralChildren(db, rootBlock).filter((ref: any) => ref?.target);
-    if (existingStructuralChildren.length > 0) {
-      return;
-    }
-    const contentArr = (snapshot.content ?? []) as readonly unknown[];
-    // I1/I2 migration only: if the rootBlock has content but no
-    // children, demote the content into a single child Block. The
-    // prior "always seed an empty bullet" behaviour was removed — for
-    // empty rootBlocks, F-Pending-Child.page-root renders a faint
-    // pending-child at the page body, which is the universal "where
-    // to start typing" affordance (covers initial graph creation,
-    // shift-click-into-leaf new panes, and same-pane zoom alike).
-    if (contentArr.length === 0) {
-      return;
-    }
-    // F-V2.12: new Nodes are created collapsed.
-    const seed = Bramble.makeNode({ content: [...contentArr] as any, state: { expanded: false } });
-    Obj.update(rootBlock, (rootBlock) => {
-      (rootBlock as any).content = [];
-    });
-    if (db) {
-      db.add(seed);
-      createEdge(db, rootBlock, seed);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // The legacy I1/I2 migration that lived here used to demote a
+  // rootBlock's `content` into a single child Bramble.Node whenever
+  // the rootBlock had content but no children. That predated
+  // F-No-Root + R-Bramble-Subject-Path. Under the current model
+  // ANY Bramble.Node can be a pane root via F-Zoom, and the pane
+  // root's content stays put — it renders in the H1 (per
+  // F-Page-Header). The migration was actively harmful: every zoom
+  // into a content-bearing leaf created a fresh empty wrapper Node
+  // and moved the user's content into a child of it.
+  // Removed 2026-05-18 alongside the F-Drag-Drop iteration.
 
   // F-DAG: structural children come from two sources during the
   // migration — the legacy `Block.children` array (for outline
