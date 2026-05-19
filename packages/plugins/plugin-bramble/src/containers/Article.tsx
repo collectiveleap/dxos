@@ -8,7 +8,7 @@ import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { LayoutOperation, SettingsOperation, getObjectPathFromObject } from '@dxos/app-toolkit';
 import { useAtomCapability, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Obj } from '@dxos/echo';
-import { DeckCapabilities } from '@dxos/plugin-deck/types';
+import { DeckCapabilities } from '@dxos/plugin-deck';
 import { useObject } from '@dxos/react-client/echo';
 import { Panel, useTranslation } from '@dxos/react-ui';
 
