@@ -14,7 +14,7 @@ import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { AiService, OpaqueToolkit } from '@dxos/ai';
 import { Capabilities, Capability, type CapabilityManager } from '@dxos/app-framework';
 import { AppCapabilities } from '@dxos/app-toolkit';
-import { AiContextBinder, AiContextService, AiSession, AiSessionService } from '@dxos/assistant';
+import { AiContext, AiSession } from '@dxos/assistant';
 import { McpServer } from '@dxos/assistant-toolkit';
 import { ClientService } from '@dxos/client';
 import { SpaceProperties } from '@dxos/client-protocol';
@@ -25,6 +25,7 @@ import {
   OperationHandlerSet,
   OperationRegistry,
   ServiceNotAvailableError,
+  Trace,
 } from '@dxos/compute';
 import { Resource } from '@dxos/context';
 import { Database, DXN, Feed, Filter, Obj } from '@dxos/echo';
@@ -51,7 +52,7 @@ import {
 import { invariant } from '@dxos/invariant';
 import { type SpaceId } from '@dxos/keys';
 import { log } from '@dxos/log';
-import { ClientCapabilities } from '@dxos/plugin-client/types';
+import { ClientCapabilities } from '@dxos/plugin-client';
 
 import { AutomationCapabilities } from '#types';
 
@@ -201,7 +202,7 @@ class ComputeRuntimeProviderImpl extends Resource implements AutomationCapabilit
               }),
             ),
             Layer.provideMerge(ProcessManager.ProcessOperationInvoker.layer),
-            Layer.provideMerge(ProcessManager.layer()),
+            Layer.provideMerge(ProcessManager.layer({ runtimeName: Trace.CommonRuntimeName.local })),
             // TODO(dmaretskyi): Duped in assistant testing layer.
             Layer.provideMerge(
               // TODO(dmaretskyi): Refactor to be able to merge resovler layers, also consider service mesh achitecture.
@@ -212,12 +213,12 @@ class ComputeRuntimeProviderImpl extends Resource implements AutomationCapabilit
                     Effect.map(Context.pick(Database.Service, Feed.FeedService)),
                     Effect.map(Layer.succeedContext),
                   );
-                  // AiContextBinder.
+                  // AiContext.Binder.
                   return ServiceResolver.compose(
-                    ServiceResolver.succeed(AiContextService, (context) =>
+                    ServiceResolver.succeed(AiContext.Service, (context) =>
                       Effect.gen(function* () {
                         if (!context.conversation) {
-                          return yield* Effect.fail(new ServiceNotAvailableError(AiContextService.key));
+                          return yield* Effect.fail(new ServiceNotAvailableError(AiContext.Service.key));
                         }
                         const feed = yield* Database.resolve(DXN.parse(context.conversation), Feed.Feed).pipe(
                           Effect.orDie,
@@ -225,7 +226,7 @@ class ComputeRuntimeProviderImpl extends Resource implements AutomationCapabilit
                         const runtime = yield* Effect.runtime<Feed.FeedService>();
                         const binder = yield* acquireReleaseResource(
                           () =>
-                            new AiContextBinder({
+                            new AiContext.Binder({
                               feed,
                               runtime,
                             }),
@@ -233,11 +234,11 @@ class ComputeRuntimeProviderImpl extends Resource implements AutomationCapabilit
                         return { binder };
                       }).pipe(Effect.provide(services)),
                     ),
-                    // AiSessionService.
-                    ServiceResolver.succeed(AiSessionService, (context) =>
+                    // AiSession.Service.
+                    ServiceResolver.succeed(AiSession.Service, (context) =>
                       Effect.gen(function* () {
                         if (!context.conversation) {
-                          return yield* Effect.fail(new ServiceNotAvailableError(AiSessionService.key));
+                          return yield* Effect.fail(new ServiceNotAvailableError(AiSession.Service.key));
                         }
                         const feed = yield* Database.resolve(DXN.parse(context.conversation), Feed.Feed).pipe(
                           Effect.orDie,
@@ -245,7 +246,7 @@ class ComputeRuntimeProviderImpl extends Resource implements AutomationCapabilit
                         const runtime = yield* Effect.runtime<Feed.FeedService>();
                         const session = yield* acquireReleaseResource(
                           () =>
-                            new AiSession({
+                            new AiSession.Session({
                               feed,
                               runtime,
                             }),

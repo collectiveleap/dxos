@@ -10,8 +10,8 @@
     {
       "name": "composer-app",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@dxos/composer-app", "exec", "vite", "dev"],
-      "port": 5173,
+      "runtimeArgs": ["--filter", "@dxos/composer-app", "exec", "vite", "dev", "--port", "5180", "--strictPort"],
+      "port": 5180,
       "autoPort": true
     },
     {
@@ -27,10 +27,23 @@
       "port": 5173
     },
     {
+      "name": "todomvc-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@dxos/todomvc", "exec", "vite", "preview", "--port", "4173"],
+      "port": 4173,
+      "autoPort": true
+    },
+    {
       "name": "storybook-react",
       "runtimeExecutable": "moon",
       "runtimeArgs": ["run", "storybook-react:serve"],
       "port": 9009
+    },
+    {
+      "name": "plugin-explorer-storybook",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@dxos/plugin-explorer", "exec", "storybook", "dev", "--port", "9010", "--no-open"],
+      "port": 9010
     },
     {
       "name": "docs",

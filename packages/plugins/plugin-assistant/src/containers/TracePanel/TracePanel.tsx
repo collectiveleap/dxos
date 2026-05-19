@@ -7,7 +7,7 @@ import { useAtomValue } from '@effect-atom/atom-react';
 import { pipe } from 'effect/Function';
 import React, { useCallback, useMemo, useState } from 'react';
 
-import { useOperationInvoker } from '@dxos/app-framework/ui';
+import { useAtomCapability, useOperationInvoker } from '@dxos/app-framework/ui';
 import { LayoutOperation } from '@dxos/app-toolkit';
 import { type AppSurface } from '@dxos/app-toolkit/ui';
 import { Trace } from '@dxos/compute';
@@ -18,26 +18,34 @@ import { DXN } from '@dxos/keys';
 import { log } from '@dxos/log';
 import { useComputeRuntimeService } from '@dxos/plugin-automation/hooks';
 import { type Space } from '@dxos/react-client/echo';
-import { Panel } from '@dxos/react-ui';
+import { ScrollContainer } from '@dxos/react-ui';
+import { useAttentionAttributes } from '@dxos/react-ui-attention';
 import { Timeline, type Commit } from '@dxos/react-ui-components';
-import { composable, mx } from '@dxos/ui-theme';
+import { Syntax } from '@dxos/react-ui-syntax-highlighter';
+import { composable, composableProps, mx } from '@dxos/ui-theme';
 
 import { ProcessTree, ProcessTreeProps } from '#components';
+import { AssistantCapabilities } from '#types';
 
-import { buildExecutionGraph } from './execution-graph';
+import { buildExecutionGraph, type ExecutionGraph } from './execution-graph';
 
 export type TracePanelProps = AppSurface.SpaceArticleProps<Pick<ProcessTreeProps, 'onProcessTerminate'>>;
 
 export const TracePanel = composable<HTMLDivElement, TracePanelProps>(
-  ({ space, onProcessTerminate, ...props }, forwardedRef) => {
+  ({ space, attendableId, onProcessTerminate, ...props }, forwardedRef) => {
+    const attentionAttrs = useAttentionAttributes(attendableId);
     const { invokePromise } = useOperationInvoker();
-    const { branches, commits } = useExecutionGraph(space);
+    const settings = useAtomCapability(AssistantCapabilities.Settings);
+    const tracePanelDebug = settings.tracePanelDebug ?? false;
+    const { branches, commits, spanTree } = useExecutionGraph(space);
     const runtime = useComputeRuntimeService(Process.ProcessMonitorService, space.id);
     const processes = useAtomValue(runtime?.processTreeAtom ?? atomEmpty);
 
-    const handleCommitClick = useCallback(
-      (commit: Commit) => {
-        if (commit.link) {
+    const [selectedCommit, setSelectedCommit] = useState<Commit | undefined>();
+    const handleCommitSelect = useCallback(
+      (commit: Commit | undefined) => {
+        setSelectedCommit(commit);
+        if (commit?.link) {
           const dxn = DXN.tryParse(commit.link)?.asEchoDXN();
           if (dxn?.spaceId && dxn.echoId) {
             // TODO(dmaretskyi): Navigates, but fails to open.
@@ -47,7 +55,7 @@ export const TracePanel = composable<HTMLDivElement, TracePanelProps>(
           }
         }
       },
-      [invokePromise],
+      [invokePromise, setSelectedCommit],
     );
 
     // Select current branch.
@@ -56,7 +64,6 @@ export const TracePanel = composable<HTMLDivElement, TracePanelProps>(
       (process: Process.Info) => {
         const branch = branches.find((branch) => branch === process.pid.toString());
         if (branch) {
-          log.info('select', { process, branch });
           setCurrentBranch(branch);
         }
       },
@@ -64,34 +71,66 @@ export const TracePanel = composable<HTMLDivElement, TracePanelProps>(
     );
 
     return (
-      <Panel.Root {...props} ref={forwardedRef}>
-        <Panel.Content className='grid grid-rows-[min-content_1fr] divide-y divide-separator'>
-          <ProcessTree
-            classNames={mx('max-h-[8lh] border-b border-separator')}
-            processes={processes}
-            onProcessSelect={handleProcessSelect}
-            onProcessTerminate={onProcessTerminate}
-          />
-          <Timeline
-            currentBranch={currentBranch}
-            branches={branches}
-            commits={commits}
-            compact
-            onCommitClick={handleCommitClick}
-          />
-        </Panel.Content>
-      </Panel.Root>
+      <div
+        {...composableProps(props, {
+          ...attentionAttrs,
+          classNames: mx(
+            'h-full grid divide-y divide-separator',
+            !tracePanelDebug && selectedCommit
+              ? 'grid-rows-[minmax(0,4lh)_1fr_minmax(0,206px)]'
+              : 'grid-rows-[minmax(0,4lh)_1fr]',
+          ),
+        })}
+        ref={forwardedRef}
+      >
+        <ProcessTree
+          processes={processes}
+          onProcessSelect={handleProcessSelect}
+          onProcessTerminate={onProcessTerminate}
+        />
+
+        <ScrollContainer.Root pin>
+          <ScrollContainer.Content thin>
+            <ScrollContainer.Fade />
+            <ScrollContainer.Viewport>
+              {tracePanelDebug ? (
+                <Syntax.Root data={spanTree}>
+                  <Syntax.Content>
+                    <Syntax.Viewport>
+                      <Syntax.Code className='text-xs' />
+                    </Syntax.Viewport>
+                  </Syntax.Content>
+                </Syntax.Root>
+              ) : (
+                <Timeline
+                  compact
+                  commits={commits}
+                  branches={branches}
+                  currentBranch={currentBranch}
+                  onSelect={handleCommitSelect}
+                />
+              )}
+            </ScrollContainer.Viewport>
+            <ScrollContainer.ScrollDownButton />
+          </ScrollContainer.Content>
+        </ScrollContainer.Root>
+
+        {!tracePanelDebug && selectedCommit && (
+          <Syntax.Root data={selectedCommit}>
+            <Syntax.Content>
+              <Syntax.Viewport>
+                <Syntax.Code className='text-xs' />
+              </Syntax.Viewport>
+            </Syntax.Content>
+          </Syntax.Root>
+        )}
+      </div>
     );
   },
 );
 
 // Stable ref.
 const atomEmpty = Atom.make(() => [] as const);
-
-type ExecutionGraph = {
-  branches: string[];
-  commits: Commit[];
-};
 
 type UseExecutionGraphOptions = {
   eventLimit?: number;

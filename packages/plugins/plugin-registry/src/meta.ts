@@ -25,4 +25,9 @@ export const meta: Plugin.Meta = {
     Plugin management system for discovering, installing, and configuring workspace extensions.
     Browse available plugins and customize your workspace capabilities.
   `,
+  icon: 'ph--squares-four--regular',
+  tags: ['system'],
 };
+
+/** Cascade-disable confirmation dialog surface id. */
+export const DISABLE_DEPENDENTS_DIALOG = `${meta.id}.disable-dependents-dialog`;

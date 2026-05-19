@@ -27,7 +27,7 @@
       "path": "../../common/util"
     },
     {
-      "path": "../../core/compute"
+      "path": "../../core/compute/compute"
     },
     {
       "path": "../../core/echo/echo"
@@ -39,10 +39,16 @@
       "path": "../../core/echo/echo-db"
     },
     {
+      "path": "../../reflect/deus"
+    },
+    {
       "path": "../../sdk/app-framework"
     },
     {
       "path": "../../sdk/app-toolkit"
+    },
+    {
+      "path": "../../sdk/client"
     },
     {
       "path": "../../sdk/react-client"
@@ -69,10 +75,16 @@
       "path": "../../ui/ui-theme"
     },
     {
+      "path": "../plugin-client"
+    },
+    {
       "path": "../plugin-graph"
     },
     {
       "path": "../plugin-space"
+    },
+    {
+      "path": "../plugin-testing"
     }
   ]
 }

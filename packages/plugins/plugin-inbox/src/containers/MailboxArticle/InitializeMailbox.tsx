@@ -8,10 +8,10 @@ import { useTranslation } from '@dxos/react-ui';
 import { composable } from '@dxos/ui-theme';
 
 import { meta } from '#meta';
-import { InboxOperation } from '#operations';
+import { InboxOperation } from '#types';
 import { type Mailbox } from '#types';
 
-import { Initialize } from '../../components';
+import { Initialize, InitializeAction } from '../../components';
 import { GMAIL_PROVIDER_ID } from '../../constants';
 
 export type InitializeMailboxProps = {
@@ -25,10 +25,6 @@ export const InitializeMailbox = composable<HTMLDivElement, InitializeMailboxPro
       <Initialize
         {...props}
         target={mailbox}
-        targetKey='mailbox'
-        providerId={GMAIL_PROVIDER_ID}
-        operation={InboxOperation.SyncMailbox}
-        syncLabel={t('sync-mailbox.label')}
         noIntegrationMessage={t('no-integrations.label')}
         emptyMessage={t('empty-mailbox.message')}
         ref={forwardedRef}
@@ -38,3 +34,16 @@ export const InitializeMailbox = composable<HTMLDivElement, InitializeMailboxPro
 );
 
 InitializeMailbox.displayName = 'InitializeMailbox';
+
+export const InitializeMailboxAction = ({ mailbox }: InitializeMailboxProps) => {
+  const { t } = useTranslation(meta.id);
+  return (
+    <InitializeAction
+      target={mailbox}
+      targetKey='mailbox'
+      providerId={GMAIL_PROVIDER_ID}
+      operation={InboxOperation.SyncMailbox}
+      syncLabel={t('sync-mailbox.label')}
+    />
+  );
+};

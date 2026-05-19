@@ -59,6 +59,12 @@ export class GraphRenderer<NodeData = any, EdgeData = any> extends Renderer<
   GraphRendererOptions<NodeData, EdgeData>
 > {
   override render(layout: GraphLayout<NodeData, EdgeData>) {
+    // The SVG group ref is unset between mount cycles and before the container has sized;
+    // skip the render rather than throw — the projector will emit again on the next tick.
+    if (!this.root) {
+      return;
+    }
+
     log('render', layout);
 
     const root = select(this.root);
@@ -208,6 +214,9 @@ export class GraphRenderer<NodeData = any, EdgeData = any> extends Renderer<
    * @param node
    */
   fireBullet(node: GraphLayoutNode<NodeData>) {
+    if (!this.root) {
+      return;
+    }
     select(this.root).selectAll('g.dx-edges').selectAll('path').call(createBullets(this.root, node.id));
   }
 }
@@ -250,14 +259,8 @@ const createNode: D3Callable = <Data>(group: D3Selection, options: GraphRenderer
       options.onNodePointerEnter(node, event);
     });
 
-    group.attr('data-hover', 'handled'); // TODO(burdon): ???
+    group.attr('data-hover', 'handled');
   } else if (options.highlight !== false) {
-    // `dx-node-active` is a graph-renderer-private state flag — used as a
-    // mutable boolean on the DOM element across event handlers, not as a
-    // Tailwind utility. Renamed from `dx-active` (which had no CSS rule
-    // and collided with the global `dx-*` utility namespace; the canonical
-    // selection utilities are `dx-selected` / `dx-current` — see
-    // `ui-theme/src/css/components/selected.md`).
     circle.on('pointerenter', function () {
       select(this.closest('g.dx-node')).raise();
       if (options.labels) {

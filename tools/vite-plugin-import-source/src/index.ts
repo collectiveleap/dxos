@@ -30,7 +30,10 @@ const PluginImportSource = ({
 }: PluginImportSourceOptions = {}): Plugin => {
   let resolver: ResolverFactory;
 
-  const globOptions = { dot: true };
+  // `nocomment: true` keeps Minimatch from treating leading `#` (used for Node
+  // subpath imports like `#diagnostics-broadcast`) as a comment pattern that
+  // matches nothing.
+  const globOptions = { dot: true, nocomment: true };
   const isMatch = (filePath: string) =>
     include.some((pattern) => Minimatch(filePath, pattern, globOptions)) &&
     !exclude.some((pattern) => Minimatch(filePath, pattern, globOptions));
@@ -61,8 +64,8 @@ const PluginImportSource = ({
 
         // Filter by package name pattern before resolving.
         const match =
-          include.some((pattern) => Minimatch(source, pattern, { dot: true })) &&
-          !exclude.some((pattern) => Minimatch(source, pattern, { dot: true }));
+          include.some((pattern) => Minimatch(source, pattern, globOptions)) &&
+          !exclude.some((pattern) => Minimatch(source, pattern, globOptions));
 
         if (!match) {
           verbose && console.log(`[plugin-import-source] ${source} -> excluded`);
@@ -70,6 +73,17 @@ const PluginImportSource = ({
         }
 
         if (!importer) {
+          return null;
+        }
+
+        // Don't re-route `#*` subpath imports to source when the importer
+        // is already in a compiled `dist/` tree. Compiled packages expect
+        // their own subpath imports to stay on the dist→dist chain;
+        // jumping back to source would pull in TypeScript that may not be
+        // browser-safe (e.g. raw `node:path` in `random-access-storage`'s
+        // src). Non-subpath `@dxos/*` imports from dist are unaffected —
+        // they still benefit from source resolution.
+        if (source.startsWith('#') && importer.includes('/dist/')) {
           return null;
         }
 

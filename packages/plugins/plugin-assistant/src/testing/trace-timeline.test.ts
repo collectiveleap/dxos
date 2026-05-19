@@ -205,8 +205,9 @@ describe('Trace timeline', () => {
           const graph = renderTimelineAscii(commits, branches);
           expect(`\n${graph}\n`).toMatchInlineSnapshot(`
                   "
-                  ●  [function] Agent
-                  ●  [function] Agent - Success
+                  ●     [function] Run Routine
+                  ├──●  [user] Research the given topic, or object.
+                  ◆──╯  [function] Run Routine - Success
                   "
                 `);
         },
@@ -231,11 +232,8 @@ describe('Trace timeline', () => {
           const graph = renderTimelineAscii(commits, branches);
           expect(`\n${graph}\n`).toMatchInlineSnapshot(`
                   "
-                  ●  [function] Reply
                   ●  [function] Reply - Success
-                  ●  [function] Reply
                   ●  [function] Reply - Success
-                  ●  [function] Reply
                   ●  [function] Reply - Success
                   "
                 `);

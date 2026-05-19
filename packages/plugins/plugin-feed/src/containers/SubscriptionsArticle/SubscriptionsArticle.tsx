@@ -9,7 +9,7 @@ import { LayoutOperation } from '@dxos/app-toolkit';
 import { type AppSurface, useLayout } from '@dxos/app-toolkit/ui';
 import { Filter, Obj } from '@dxos/echo';
 import { invariant } from '@dxos/invariant';
-import { SpaceOperation } from '@dxos/plugin-space/operations';
+import { SpaceOperation } from '@dxos/plugin-space';
 import { useQuery } from '@dxos/react-client/echo';
 import { Panel, Toolbar, useTranslation } from '@dxos/react-ui';
 import { linkedSegment } from '@dxos/react-ui-attention';
@@ -17,7 +17,7 @@ import { useSelected } from '@dxos/react-ui-attention';
 
 import { SubscriptionStack, type SubscriptionStackAction } from '#components';
 import { meta } from '#meta';
-import { FeedOperation } from '#operations';
+import { FeedOperation } from '#types';
 import { Subscription } from '#types';
 
 export type SubscriptionsArticleProps = AppSurface.SpaceArticleProps;
@@ -27,7 +27,7 @@ export const SubscriptionsArticle = ({ role, space, attendableId }: Subscription
   const { invokePromise } = useOperationInvoker();
   const layout = useLayout();
 
-  const feeds = useQuery(space.db, Filter.type(Subscription.Feed));
+  const feeds = useQuery(space.db, Filter.type(Subscription.Subscription));
   const currentId = useSelected(attendableId, 'single');
 
   const handleAction = useCallback(
@@ -77,7 +77,7 @@ export const SubscriptionsArticle = ({ role, space, attendableId }: Subscription
   const handleCreate = useCallback(() => {
     void invokePromise(SpaceOperation.OpenCreateObject, {
       target: space.db,
-      typename: Subscription.Feed.typename,
+      typename: Subscription.Subscription.typename,
     });
   }, [space, invokePromise]);
 

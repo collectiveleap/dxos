@@ -24,10 +24,10 @@
       "path": "../../common/util"
     },
     {
-      "path": "../../core/ai"
+      "path": "../../core/compute/ai"
     },
     {
-      "path": "../../core/operation"
+      "path": "../../core/compute/operation"
     },
     {
       "path": "../../sdk/app-framework"
@@ -42,10 +42,10 @@
       "path": "../plugin-assistant"
     },
     {
-      "path": "../plugin-help"
+      "path": "../plugin-navtree"
     },
     {
-      "path": "../plugin-navtree"
+      "path": "../plugin-testing"
     }
   ]
 }

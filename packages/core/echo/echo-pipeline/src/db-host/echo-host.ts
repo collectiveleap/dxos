@@ -67,6 +67,12 @@ export type EchoHostProps = {
    * Callback to run blocking queue sync.
    */
   syncQueue?: (ctx: Context, request: SyncQueueRequest) => Promise<void>;
+
+  /**
+   * Enable Subduction sedimentree transport for Automerge document replication.
+   * @default false
+   */
+  useSubduction?: boolean;
 };
 
 /**
@@ -101,6 +107,7 @@ export class EchoHost extends Resource {
     runtime,
     assignQueuePositions = false,
     syncQueue,
+    useSubduction,
   }: EchoHostProps) {
     super();
 
@@ -110,6 +117,7 @@ export class EchoHost extends Resource {
       dataMonitor: this._echoDataMonitor,
       peerIdProvider,
       getSpaceKeyByRootDocumentId,
+      useSubduction,
     });
 
     this._runtime = runtime;
@@ -136,11 +144,9 @@ export class EchoHost extends Resource {
     this._dataService = new DataServiceImpl({
       automergeHost: this._automergeHost,
       spaceStateManager: this._spaceStateManager,
-      updateIndexes: async () => {
-        do {
-          await this._updateIndexes.runBlocking();
-        } while (!this._indexesUpToDate);
-      },
+      // Delegate to the public method so the closed-host early-out and
+      // cooperative loop apply uniformly to the RPC handler path.
+      updateIndexes: () => this.updateIndexes(),
     });
 
     trace.diagnostic<EchoStatsDiagnostic>({
@@ -264,6 +270,17 @@ export class EchoHost extends Resource {
   }
 
   protected override async _close(ctx: Context): Promise<void> {
+    // Drain any in-flight indexer task before the Resource base disposes
+    // `this._ctx`. Without this, an in-flight `DataServiceImpl.updateIndexes`
+    // RPC handler's `do { await runBlocking() } while (!_indexesUpToDate)`
+    // loop can hit a disposed ctx on its next iteration and throw
+    // `ContextDisposedError` — which escapes as an unhandled rejection
+    // because the originating client `flush()` is fire-and-forget at the
+    // test layer. The cooperative `_indexesUpToDate = true` set inside
+    // `_runUpdateIndexes` lets the loop exit cleanly once the current
+    // iteration finishes.
+    await this._updateIndexes?.join();
+
     await this._queryService.close(ctx);
     await this._spaceStateManager.close(ctx);
     await this._automergeHost.close();
@@ -278,17 +295,34 @@ export class EchoHost extends Resource {
 
   /**
    * Perform any pending index updates.
+   *
+   * Bails as a no-op when the host has been closed: a late `db.flush()` RPC
+   * (client still has an open service ref while the host is in/post-teardown)
+   * has nothing to update against. The pre-loop and post-iteration
+   * `_ctx.disposed` checks prevent `runBlocking` from being entered against a
+   * disposed context — which would throw `ContextDisposedError` and escape as
+   * an unhandled rejection at the fire-and-forget originating caller. Other
+   * `Resource` methods in this codebase (e.g. `LevelDBStorageAdapter.load`)
+   * follow the same closed-host early-out pattern.
    */
   async updateIndexes(): Promise<void> {
+    if (this._ctx.disposed) {
+      return;
+    }
     do {
       await this._updateIndexes.runBlocking();
+      if (this._ctx.disposed) {
+        return;
+      }
     } while (!this._indexesUpToDate);
   }
 
   /**
    * Loads the document handle from the repo and waits for it to be ready.
+   *
+   * @returns `null` when the document is not available yet (e.g. storage-only load with no local chunks).
    */
-  async loadDoc<T>(ctx: Context, documentId: AnyDocumentId, opts?: LoadDocOptions): Promise<DocHandle<T>> {
+  async loadDoc<T>(ctx: Context, documentId: AnyDocumentId, opts?: LoadDocOptions): Promise<DocHandle<T> | null> {
     return await this._automergeHost.loadDoc(ctx, documentId, opts);
   }
 
@@ -330,9 +364,10 @@ export class EchoHost extends Resource {
     const handle = await this._automergeHost.loadDoc<DatabaseDirectory>(ctx, automergeUrl, {
       fetchFromNetwork: true,
     });
-    await handle.whenReady();
+    invariant(handle, 'Space root document must load before assignment.');
+    const query = this._automergeHost.findWithProgress<DatabaseDirectory>(handle.documentId);
 
-    return this._spaceStateManager.assignRootToSpace(spaceId, handle);
+    return this._spaceStateManager.assignRootToSpace(spaceId, query);
   }
 
   // TODO(dmaretskyi): Change to document id.
@@ -377,6 +412,14 @@ export class EchoHost extends Resource {
   }
 
   private _runUpdateIndexes = async (): Promise<void> => {
+    if (this._ctx.disposed || !this.isOpen) {
+      // Signal the `updateIndexes` RPC handler's `do-while` loop to exit
+      // cooperatively. Without this, the loop sees `_indexesUpToDate === false`
+      // and calls `runBlocking` again, which throws on the disposed context.
+      this._indexesUpToDate = true;
+      return;
+    }
+
     try {
       const combinedResult = _makeEmptyMergedResult();
 
@@ -398,6 +441,10 @@ export class EchoHost extends Resource {
             },
           },
         });
+      }
+      if (this._ctx.disposed || !this.isOpen) {
+        this._indexesUpToDate = true;
+        return;
       }
 
       {
@@ -443,6 +490,10 @@ export class EchoHost extends Resource {
         this._queryService.invalidateQueries(hint);
       }
     } catch (err) {
+      if (this._ctx.disposed || !this.isOpen) {
+        this._indexesUpToDate = true;
+        return;
+      }
       log.catch(err);
       // Failsafe: prevent queries from freezing if the indexer faults.
       this._queryService.invalidateQueries();
