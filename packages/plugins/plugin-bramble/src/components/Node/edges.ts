@@ -665,19 +665,22 @@ export const moveNodeToSlot = (
   // Migrate the destination parent's legacy children first so the
   // computed order lands cleanly among edge-only siblings.
   ensureMigratedChildren(db, toParent);
+  // CAPTURE the old edge reference BEFORE creating the new one. If
+  // fromParent === toParent (same-parent reorder), the new edge
+  // we're about to create would ALSO match `target.id ===
+  // draggedNode.id` and `.find()` could return it first instead of
+  // the original — leading to removing the new edge and leaving
+  // the original in place (a silent no-op move).
+  const fromEdgesBefore = childEdgesOf(db, fromParent);
+  const oldEdge = fromEdgesBefore.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
   const { beforeEdge, afterEdge } = computeSlotEdges(db, toParent, anchor, position);
-  // Try the new edge first; cycle guard inside createEdge returns
+  // Try the new edge; cycle guard inside createEdge returns
   // undefined if this would close a loop. Only commit the old-edge
   // removal once the new edge is in place.
   const newEdge = createEdge(db, toParent, draggedNode, { order: orderBetween(beforeEdge, afterEdge) });
   if (!newEdge) {
     return false;
   }
-  // Remove the specific incoming edge from fromParent → draggedNode
-  // (the dragged-from occurrence). Other parents (if multi-parent
-  // per F-DAG.Phase3e) retain their incoming edges.
-  const fromEdges = childEdgesOf(db, fromParent);
-  const oldEdge = fromEdges.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
   if (oldEdge) {
     try {
       db.remove(oldEdge);
@@ -706,6 +709,10 @@ export const moveNodeAsLastChild = (
     return false;
   }
   ensureMigratedChildren(db, toParent);
+  // Capture the old edge BEFORE creating the new one — same race
+  // condition as in moveNodeToSlot when fromParent === toParent.
+  const fromEdgesBefore = childEdgesOf(db, fromParent);
+  const oldEdge = fromEdgesBefore.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
   // `createEdge` with no explicit `order` defaults to
   // `nextOrderFor(db, toParent)` — appends after every existing
   // child. Cycle guard fires before the edge write.
@@ -713,8 +720,6 @@ export const moveNodeAsLastChild = (
   if (!newEdge) {
     return false;
   }
-  const fromEdges = childEdgesOf(db, fromParent);
-  const oldEdge = fromEdges.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
   if (oldEdge) {
     try {
       db.remove(oldEdge);

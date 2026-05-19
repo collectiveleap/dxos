@@ -209,7 +209,17 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
             mode: expanded && hasChildren ? 'expanded' : 'standard',
             block: [],
           }),
-        onDrag: ({ self }) => {
+        onDrag: ({ source, self }) => {
+          // F-Drag-Drop: when the user drags a Node over its own
+          // row, canDrop rejects the drop but pragmatic's onDrag
+          // still fires — so the indicator would render an
+          // invitation to a slot that won't accept. Mirror
+          // canDrop's same-source check here so the indicator
+          // matches the drop-time eligibility.
+          if ((source.data as any)?.id === block.id) {
+            setDropInstruction(null);
+            return;
+          }
           const next = extractInstruction(self.data);
           setDropInstruction(next ?? null);
         },
