@@ -4327,6 +4327,163 @@ feat F-Versioning: pinned-target edges preserve the target's snapshot at pin tim
         placeholder.
 ```
 
+```mdl
+feat F-Drag-Drop: drag a Node by its bullet to move it within the Bramble    # Increment Drag-Drop (not started)
+  desc: |
+    Direct-manipulation reordering: the user click-drags a
+    Node X by its bullet, sees a rendering of X (plus its
+    visible subtree) following the cursor, sees a visual
+    indicator (a dropspot) over the slot the drop would
+    commit to, and commits the move by releasing the cursor.
+    The move rewires X's incoming `'child'` Edge from its
+    old position to the new position per R-Edges-First-Class
+    and substrate-principles §10 (non-destructive identity —
+    X's identity is preserved across the move; its history
+    remains reachable via `Obj.checkoutVersion`).
+
+    Cycle prevention: dropspots inside X's own subtree are
+    not eligible during the drag — the user is never
+    visually invited toward a slot that would make X a
+    descendant of itself. The same cycle predicate
+    `createEdge` enforces per F-DAG.Phase5.
+
+    Interaction with R-Pending-Row-Is-The-Empty-Bullet:
+    every pending row has a dropspot that, when committed,
+    routes X through the pending row's `onAddExisting(X)`
+    path — promoting the pending row's slot by attaching X
+    structurally to the pending row's parent at the slot
+    per R-Edges-First-Class.
+
+  req F-Drag-Drop.click-drag-starts-drag:
+    given: I click to drag on the bullet for an existing
+      Node X
+    when: I am dragging Node X
+    then:
+      - a rendering of X — including the expand/collapse
+        indicator, the bullet, X's content, and X's visible
+        subtree — follows the cursor;
+      - X in its original location on the page is rendered
+        dimmed.
+
+  req F-Drag-Drop.dragging-shows-dropspot-indicator:
+    given: I am dragging some Node X
+    when: my cursor goes over a dropspot for X (per
+      F-Drag-Drop.dropspot-placement +
+      F-Drag-Drop.dropspot-rendering)
+    then:
+      - a visual indicator for the dropspot underneath the
+        cursor is rendered per
+        F-Drag-Drop.dropspot-rendering.
+
+  req F-Drag-Drop.drop-changes-edges:
+    given: I am dragging some Node X
+    when: I release the cursor over a dropspot
+    then:
+      - the incoming `'child'` Edge from X's old parent to
+        X at the dragged-from occurrence is removed;
+      - a new `'child'` Edge from the dropspot's parent to
+        X is created at the dropspot's slot, with an
+        `order` landing X at the correct position via
+        `orderBetween` per R-Edges-First-Class;
+      - X's identity is preserved (the same Bramble.Node)
+        — per substrate-principles §10, the move is non-
+        destructive; X's history remains reachable via
+        `Obj.version` / `Obj.checkoutVersion`.
+
+  req F-Drag-Drop.dropspot-placement:
+    given: a Bramble pane displays a tree of Nodes
+    and: the user is dragging some Node X (per
+      F-Drag-Drop.click-drag-starts-drag)
+    when: the renderer evaluates the visible tree for
+      dropspots
+    then:
+      - every visible Node N has two between-rows
+        dropspots — one immediately above N and one
+        immediately below N in N's parent's children list
+        — each at N's structural depth;
+      - each between-rows dropspot's left edge aligns with
+        N's bullet column (including N's chevron / expand-
+        collapse control); its right edge is the right
+        edge of the pane's body area;
+      - every visible pending row R (per
+        R-Pending-Row-Is-The-Empty-Bullet — leaf-row-end,
+        page-root, or sibling-slot pending rows alike) has
+        a pending-row dropspot at R's slot, sized to
+        surround R's bullet column through the right edge
+        of the pane's body area;
+      - when N is the last visible descendant in an
+        ancestor A's expanded subtree, N's below-dropspot
+        and A's below-dropspot coexist vertically — each
+        at its own structural indent (N's deeper than
+        A's), so both are reachable by horizontal cursor
+        position;
+      - each between-rows dropspot semantically represents
+        a sibling slot — the above-N dropspot is the
+        position immediately before N in N's parent's
+        children list, and the below-N dropspot is the
+        position immediately after N;
+      - each pending-row dropspot semantically represents
+        the pending row's slot — dropping into it routes
+        through the pending row's `onAddExisting(X)` path
+        per R-Pending-Row-Is-The-Empty-Bullet (the pending
+        row's slot is filled by attaching X via a
+        structural `'child'` Edge per R-Edges-First-Class);
+      - the above-X and below-X dropspots (whose slots
+        correspond to dropping X immediately before /
+        after itself in X's current parent's children
+        list) are NOT in the dropspot set during the drag
+        — they are no-ops;
+      - any dropspot that lives within X's own subtree
+        (whose slot would make X a descendant of itself,
+        creating a cycle) is NOT in the dropspot set
+        during the drag — the same cycle-prevention
+        predicate `createEdge` enforces per F-DAG.Phase5;
+      - X's original location is rendered dimmed (per
+        F-Drag-Drop.click-drag-starts-drag); the dimmed
+        region contains no eligible dropspots, matching
+        the visual cue that those slots are not valid
+        drop targets.
+
+  req F-Drag-Drop.dropspot-rendering:
+    given: a Bramble pane displays one or more dropspots
+      per F-Drag-Drop.dropspot-placement
+    and: the user is dragging some Node X
+    when: the cursor moves over the visible tree
+    then:
+      - at any moment, at most one dropspot is "active" —
+        the dropspot the user would commit X to if they
+        released the cursor at the current position;
+      - the active dropspot is determined by the cursor's
+        position:
+        - vertically: the cursor's y-coordinate selects
+          the vertical band between two visible rows (or
+          the band over a pending row); dropspots whose
+          flanking rows bracket this band are candidates;
+        - horizontally: among candidates that coexist at
+          the same vertical band (per
+          F-Drag-Drop.dropspot-placement's coexistence
+          clause), the dropspot whose structural indent
+          is closest to the cursor's x-coordinate is the
+          active one;
+      - the active dropspot renders visually:
+        - a between-rows dropspot renders as a blue
+          horizontal line spanning from the dropspot's
+          left edge to the right edge of the pane's body
+          area;
+        - a pending-row dropspot renders as a box: dark-
+          blue outline, light-blue fill; the pending
+          row's faint bullet and editable area remain
+          visible inside the box;
+      - dropspots that are NOT the active one do not
+        render visually — the user sees at most one
+        dropspot indicator at any time;
+      - when the cursor is not over any dropspot's region
+        (e.g., over the H1, over a chip, over the side
+        rail, over empty space at the bottom of the page
+        beyond the page-root pending row), no dropspot is
+        active and no indicator renders.
+```
+
 ## Acceptance
 
 ```mdl
