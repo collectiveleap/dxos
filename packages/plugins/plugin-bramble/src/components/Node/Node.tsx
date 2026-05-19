@@ -360,8 +360,8 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
     // is expanded so the indented block remains visible. Per F-V2.12
     // new Nodes are collapsed by default — indenting under a freshly-
     // created sibling would otherwise hide the indented block.
-    Obj.update(prevSibling, (node) => {
-      (node as any).state = { ...((node as any).state ?? {}), expanded: true };
+    Obj.update(prevSibling, (prevSibling) => {
+      (prevSibling as any).state = { ...((prevSibling as any).state ?? {}), expanded: true };
     });
     setFocusId(block.id);
   };
@@ -397,8 +397,8 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
     // is expanded so the linked occurrence remains visible (same
     // rationale as handleIndent — without this, linking under a
     // collapsed sibling hides the block).
-    Obj.update(prevSibling, (node) => {
-      (node as any).state = { ...((node as any).state ?? {}), expanded: true };
+    Obj.update(prevSibling, (prevSibling) => {
+      (prevSibling as any).state = { ...((prevSibling as any).state ?? {}), expanded: true };
     });
     // Note: we do NOT remove the existing parent → block edge.
     setFocusId(block.id);

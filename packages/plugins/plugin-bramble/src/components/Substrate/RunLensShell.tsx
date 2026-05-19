@@ -164,8 +164,8 @@ export const RunLensShell = ({
       for (const ref of supertags) {
         const instance = ref?.target;
         if (instance && Obj.getTypename(instance) === Bramble.Run.typename) {
-          Obj.update(instance, (inst: any) => {
-            inst.completed = new Date().toISOString();
+          Obj.update(instance, (instance: any) => {
+            instance.completed = new Date().toISOString();
           });
           break;
         }

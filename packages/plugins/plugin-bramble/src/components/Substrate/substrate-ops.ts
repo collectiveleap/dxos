@@ -56,9 +56,9 @@ const findSchemaByTypename = (db: any, typename: string): Schema.Schema.Any | un
 const applySupertag = (db: any, node: Bramble.Node, schema: Schema.Schema.Any): any => {
   const instance = Obj.make(schema as any, initialPropsForTag(schema) as any);
   db.add(instance);
-  Obj.update(node, (n: any) => {
-    const previous = ((n.supertags ?? []) as readonly any[]);
-    n.supertags = [...previous, db.makeRef(Obj.getDXN(instance))];
+  Obj.update(node, (node: any) => {
+    const previous = ((node.supertags ?? []) as readonly any[]);
+    node.supertags = [...previous, db.makeRef(Obj.getDXN(instance))];
   });
   return instance;
 };
