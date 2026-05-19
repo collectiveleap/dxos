@@ -639,6 +639,92 @@ export const addExistingAtSlot = (
   setFocusId(target.id);
 };
 
+// F-Drag-Drop.drop-changes-edges: move `draggedNode` from its
+// current occurrence under `fromParent` to a new occurrence under
+// `toParent` at the slot adjacent to `anchor` (before / after).
+// Per the spec, the move rewires X's incoming `'child'` Edge from
+// the old position to the new position; X's identity is preserved.
+//
+// Cycle-safe: createEdge's wouldCreateCycle guard runs first. If
+// the new edge would close a cycle, no edge changes are made and
+// the function returns false. The old edge stays in place.
+//
+// Returns true on successful move, false on cycle-rejection or
+// missing inputs.
+export const moveNodeToSlot = (
+  db: any,
+  draggedNode: Bramble.Node,
+  fromParent: Bramble.Node,
+  toParent: Bramble.Node,
+  anchor: Bramble.Node,
+  position: 'before' | 'after',
+): boolean => {
+  if (!db || !draggedNode || !fromParent || !toParent || !anchor) {
+    return false;
+  }
+  // Migrate the destination parent's legacy children first so the
+  // computed order lands cleanly among edge-only siblings.
+  ensureMigratedChildren(db, toParent);
+  const { beforeEdge, afterEdge } = computeSlotEdges(db, toParent, anchor, position);
+  // Try the new edge first; cycle guard inside createEdge returns
+  // undefined if this would close a loop. Only commit the old-edge
+  // removal once the new edge is in place.
+  const newEdge = createEdge(db, toParent, draggedNode, { order: orderBetween(beforeEdge, afterEdge) });
+  if (!newEdge) {
+    return false;
+  }
+  // Remove the specific incoming edge from fromParent → draggedNode
+  // (the dragged-from occurrence). Other parents (if multi-parent
+  // per F-DAG.Phase3e) retain their incoming edges.
+  const fromEdges = childEdgesOf(db, fromParent);
+  const oldEdge = fromEdges.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
+  if (oldEdge) {
+    try {
+      db.remove(oldEdge);
+    } catch {
+      /* defensive — concurrent removal, etc. */
+    }
+  }
+  return true;
+};
+
+// F-Drag-Drop: move `draggedNode` from `fromParent`'s children
+// onto `toParent`'s children as the last child. Used by the
+// pragmatic-drag-and-drop tree-item hitbox's `make-child` drop
+// instruction.
+//
+// Cycle-safe: createEdge's wouldCreateCycle guard runs first. If
+// the new edge would close a cycle, no edge changes are made and
+// the function returns false.
+export const moveNodeAsLastChild = (
+  db: any,
+  draggedNode: Bramble.Node,
+  fromParent: Bramble.Node,
+  toParent: Bramble.Node,
+): boolean => {
+  if (!db || !draggedNode || !fromParent || !toParent) {
+    return false;
+  }
+  ensureMigratedChildren(db, toParent);
+  // `createEdge` with no explicit `order` defaults to
+  // `nextOrderFor(db, toParent)` — appends after every existing
+  // child. Cycle guard fires before the edge write.
+  const newEdge = createEdge(db, toParent, draggedNode);
+  if (!newEdge) {
+    return false;
+  }
+  const fromEdges = childEdgesOf(db, fromParent);
+  const oldEdge = fromEdges.find((edge: any) => (Relation.getTarget(edge) as any)?.id === draggedNode.id);
+  if (oldEdge) {
+    try {
+      db.remove(oldEdge);
+    } catch {
+      /* defensive — concurrent removal, etc. */
+    }
+  }
+  return true;
+};
+
 // R-Pending-Row-Is-The-Empty-Bullet predicate: a Node carries
 // meaningful state on at least one axis. Returns true when EVERY
 // axis is empty (the retirement condition).

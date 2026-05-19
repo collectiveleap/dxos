@@ -2,10 +2,18 @@
 // Copyright 2025 DXOS.org
 //
 
+import {
+  type Instruction,
+  attachInstruction,
+  extractInstruction,
+} from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
+import { TreeDropIndicator } from '@dxos/react-ui';
 
 import { pendingRowFocusId, useBacklinkCount, useOpenPane, usePendingSlot, useZoom } from '../backlinks';
 import { Editor } from '../Editor';
@@ -19,6 +27,8 @@ import {
   ensureMigratedChildren,
   findEdge,
   isFullyEmpty,
+  moveNodeAsLastChild,
+  moveNodeToSlot,
   orderBetween,
   promotePendingAtSlot,
   retireNode,
@@ -113,6 +123,19 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
   // PendingChildRow at the matching slot.
   const { pendingSlot, setPendingSlot } = usePendingSlot();
 
+  // F-Drag-Drop: per-row drag/drop wiring using pragmatic-drag-and-
+  // drop. `rowRef` anchors both the draggable (the Bullet, found via
+  // selector inside the row) and the drop target (the row itself).
+  // `dropInstruction` carries the active drop-position computed by
+  // the tree-item hitbox per F-Drag-Drop.dropspot-rendering — one of
+  // `'reorder-above'`, `'reorder-below'`, `'make-child'`, with
+  // cursor-x indent discrimination handled by the hitbox.
+  // `TreeDropIndicator` from `@dxos/react-ui` renders the visual
+  // (blue line for sibling, box outline for child) using the same
+  // primitive plugin-navtree uses, ensuring visual consistency.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [dropInstruction, setDropInstruction] = useState<Instruction | null>(null);
+
   // F-Retire-Empty-Node: watch the transition from "carries
   // meaningful state on at least one axis" to "empty across every
   // axis." On that transition (e.g. user backspaces through the
@@ -141,6 +164,94 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
     }
     retireNode(db, block, parent, setPendingSlot, setFocusId, pendingRowFocusId);
   }, [snapshot, childRefs, parent, block, setPendingSlot, setFocusId]);
+
+  // F-Drag-Drop: wire pragmatic-drag-and-drop on this row. The
+  // Bullet `<button>` is the draggable handle (matches
+  // F-Drag-Drop.click-drag-starts-drag — "click to drag on the
+  // bullet"); the entire row is a drop target. `attachInstruction`
+  // from the tree-item hitbox computes the active drop position
+  // per F-Drag-Drop.dropspot-placement (sibling-above /
+  // sibling-below / make-child / reparent based on cursor x/y
+  // relative to the row); `extractInstruction` reads it back during
+  // drag and drop. The drop handler maps the instruction to the
+  // appropriate `moveNodeToSlot` / `moveNodeAsLastChild` helper
+  // per F-Drag-Drop.drop-changes-edges.
+  useEffect(() => {
+    const rowEl = rowRef.current;
+    if (!rowEl) {
+      return;
+    }
+    const bulletEl = rowEl.querySelector<HTMLButtonElement>('button[aria-label*="Zoom"]');
+    if (!bulletEl) {
+      return;
+    }
+    const itemData = { id: block.id, parentId: parent.id, kind: 'bramble.node' as const };
+    return combine(
+      draggable({
+        element: bulletEl,
+        getInitialData: () => itemData,
+      }),
+      dropTargetForElements({
+        element: rowEl,
+        canDrop: ({ source }) => (source.data as any)?.kind === 'bramble.node' && (source.data as any)?.id !== block.id,
+        getData: ({ input, element }) =>
+          attachInstruction(itemData, {
+            input,
+            element,
+            // TODO(claude): pass real `currentLevel` once the Node
+            // component receives a `level` prop from Graph /
+            // recursive Node's children render. For now level=0
+            // means the indicator's indent is uniform regardless of
+            // tree depth — visual indent is off, but the drop
+            // mechanism is correct.
+            indentPerLevel: 24,
+            currentLevel: 0,
+            mode: expanded && hasChildren ? 'expanded' : 'standard',
+            block: [],
+          }),
+        onDrag: ({ self }) => {
+          const next = extractInstruction(self.data);
+          setDropInstruction(next ?? null);
+        },
+        onDragLeave: () => setDropInstruction(null),
+        onDrop: ({ source, self }) => {
+          const instruction = extractInstruction(self.data);
+          setDropInstruction(null);
+          if (!instruction) {
+            return;
+          }
+          const db = Obj.getDatabase(parent);
+          if (!db) {
+            return;
+          }
+          const draggedId = (source.data as any)?.id as string | undefined;
+          const fromParentId = (source.data as any)?.parentId as string | undefined;
+          if (!draggedId || !fromParentId) {
+            return;
+          }
+          const dragged = db.getObjectById?.(draggedId) as Bramble.Node | undefined;
+          const fromParent = db.getObjectById?.(fromParentId) as Bramble.Node | undefined;
+          if (!dragged || !fromParent) {
+            return;
+          }
+          switch (instruction.type) {
+            case 'reorder-above':
+              moveNodeToSlot(db, dragged, fromParent, parent, block, 'before');
+              break;
+            case 'reorder-below':
+              moveNodeToSlot(db, dragged, fromParent, parent, block, 'after');
+              break;
+            case 'make-child':
+              moveNodeAsLastChild(db, dragged, fromParent, block);
+              break;
+            // 'reparent' and 'instruction-blocked' are handled by
+            // the hitbox internally; no action taken on drop for
+            // those cases in this iteration.
+          }
+        },
+      }),
+    );
+  }, [block.id, parent.id, expanded, hasChildren]);
 
   const toggleExpanded = () => {
     // F-DAG Phase 4: persist collapse on the edge `parent → block`
@@ -333,10 +444,17 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
   return (
     <div>
       <div
-        className='flex items-baseline gap-1'
+        ref={rowRef}
+        className='flex items-baseline gap-1 relative'
         onMouseEnter={() => setRowHovered(true)}
         onMouseLeave={() => setRowHovered(false)}
       >
+        {/* F-Drag-Drop.dropspot-rendering: the active drop
+            instruction renders as a TreeDropIndicator overlay —
+            blue sibling line for reorder-above / reorder-below,
+            outlined box for make-child. Pointer-events-none so
+            cursor passes through to the row's drop handler. */}
+        {dropInstruction && <TreeDropIndicator instruction={dropInstruction} gap={2} />}
         <ExpandChevron
           expanded={expanded}
           visible={rowHovered}
