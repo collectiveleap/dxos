@@ -13,7 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Obj, Relation } from '@dxos/echo';
 import { useObject } from '@dxos/react-client/echo';
-import { TreeDropIndicator } from '@dxos/react-ui';
+import { TreeItem as ReactUiTreeItem } from '@dxos/react-ui';
 
 import { pendingRowFocusId, useBacklinkCount, useOpenPane, usePendingSlot, useZoom } from '../backlinks';
 import { Editor } from '../Editor';
@@ -452,9 +452,12 @@ export const Node = ({ block, parent, grandparent, focusId, focusAtEnd, setFocus
         {/* F-Drag-Drop.dropspot-rendering: the active drop
             instruction renders as a TreeDropIndicator overlay —
             blue sibling line for reorder-above / reorder-below,
-            outlined box for make-child. Pointer-events-none so
-            cursor passes through to the row's drop handler. */}
-        {dropInstruction && <TreeDropIndicator instruction={dropInstruction} gap={2} />}
+            outlined box for make-child. Accessed via
+            `TreeItem.DropIndicator` (the public surface of the
+            TreeDropIndicator primitive on @dxos/react-ui).
+            Pointer-events-none so cursor passes through to the
+            row's drop handler. */}
+        {dropInstruction && <ReactUiTreeItem.DropIndicator instruction={dropInstruction} gap={2} />}
         <ExpandChevron
           expanded={expanded}
           visible={rowHovered}
