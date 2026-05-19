@@ -310,9 +310,6 @@
       "path": "packages/plugins/plugin-board/tsconfig.json"
     },
     {
-      "path": "packages/plugins/plugin-bramble/tsconfig.json"
-    },
-    {
       "path": "packages/plugins/plugin-calls/tsconfig.json"
     },
     {

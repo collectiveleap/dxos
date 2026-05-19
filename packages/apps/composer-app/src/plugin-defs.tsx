@@ -14,7 +14,6 @@ import { AttentionPlugin } from '@dxos/plugin-attention/plugin';
 import { AutomationPlugin } from '@dxos/plugin-automation/plugin';
 import { BlueskyPlugin } from '@dxos/plugin-bluesky/plugin';
 import { BoardPlugin } from '@dxos/plugin-board/plugin';
-import { BramblePlugin } from '@dxos/plugin-bramble';
 import { CallsPlugin } from '@dxos/plugin-calls/plugin';
 import { ChessPlugin } from '@dxos/plugin-chess/plugin';
 import { ClientPlugin } from '@dxos/plugin-client/plugin';
@@ -166,7 +165,6 @@ export const getDefaults = ({ isDev, isLocal, isLabs }: PluginConfig): string[] 
 
     // Labs
     (isDev || isLabs) && [
-      BramblePlugin.meta.id,
       CallsPlugin.meta.id,
       CodePlugin.meta.id,
       FeedPlugin.meta.id,
@@ -206,7 +204,6 @@ export const getPlugins = ({
     AutomationPlugin(),
     BlueskyPlugin(),
     BoardPlugin(),
-    BramblePlugin(),
     CallsPlugin(),
     ChessPlugin(),
     ClientPlugin({

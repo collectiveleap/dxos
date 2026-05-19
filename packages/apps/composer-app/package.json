@@ -60,7 +60,6 @@
     "@dxos/plugin-automation": "workspace:*",
     "@dxos/plugin-bluesky": "workspace:*",
     "@dxos/plugin-board": "workspace:*",
-    "@dxos/plugin-bramble": "workspace:*",
     "@dxos/plugin-calls": "workspace:*",
     "@dxos/plugin-chess": "workspace:*",
     "@dxos/plugin-client": "workspace:*",
