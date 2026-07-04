@@ -6,5 +6,8 @@ import { OperationHandlerSet } from '@dxos/compute';
 
 export * from './capture';
 
-// No operations yet — REST sync and triage operations are added in later tasks.
-export const ReadwiseOperationHandlerSet = OperationHandlerSet.empty;
+/**
+ * Lazily-loaded handler set contributed to `Capabilities.OperationHandler` (see
+ * `capabilities/operation-handler.ts`). Triage operations are added in a later task.
+ */
+export const ReadwiseOperationHandlerSet = OperationHandlerSet.lazy(() => import('./sync'));

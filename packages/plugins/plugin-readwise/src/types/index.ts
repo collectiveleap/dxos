@@ -3,3 +3,4 @@
 //
 
 export * from './intent';
+export * as ReadwiseOperation from './ReadwiseOperation';
