@@ -12,6 +12,8 @@ import { proxyFetchLegacy } from '@dxos/edge-client/cors-proxy';
 import { READWISE_API_BASE } from '../constants';
 import { ReadwiseError } from '../errors';
 
+import { ReadwiseCredentials } from './credentials';
+
 //
 // Wire schemas
 //
@@ -175,11 +177,11 @@ const buildExportUrl = (params: { updatedAfter?: string; pageCursor?: string }):
 
 /** Fetches and decodes a single `export` page through the injected {@link Transport}. */
 const fetchExportPage = (
-  token: string,
   params: { updatedAfter?: string; pageCursor?: string },
-): Effect.Effect<Schema.Schema.Type<typeof ExportResponseSchema>, ReadwiseError, Transport> =>
+): Effect.Effect<Schema.Schema.Type<typeof ExportResponseSchema>, ReadwiseError, Transport | ReadwiseCredentials> =>
   Effect.gen(function* () {
     const transport = yield* Transport;
+    const { token } = yield* ReadwiseCredentials;
     const response = yield* transport.fetch(buildExportUrl(params), {
       headers: { Authorization: `Token ${token}` },
     });
@@ -200,26 +202,27 @@ const fetchExportPage = (
 export class ReadwiseApi extends Context.Tag('@dxos/plugin-readwise/ReadwiseApi')<
   ReadwiseApi,
   {
-    readonly listHighlightsSince: (cursor?: string) => Effect.Effect<ListHighlightsResult, ReadwiseError, Transport>;
+    readonly listHighlightsSince: (
+      cursor?: string,
+    ) => Effect.Effect<ListHighlightsResult, ReadwiseError, Transport | ReadwiseCredentials>;
   }
 >() {}
 
-/** `ReadwiseApi` layer, parameterized by the Readwise API token. */
-export const ReadwiseApiLayer = (token: string): Layer.Layer<ReadwiseApi> =>
-  Layer.succeed(ReadwiseApi, {
-    listHighlightsSince: (cursor) =>
-      Effect.gen(function* () {
-        const highlights: Highlight[] = [];
-        let pageCursor: string | undefined;
-        let nextCursor: string | undefined;
-        do {
-          const page = yield* fetchExportPage(token, { updatedAfter: cursor, pageCursor });
-          for (const document of page.results) {
-            highlights.push(...flattenDocument(document));
-          }
-          pageCursor = page.nextPageCursor ?? undefined;
-          nextCursor = pageCursor;
-        } while (pageCursor);
-        return { highlights, nextCursor };
-      }),
-  });
+/** `ReadwiseApi` layer. The token is sourced from {@link ReadwiseCredentials} at call time. */
+export const ReadwiseApiLayer: Layer.Layer<ReadwiseApi> = Layer.succeed(ReadwiseApi, {
+  listHighlightsSince: (cursor) =>
+    Effect.gen(function* () {
+      const highlights: Highlight[] = [];
+      let pageCursor: string | undefined;
+      let nextCursor: string | undefined;
+      do {
+        const page = yield* fetchExportPage({ updatedAfter: cursor, pageCursor });
+        for (const document of page.results) {
+          highlights.push(...flattenDocument(document));
+        }
+        pageCursor = page.nextPageCursor ?? undefined;
+        nextCursor = pageCursor;
+      } while (pageCursor);
+      return { highlights, nextCursor };
+    }),
+});

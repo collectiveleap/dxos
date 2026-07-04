@@ -9,7 +9,7 @@ import { Database } from '@dxos/echo';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 
 import fixture from '../../test/fixtures/highlights.sample.json';
-import { ReadwiseApiLayer, Transport } from '../services';
+import { ReadwiseApiLayer, ReadwiseCredentials, Transport } from '../services';
 
 /**
  * Mock {@link Transport} that always serves the Task-1 fixture as a single
@@ -22,7 +22,7 @@ export const MockTransport: Layer.Layer<Transport> = Layer.succeed(Transport, {
 });
 
 export type TestLayerOptions = {
-  /** Readwise API token to construct `ReadwiseApiLayer` with. Not read anywhere by the mock transport. */
+  /** Readwise API token to provide via `ReadwiseCredentials`. Not read anywhere by the mock transport. */
   token?: string;
 };
 
@@ -35,7 +35,12 @@ export const TestLayer = async (options: TestLayerOptions = {}) => {
   const builder = await new EchoTestBuilder().open();
   const { db } = await builder.createDatabase();
 
-  const layer = Layer.mergeAll(ReadwiseApiLayer(options.token ?? 'test-token'), MockTransport, Database.layer(db));
+  const layer = Layer.mergeAll(
+    ReadwiseApiLayer,
+    Layer.succeed(ReadwiseCredentials, { token: options.token ?? 'test-token' }),
+    MockTransport,
+    Database.layer(db),
+  );
 
   return {
     db,

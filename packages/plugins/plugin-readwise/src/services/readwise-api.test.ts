@@ -10,6 +10,7 @@ import { EffectEx } from '@dxos/effect';
 
 import fixture from '../../test/fixtures/highlights.sample.json';
 
+import { ReadwiseCredentials } from './credentials';
 import { ReadwiseApi, ReadwiseApiLayer, Transport } from './readwise-api';
 
 type Document = (typeof fixture)[number];
@@ -33,7 +34,8 @@ const mockTransportOf = (pages: ReadonlyArray<{ results: readonly Document[]; ne
 const runListHighlightsSince = (transport: Layer.Layer<Transport>, cursor?: string) =>
   EffectEx.runAndForwardErrors(
     ReadwiseApi.pipe(Effect.flatMap((api) => api.listHighlightsSince(cursor))).pipe(
-      Effect.provide(ReadwiseApiLayer('test-token')),
+      Effect.provide(ReadwiseApiLayer),
+      Effect.provide(Layer.succeed(ReadwiseCredentials, { token: 'test-token' })),
       Effect.provide(transport),
     ),
   );
