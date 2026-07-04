@@ -13900,6 +13900,12 @@ importers:
         specifier: 3.21.4
         version: 3.21.4
     devDependencies:
+      '@dxos/echo-client':
+        specifier: workspace:*
+        version: link:../../core/echo/echo-client
+      '@dxos/effect':
+        specifier: workspace:*
+        version: link:../../common/effect
       '@dxos/plugin-testing':
         specifier: workspace:*
         version: link:../plugin-testing

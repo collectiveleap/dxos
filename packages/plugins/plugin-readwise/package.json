@@ -89,6 +89,8 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@dxos/echo-client": "workspace:*",
+    "@dxos/effect": "workspace:*",
     "@dxos/plugin-testing": "workspace:*",
     "@dxos/react-ui": "workspace:*",
     "@dxos/storybook-utils": "workspace:*",
