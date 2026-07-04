@@ -1,5 +1,9 @@
+//
+// Copyright 2026 DXOS.org
+//
+
 import { describe, test } from 'vitest';
-import { representationFor, resultKindRegistry, INTENT_KINDS } from './intent';
+import { INTENT_KINDS, representationFor, resultKindRegistry } from './intent';
 
 describe('intent registry', () => {
   test('comment maps to a message, question and todo map to tasks', ({ expect }) => {
