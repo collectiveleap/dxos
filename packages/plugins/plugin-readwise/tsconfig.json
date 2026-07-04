@@ -41,6 +41,12 @@
       "path": "../../common/util"
     },
     {
+      "path": "../../core/compute/ai"
+    },
+    {
+      "path": "../../core/compute/assistant-toolkit"
+    },
+    {
       "path": "../../core/compute/compute"
     },
     {
