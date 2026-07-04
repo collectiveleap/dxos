@@ -1,5 +1,3 @@
-// @import-as-namespace
-
 export type IntentKind = 'comment' | 'question' | 'todo';
 
 export const INTENT_KINDS = ['comment', 'question', 'todo'] as const;
