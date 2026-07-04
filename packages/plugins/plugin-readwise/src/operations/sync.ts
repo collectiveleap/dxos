@@ -12,8 +12,8 @@ import { Cursor } from '@dxos/types';
 import { formatReadwiseSyncFailure } from '../errors';
 import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, type Transport, TransportLive } from '../services';
 import { ReadwiseOperation } from '../types';
-
 import { captureHighlights } from './capture';
+import { ensureTriageBoard } from './ensure-board';
 
 /**
  * Builds the `Sync` handler with the given {@link Transport} layer. Defaults to the production
@@ -62,7 +62,11 @@ export const makeHandler = (
             const { highlights } = yield* ReadwiseApi.pipe(
               Effect.flatMap((api) => api.listHighlightsSince(cursor.value)),
             );
-            return yield* captureHighlights({ db }, highlights);
+            const result = yield* captureHighlights({ db }, highlights);
+            // Find-or-create the triage board once per sync so it exists after the first run;
+            // idempotent, so re-running never creates a duplicate board.
+            yield* ensureTriageBoard({ db });
+            return result;
           }).pipe(
             Effect.provide(dbLayer),
             Effect.provide(ReadwiseCredentials.fromConnection(connection)),

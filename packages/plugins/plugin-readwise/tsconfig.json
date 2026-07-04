@@ -65,6 +65,9 @@
       "path": "../../sdk/react-client"
     },
     {
+      "path": "../../sdk/schema"
+    },
+    {
       "path": "../../sdk/types"
     },
     {
@@ -87,6 +90,9 @@
     },
     {
       "path": "../plugin-kanban"
+    },
+    {
+      "path": "../plugin-space"
     },
     {
       "path": "../plugin-testing"

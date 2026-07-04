@@ -5,6 +5,7 @@
 import { OperationHandlerSet } from '@dxos/compute';
 
 export * from './capture';
+export * from './ensure-board';
 
 /**
  * Lazily-loaded handler set contributed to `Capabilities.OperationHandler` (see

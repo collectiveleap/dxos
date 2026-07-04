@@ -19,6 +19,11 @@
       "types": "./dist/types/src/capabilities/index.d.ts",
       "default": "./dist/lib/neutral/capabilities/index.mjs"
     },
+    "#containers": {
+      "source": "./src/containers/index.ts",
+      "types": "./dist/types/src/containers/index.d.ts",
+      "default": "./dist/lib/neutral/containers/index.mjs"
+    },
     "#meta": {
       "source": "./src/meta.ts",
       "types": "./dist/types/src/meta.d.ts",
@@ -85,6 +90,7 @@
     "@dxos/plugin-kanban": "workspace:*",
     "@dxos/react-client": "workspace:*",
     "@dxos/react-ui-mosaic": "workspace:*",
+    "@dxos/schema": "workspace:*",
     "@dxos/types": "workspace:*",
     "@dxos/util": "workspace:*",
     "@effect-atom/atom-react": "catalog:",
@@ -93,6 +99,7 @@
   "devDependencies": {
     "@dxos/echo-client": "workspace:*",
     "@dxos/effect": "workspace:*",
+    "@dxos/plugin-space": "workspace:*",
     "@dxos/plugin-testing": "workspace:*",
     "@dxos/react-ui": "workspace:*",
     "@dxos/storybook-utils": "workspace:*",

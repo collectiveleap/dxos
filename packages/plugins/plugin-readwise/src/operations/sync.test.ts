@@ -5,17 +5,16 @@
 import * as Effect from 'effect/Effect';
 import { afterEach, beforeEach, describe, test } from 'vitest';
 
-import { Database, Obj, Ref, Relation } from '@dxos/echo';
+import { Database, Filter, Obj, Ref, Relation, View } from '@dxos/echo';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { EffectEx } from '@dxos/effect';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 import { Connection, SyncBinding } from '@dxos/plugin-connector';
+import { Kanban } from '@dxos/plugin-kanban';
 import { AccessToken, AnchoredTo, Cursor, Message, Task } from '@dxos/types';
 
 import { READWISE_SOURCE } from '../constants';
-
 import { MockTransport } from '../test/test-layer';
-
 import { makeHandler } from './sync';
 
 /** Seeds a real in-memory space with an AccessToken + Connection + SyncBinding, mirroring `plugin-linear`'s sync.test.ts setup. */
@@ -30,6 +29,8 @@ const seedConnection = async (builder: EchoTestBuilder) => {
     Message.Message,
     Task.Task,
     AnchoredTo.AnchoredTo,
+    Kanban.Kanban,
+    View.View,
   ]);
   const token = db.add(Obj.make(AccessToken.AccessToken, { source: READWISE_SOURCE, token: 'test-token' }));
   const connection = db.add(
@@ -75,9 +76,11 @@ describe('Readwise sync operation', () => {
     const second = await EffectEx.runAndForwardErrors(syncHandler.handler({ binding: Ref.make(binding) }));
     expect(second.created).toBe(0);
 
-    const cursorAfter = await EffectEx.runAndForwardErrors(
-      Database.load(binding.cursor).pipe(Effect.provide(dbLayer)),
-    );
+    const cursorAfter = await EffectEx.runAndForwardErrors(Database.load(binding.cursor).pipe(Effect.provide(dbLayer)));
     expect(cursorAfter.value).toBeDefined();
+
+    // `ensureTriageBoard` runs once per sync; two runs above must still leave exactly one board.
+    const boards = await db.query(Filter.type(Kanban.Kanban)).run();
+    expect(boards.length).toBe(1);
   });
 });
