@@ -60,6 +60,28 @@ describe('captureHighlights', () => {
     }
   });
 
+  test('running twice creates no duplicate Message→Bookmark AnchoredTo relations', async ({ expect }) => {
+    const { space, run, highlights, close } = await TestLayer();
+    try {
+      await run(captureHighlights(space, highlights));
+      await run(captureHighlights(space, highlights));
+
+      const messages = await space.db.query(Filter.type(Message.Message)).run();
+      expect(messages.length).toBe(8);
+
+      // Each annotation Message is anchored to its document's Bookmark (Message is the relation
+      // source, Bookmark is the target). Re-running capture must not add a second relation.
+      for (const message of messages) {
+        const relations = await space.db
+          .query(Query.select(Filter.id(message.id)).sourceOf(AnchoredTo.AnchoredTo))
+          .run();
+        expect(relations.length).toBe(1);
+      }
+    } finally {
+      await close();
+    }
+  });
+
   test('a changed note updates the existing Message rather than adding one', async ({ expect }) => {
     const { space, run, highlights, close } = await TestLayer();
     try {

@@ -168,7 +168,7 @@ const upsertMessage = (
 /** True when `message` is already anchored to `bookmark` via an `AnchoredTo` relation. */
 const isAnchored = (db: Database.Database, message: Message.Message, bookmark: Bookmark.Bookmark) =>
   Effect.tryPromise({
-    try: () => db.query(Query.select(Filter.id(message.id)).targetOf(AnchoredTo.AnchoredTo)).run(),
+    try: () => db.query(Query.select(Filter.id(message.id)).sourceOf(AnchoredTo.AnchoredTo)).run(),
     catch: (cause) => new ReadwiseError({ message: 'Failed to query AnchoredTo relations.', cause }),
   }).pipe(Effect.map((relations) => relations.some((relation) => Relation.getTarget(relation).id === bookmark.id)));
 
