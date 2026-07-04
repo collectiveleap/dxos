@@ -46,7 +46,8 @@ describe('ReadwiseApi.listHighlightsSince', () => {
 
     const { highlights, nextCursor } = await runListHighlightsSince(layer, '2026-01-01T00:00:00Z');
 
-    expect(highlights.length).toBe(7);
+    // 7 highlights + 1 synthetic document-note annotation (Notes on Local-First Software).
+    expect(highlights.length).toBe(8);
     expect(nextCursor).toBeUndefined();
 
     const first = highlights[0];
@@ -59,6 +60,8 @@ describe('ReadwiseApi.listHighlightsSince', () => {
     expect(first.note).toContain('Theory of Constraints');
     expect(first.tags).toEqual([]);
     expect(first.updated).toBe('2026-06-30T14:12:00.000Z');
+    expect(first.sourceId).toBe('70000001');
+    expect(first.sourceUniqueUrl).toBe('https://read.readwise.io/read/01example0000000000000001');
 
     // Un-noted highlight keeps an empty string, not undefined.
     const unNoted = highlights.find((highlight) => highlight.readwiseId === '8000001002');
@@ -68,9 +71,20 @@ describe('ReadwiseApi.listHighlightsSince', () => {
     const tagged = highlights.find((highlight) => highlight.readwiseId === '8000001003');
     expect(tagged?.tags).toEqual(['metrics']);
 
-    // Document with a null source_url.
+    // Document with a null source_url — sourceId remains the stable dedup key.
     const noSourceUrl = highlights.find((highlight) => highlight.sourceTitle === 'Thinking in Systems');
     expect(noSourceUrl?.sourceUrl).toBeUndefined();
+    expect(noSourceUrl?.sourceId).toBe('70000003');
+
+    // Document-level note surfaces as its own synthetic annotation.
+    const docNote = highlights.find((highlight) => highlight.readwiseId === 'docnote-70000002');
+    expect(docNote).toBeDefined();
+    expect(docNote?.note).toContain('CRDT convergence');
+    expect(docNote?.text).toBe('');
+    expect(docNote?.tags).toEqual([]);
+    expect(docNote?.sourceTitle).toBe('Notes on Local-First Software');
+    expect(docNote?.sourceId).toBe('70000002');
+    expect(docNote?.url).toBe('https://readwise.io/bookreview/70000002');
   });
 
   test('threads the cursor into the request URL', async ({ expect }) => {
@@ -91,7 +105,8 @@ describe('ReadwiseApi.listHighlightsSince', () => {
 
     const { highlights } = await runListHighlightsSince(layer);
 
-    expect(highlights.length).toBe(7);
+    // 7 highlights + 1 synthetic document-note annotation.
+    expect(highlights.length).toBe(8);
     expect(requestedUrls.length).toBe(2);
     expect(requestedUrls[1]).toContain('pageCursor=cursor-page-2');
   });

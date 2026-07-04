@@ -86,6 +86,14 @@ export interface Highlight {
   readonly sourceUrl: string | undefined;
   readonly sourceCategory: string | undefined;
   readonly sourceImage: string | undefined;
+  /**
+   * Stable per-document id (`document.user_book_id`), always present unlike
+   * `sourceUrl` (which may be `null` on the wire). This is the dedup key for
+   * the document-level Bookmark capture writes.
+   */
+  readonly sourceId: string;
+  /** Readwise Reader's own permalink for the document, always present. */
+  readonly sourceUniqueUrl: string | undefined;
 }
 
 /** Result of a single (paginated) `listHighlightsSince` call. */
@@ -142,9 +150,26 @@ export const TransportLive = {
 // Mapping
 //
 
-/** Flattens one document's highlights, carrying parent document fields onto each. */
-const flattenDocument = (document: Schema.Schema.Type<typeof DocumentWireSchema>): Highlight[] =>
-  document.highlights.map((highlight) => ({
+/** Fields shared by every annotation (highlight or document-note) flattened from a document. */
+const documentFields = (document: Schema.Schema.Type<typeof DocumentWireSchema>) => ({
+  sourceTitle: document.title,
+  sourceAuthor: document.author ?? undefined,
+  sourceUrl: document.source_url ?? undefined,
+  sourceCategory: document.category ?? undefined,
+  sourceImage: document.cover_image_url ?? undefined,
+  sourceId: String(document.user_book_id),
+  sourceUniqueUrl: document.unique_url ?? undefined,
+});
+
+/**
+ * Flattens one document's highlights, carrying parent document fields onto each. A non-empty
+ * `document_note` is treated as an annotation in its own right (per spec — document-level notes
+ * are surfaced the same way as highlights) and appended as one synthetic `Highlight` with no
+ * underlying text passage.
+ */
+const flattenDocument = (document: Schema.Schema.Type<typeof DocumentWireSchema>): Highlight[] => {
+  const shared = documentFields(document);
+  const highlights = document.highlights.map((highlight) => ({
     readwiseId: String(highlight.id),
     text: highlight.text,
     note: highlight.note,
@@ -152,12 +177,35 @@ const flattenDocument = (document: Schema.Schema.Type<typeof DocumentWireSchema>
     location: highlight.location ?? undefined,
     url: highlight.url ?? undefined,
     updated: highlight.updated_at,
-    sourceTitle: document.title,
-    sourceAuthor: document.author ?? undefined,
-    sourceUrl: document.source_url ?? undefined,
-    sourceCategory: document.category ?? undefined,
-    sourceImage: document.cover_image_url ?? undefined,
+    ...shared,
   }));
+
+  if (!document.document_note) {
+    return highlights;
+  }
+
+  // The wire format carries no document-level `updated_at`; the most recently
+  // updated highlight is the closest available signal for "when this document
+  // last changed". Falls back to epoch when the document has no highlights at
+  // all, so the field stays a deterministic string rather than reading the
+  // system clock.
+  const mostRecentHighlightUpdate = document.highlights.reduce<string | undefined>(
+    (latest, highlight) => (!latest || highlight.updated_at > latest ? highlight.updated_at : latest),
+    undefined,
+  );
+
+  const docNote: Highlight = {
+    readwiseId: `docnote-${document.user_book_id}`,
+    text: '',
+    note: document.document_note,
+    tags: [],
+    location: undefined,
+    url: document.readwise_url ?? undefined,
+    updated: mostRecentHighlightUpdate ?? new Date(0).toISOString(),
+    ...shared,
+  };
+  return [...highlights, docNote];
+};
 
 //
 // ReadwiseApi

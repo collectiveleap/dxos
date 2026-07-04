@@ -7,9 +7,12 @@ import * as Layer from 'effect/Layer';
 
 import { Database } from '@dxos/echo';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
+import { EffectEx } from '@dxos/effect';
+import { Bookmark } from '@dxos/plugin-bookmarks';
+import { AnchoredTo, Message } from '@dxos/types';
 
 import fixture from '../../test/fixtures/highlights.sample.json';
-import { ReadwiseApiLayer, ReadwiseCredentials, Transport } from '../services';
+import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, Transport } from '../services';
 
 /**
  * Mock {@link Transport} that always serves the Task-1 fixture as a single
@@ -30,10 +33,18 @@ export type TestLayerOptions = {
  * Composes a mock `Transport` + `ReadwiseApi` with a fresh in-memory ECHO
  * space, for tests exercising code that both calls the Readwise API and reads
  * or writes ECHO objects (capture/sync layers built on top of this client).
+ *
+ * `space` is a `{ db }` shape structurally compatible with `Client.Space`, so
+ * capture/sync code under test can be written against the real space
+ * parameter without depending on `@dxos/client`. `highlights` is the
+ * Task-4-client output for the fixture, pre-fetched so capture tests don't
+ * need to thread the API call themselves.
  */
 export const TestLayer = async (options: TestLayerOptions = {}) => {
   const builder = await new EchoTestBuilder().open();
-  const { db } = await builder.createDatabase();
+  const { db } = await builder.createDatabase({
+    types: [Bookmark.Bookmark, Message.Message, AnchoredTo.AnchoredTo],
+  });
 
   const layer = Layer.mergeAll(
     ReadwiseApiLayer,
@@ -42,9 +53,16 @@ export const TestLayer = async (options: TestLayerOptions = {}) => {
     Database.layer(db),
   );
 
+  const { highlights } = await EffectEx.runAndForwardErrors(
+    ReadwiseApi.pipe(Effect.flatMap((api) => api.listHighlightsSince())).pipe(Effect.provide(layer)),
+  );
+
   return {
     db,
+    space: { db },
     layer,
+    highlights,
+    run: <A, E>(effect: Effect.Effect<A, E, never>) => EffectEx.runAndForwardErrors(effect),
     close: () => builder.close(),
   };
 };
