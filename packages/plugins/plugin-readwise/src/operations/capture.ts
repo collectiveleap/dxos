@@ -4,11 +4,12 @@
 
 import * as Effect from 'effect/Effect';
 
-import { type Database, Filter, Obj, Query, Relation } from '@dxos/echo';
+import { type Database, Filter, Obj, Query, Ref, Relation } from '@dxos/echo';
+import { URI } from '@dxos/keys';
 import { Bookmark } from '@dxos/plugin-bookmarks';
-import { AnchoredTo, Message } from '@dxos/types';
+import { AnchoredTo, Message, Task } from '@dxos/types';
 
-import { READWISE_SOURCE } from '../constants';
+import { READWISE_SOURCE, TRIAGE_TAG } from '../constants';
 import { ReadwiseError } from '../errors';
 import { type Highlight } from '../services';
 
@@ -25,7 +26,21 @@ export interface CaptureSpace {
 export interface CaptureResult {
   readonly created: number;
   readonly updated: number;
+  readonly cards: number;
 }
+
+/** Maximum length of the passage snippet used as a triage `Task.title`. */
+const TRIAGE_TITLE_MAX_LENGTH = 80;
+
+/** Truncates `text` to `TRIAGE_TITLE_MAX_LENGTH` characters, appending an ellipsis when cut. */
+const truncateTitle = (text: string): string =>
+  text.length > TRIAGE_TITLE_MAX_LENGTH ? `${text.slice(0, TRIAGE_TITLE_MAX_LENGTH).trimEnd()}…` : text;
+
+/**
+ * Builds the triage `Task.title` for one highlight: a snippet of the highlighted passage, or —
+ * for a synthetic document-note annotation, whose `text` is empty — the source document's title.
+ */
+const triageTitleFor = (highlight: Highlight): string => truncateTitle(highlight.text || highlight.sourceTitle);
 
 const fkFor = (id: string) => ({ source: READWISE_SOURCE, id });
 
@@ -155,9 +170,7 @@ const isAnchored = (db: Database.Database, message: Message.Message, bookmark: B
   Effect.tryPromise({
     try: () => db.query(Query.select(Filter.id(message.id)).targetOf(AnchoredTo.AnchoredTo)).run(),
     catch: (cause) => new ReadwiseError({ message: 'Failed to query AnchoredTo relations.', cause }),
-  }).pipe(
-    Effect.map((relations) => relations.some((relation) => Relation.getTarget(relation).id === bookmark.id)),
-  );
+  }).pipe(Effect.map((relations) => relations.some((relation) => Relation.getTarget(relation).id === bookmark.id)));
 
 /** Ensures an `AnchoredTo` relation exists from `message` to `bookmark`, creating one if absent. */
 const ensureAnchor = (
@@ -178,13 +191,65 @@ const ensureAnchor = (
   });
 
 /**
+ * Finds the triage `Task` already anchored to `message` (an `AnchoredTo` relation with the Task as
+ * source and the Message as target — the same source/target convention `ensureAnchor` uses for
+ * Message→Bookmark), if any.
+ */
+const findTriageTask = (
+  db: Database.Database,
+  message: Message.Message,
+): Effect.Effect<Task.Task | undefined, ReadwiseError> =>
+  Effect.tryPromise({
+    try: () => db.query(Query.select(Filter.id(message.id)).targetOf(AnchoredTo.AnchoredTo).source()).run(),
+    catch: (cause) => new ReadwiseError({ message: 'Failed to query triage Task anchors.', cause }),
+  }).pipe(Effect.map((sources) => sources.find(Obj.instanceOf(Task.Task))));
+
+/**
+ * Upserts the human-gated triage `Task` for one annotation `Message`, deduped by the `AnchoredTo`
+ * relation already linking a Task to that Message (see {@link findTriageTask}). The card is tagged
+ * with `TRIAGE_TAG` (matched later by `Filter.tag(TRIAGE_TAG)` for the triage board query) and
+ * created in the `'todo'` ("Needs Review") column. Returns whether a new Task was created.
+ */
+const upsertTriageTask = (
+  db: Database.Database,
+  highlight: Highlight,
+  message: Message.Message,
+): Effect.Effect<{ created: boolean }, ReadwiseError> =>
+  Effect.gen(function* () {
+    const existing = yield* findTriageTask(db, message);
+    if (existing) {
+      return { created: false };
+    }
+
+    const task = db.add(
+      Task.make({
+        // `meta.tags` stores `Ref`s; a bare tag id string is only auto-upgraded to a ref by the
+        // client-services document-migration path, not by direct `Obj.make`/`db.add`, so the ref is
+        // constructed explicitly here. `Filter.tag(TRIAGE_TAG)` matches by the ref's URI, so this is
+        // exactly the id Task 9's board query must pass to `Filter.tag`.
+        [Obj.Meta]: { tags: [Ref.fromURI(URI.make(TRIAGE_TAG))] },
+        title: triageTitleFor(highlight),
+        status: 'todo',
+      }),
+    );
+    db.add(
+      Relation.make(AnchoredTo.AnchoredTo, {
+        [Relation.Source]: task,
+        [Relation.Target]: message,
+      }),
+    );
+    return { created: true };
+  });
+
+/**
  * Idempotently captures a batch of Readwise `Highlight`s as ECHO objects: one `Bookmark` per
  * distinct source document, one annotation `Message` per highlight (including synthetic
- * document-note annotations), and an `AnchoredTo` relation linking each Message to its document's
- * Bookmark. Re-running with the same (or a superset of) `highlights` creates no duplicates —
- * dedup keys are `sourceId` (Bookmark) and `readwiseId` (Message), both stored as ECHO foreign
- * keys. A highlight whose `note` changed since the last capture updates the existing Message
- * in place.
+ * document-note annotations), an `AnchoredTo` relation linking each Message to its document's
+ * Bookmark, and a human-gated triage `Task` card anchored to each Message. Re-running with the
+ * same (or a superset of) `highlights` creates no duplicates — dedup keys are `sourceId`
+ * (Bookmark), `readwiseId` (Message, stored as an ECHO foreign key), and the Message's `AnchoredTo`
+ * anchor (triage Task). A highlight whose `note` changed since the last capture updates the
+ * existing Message in place.
  */
 export const captureHighlights = (
   space: CaptureSpace,
@@ -194,6 +259,7 @@ export const captureHighlights = (
     const { db } = space;
     let created = 0;
     let updated = 0;
+    let cards = 0;
 
     const bookmarksBySourceId = new Map<string, Bookmark.Bookmark>();
     for (const highlight of highlights) {
@@ -216,7 +282,12 @@ export const captureHighlights = (
       }
 
       yield* ensureAnchor(db, messageResult.message, bookmark);
+
+      const triageResult = yield* upsertTriageTask(db, highlight, messageResult.message);
+      if (triageResult.created) {
+        cards++;
+      }
     }
 
-    return { created, updated };
+    return { created, updated, cards };
   });

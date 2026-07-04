@@ -4,12 +4,12 @@
 
 import { describe, test } from 'vitest';
 
-import { Filter } from '@dxos/echo';
+import { Filter, Query, Relation } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
-import { Message } from '@dxos/types';
+import { AnchoredTo, Message, Task } from '@dxos/types';
 
+import { TRIAGE_TAG } from '../constants';
 import { TestLayer } from '../test/test-layer';
-
 import { captureHighlights } from './capture';
 
 describe('captureHighlights', () => {
@@ -18,10 +18,12 @@ describe('captureHighlights', () => {
     try {
       const first = await run(captureHighlights(space, highlights));
       expect(first.created).toBe(highlights.length + 3); // 8 annotations + 3 documents.
+      expect(first.cards).toBe(8); // one triage Task per annotation.
 
       const second = await run(captureHighlights(space, highlights));
       expect(second.created).toBe(0);
       expect(second.updated).toBe(0);
+      expect(second.cards).toBe(0);
 
       const messages = await space.db.query(Filter.type(Message.Message)).run();
       // 7 highlights + 1 synthetic document-note annotation.
@@ -30,6 +32,29 @@ describe('captureHighlights', () => {
       const bookmarks = await space.db.query(Filter.type(Bookmark.Bookmark)).run();
       // 3 distinct documents.
       expect(bookmarks.length).toBe(3);
+
+      const tasks = await space.db.query(Filter.type(Task.Task)).run();
+      expect(tasks.length).toBe(8);
+      for (const task of tasks) {
+        expect(task.status).toBe('todo');
+      }
+
+      // `Filter.tag(TRIAGE_TAG)` must return exactly the triage cards — this is the
+      // apply/query symmetry a later triage-board query depends on.
+      const triageTasks = await space.db
+        .query(Query.select(Filter.type(Task.Task)).select(Filter.tag(TRIAGE_TAG)))
+        .run();
+      expect(triageTasks.length).toBe(8);
+      expect(new Set(triageTasks.map((task) => task.id))).toEqual(new Set(tasks.map((task) => task.id)));
+
+      // Each triage Task is anchored to its annotation Message (Task is the relation source,
+      // Message is the target — the same direction as Message→Bookmark).
+      for (const task of triageTasks) {
+        const relations = await space.db.query(Query.select(Filter.id(task.id)).sourceOf(AnchoredTo.AnchoredTo)).run();
+        expect(relations.length).toBe(1);
+        const target = Relation.getTarget(relations[0]);
+        expect(messages.some((message) => message.id === target.id)).toBe(true);
+      }
     } finally {
       await close();
     }
@@ -48,6 +73,7 @@ describe('captureHighlights', () => {
       const result = await run(captureHighlights(space, updatedHighlights));
       expect(result.created).toBe(0);
       expect(result.updated).toBe(1);
+      expect(result.cards).toBe(0);
 
       const messages = await space.db.query(Filter.type(Message.Message)).run();
       expect(messages.length).toBe(8);
