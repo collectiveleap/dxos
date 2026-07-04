@@ -87,7 +87,7 @@ export const TriageBoard = ({ kanban }: TriageBoardProps) => {
       isItem: Obj.instanceOf(Task.Task),
       columns: Atom.make(() => TRIAGE_COLUMNS),
       items: (column) => Atom.make((get) => itemsInColumn(get(itemsAtom), column)),
-      getColumns: () => TRIAGE_COLUMNS,
+      getColumns: () => [...TRIAGE_COLUMNS],
       getItems: (column) => itemsInColumn(registry.get(itemsAtom) ?? [], column),
     };
   }, [itemsAtom, registry]);
