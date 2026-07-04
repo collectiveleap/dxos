@@ -1,0 +1,175 @@
+[
+  {
+    "user_book_id": 70000001,
+    "title": "The Constraints That Shape Software Teams",
+    "author": "Rina Okafor",
+    "readable_title": "The Constraints That Shape Software Teams",
+    "source": "reader",
+    "cover_image_url": "https://example.com/covers/constraints.jpg",
+    "unique_url": "https://read.readwise.io/read/01example0000000000000001",
+    "summary": "An essay arguing that team throughput is governed by the slowest downstream process, not by individual output. Draws on the Theory of Constraints and applies it to modern engineering organizations.",
+    "book_tags": [
+      { "id": 90001, "name": "engineering" }
+    ],
+    "category": "articles",
+    "document_note": null,
+    "readwise_url": "https://readwise.io/bookreview/70000001",
+    "source_url": "https://example.com/articles/constraints-shape-teams",
+    "external_id": "01example0000000000000001",
+    "asin": null,
+    "highlights": [
+      {
+        "id": 8000001001,
+        "text": "Individuals can become dramatically more productive, but that output still has to flow downstream. If the next stage cannot absorb the increased volume, the work simply queues up and the system-level gain evaporates.",
+        "note": "Is this the same bottleneck we see in our review pipeline? Write a short post connecting this to Theory of Constraints. Worth keeping as background for the throughput work.",
+        "location": 421,
+        "location_type": "offset",
+        "color": "yellow",
+        "highlighted_at": "2026-06-30T14:12:00.000Z",
+        "updated_at": "2026-06-30T14:12:00.000Z",
+        "external_id": "01example000000000000hl01",
+        "url": "https://read.readwise.io/read/01example000000000000hl01",
+        "book_id": 70000001,
+        "tags": [],
+        "readwise_url": "https://readwise.io/open/8000001001"
+      },
+      {
+        "id": 8000001002,
+        "text": "A team that optimizes each station in isolation will still move at the speed of its most constrained station.",
+        "note": "",
+        "location": 980,
+        "location_type": "offset",
+        "color": "",
+        "highlighted_at": "2026-06-30T14:15:00.000Z",
+        "updated_at": "2026-06-30T14:15:00.000Z",
+        "external_id": "01example000000000000hl02",
+        "url": "https://read.readwise.io/read/01example000000000000hl02",
+        "book_id": 70000001,
+        "tags": [],
+        "readwise_url": "https://readwise.io/open/8000001002"
+      },
+      {
+        "id": 8000001003,
+        "text": "Measuring local productivity is easy; measuring flow is hard. Most dashboards reward the former and ignore the latter.",
+        "note": "Nicely put — a clean articulation of the measurement trap.",
+        "location": 1450,
+        "location_type": "offset",
+        "color": "blue",
+        "highlighted_at": "2026-06-30T14:20:00.000Z",
+        "updated_at": "2026-06-30T14:20:00.000Z",
+        "external_id": "01example000000000000hl03",
+        "url": "https://read.readwise.io/read/01example000000000000hl03",
+        "book_id": 70000001,
+        "tags": [
+          { "id": 90050, "name": "metrics" }
+        ],
+        "readwise_url": "https://readwise.io/open/8000001003"
+      }
+    ]
+  },
+  {
+    "user_book_id": 70000002,
+    "title": "Notes on Local-First Software",
+    "author": "Devi Menon",
+    "readable_title": "Notes on Local-First Software",
+    "source": "reader",
+    "cover_image_url": "https://example.com/covers/local-first.jpg",
+    "unique_url": "https://read.readwise.io/read/01example0000000000000002",
+    "summary": "A survey of local-first principles: data ownership, offline-first sync, and conflict-free replication.",
+    "book_tags": [
+      { "id": 90002, "name": "local-first" }
+    ],
+    "category": "articles",
+    "document_note": "Whole piece is relevant to the sync design — revisit when we scope replication. Does CRDT convergence hold under partial connectivity?",
+    "readwise_url": "https://readwise.io/bookreview/70000002",
+    "source_url": "https://example.com/articles/local-first-notes",
+    "external_id": "01example0000000000000002",
+    "asin": null,
+    "highlights": [
+      {
+        "id": 8000002001,
+        "text": "In a local-first system the user's device holds the primary copy of the data; the network is an enhancement, not a prerequisite.",
+        "note": "Question: what happens to shared editing guarantees when two devices reconcile after a long offline period?",
+        "location": 210,
+        "location_type": "offset",
+        "color": "yellow",
+        "highlighted_at": "2026-07-01T09:02:00.000Z",
+        "updated_at": "2026-07-01T09:02:00.000Z",
+        "external_id": "01example000000000000hl04",
+        "url": "https://read.readwise.io/read/01example000000000000hl04",
+        "book_id": 70000002,
+        "tags": [
+          { "id": 90051, "name": "sync" }
+        ],
+        "readwise_url": "https://readwise.io/open/8000002001"
+      },
+      {
+        "id": 8000002002,
+        "text": "Conflict-free replicated data types let independent replicas converge without coordination, provided every operation is commutative.",
+        "note": "",
+        "location": 640,
+        "location_type": "offset",
+        "color": "",
+        "highlighted_at": "2026-07-01T09:05:00.000Z",
+        "updated_at": "2026-07-01T09:05:00.000Z",
+        "external_id": "01example000000000000hl05",
+        "url": "https://read.readwise.io/read/01example000000000000hl05",
+        "book_id": 70000002,
+        "tags": [],
+        "readwise_url": "https://readwise.io/open/8000002002"
+      }
+    ]
+  },
+  {
+    "user_book_id": 70000003,
+    "title": "Thinking in Systems",
+    "author": "Donella H. Meadows",
+    "readable_title": "Thinking in Systems",
+    "source": "kindle",
+    "cover_image_url": "https://example.com/covers/thinking-in-systems.jpg",
+    "unique_url": "https://read.readwise.io/read/01example0000000000000003",
+    "summary": "A primer on systems thinking: stocks, flows, feedback loops, and leverage points.",
+    "book_tags": [],
+    "category": "books",
+    "document_note": null,
+    "readwise_url": "https://readwise.io/bookreview/70000003",
+    "source_url": null,
+    "external_id": "01example0000000000000003",
+    "asin": "B005VSRFEA",
+    "highlights": [
+      {
+        "id": 8000003001,
+        "text": "The least obvious part of the system, its function or purpose, is often the most crucial determinant of the system's behavior.",
+        "note": "Draft a talk outline that uses this as the opening frame.",
+        "location": 88,
+        "location_type": "order",
+        "color": "orange",
+        "highlighted_at": "2026-07-02T18:40:00.000Z",
+        "updated_at": "2026-07-02T18:40:00.000Z",
+        "external_id": "01example000000000000hl06",
+        "url": null,
+        "book_id": 70000003,
+        "tags": [
+          { "id": 90052, "name": "systems-thinking" },
+          { "id": 90053, "name": "talk-ideas" }
+        ],
+        "readwise_url": "https://readwise.io/open/8000003001"
+      },
+      {
+        "id": 8000003002,
+        "text": "There are no separate systems. The world is a continuum. Where to draw a boundary around a system depends on the purpose of the discussion.",
+        "note": "",
+        "location": 142,
+        "location_type": "order",
+        "color": "",
+        "highlighted_at": "2026-07-02T18:45:00.000Z",
+        "updated_at": "2026-07-02T18:45:00.000Z",
+        "external_id": "01example000000000000hl07",
+        "url": null,
+        "book_id": 70000003,
+        "tags": [],
+        "readwise_url": "https://readwise.io/open/8000003002"
+      }
+    ]
+  }
+]

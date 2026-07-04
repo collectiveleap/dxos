@@ -105,6 +105,17 @@ git add packages/plugins/plugin-readwise/test/fixtures/highlights.sample.json do
 git commit -m "test(plugin-readwise): capture Readwise API fixture + spike findings"
 ```
 
+#### Task 1 Findings (confirmed 2026-07-04 — these override any guesses in later tasks)
+
+- **Auth:** header `Authorization: Token <token>` (NOT `Bearer`). Validate with `GET https://readwise.io/api/v2/auth/` → `204`.
+- **Sync endpoint (use this):** `GET https://readwise.io/api/v2/export/?updatedAfter=<ISO>` returns `{ count, nextPageCursor, results }` where each `results[]` item is a **document** with fields: `user_book_id, title, author, readable_title, source, cover_image_url, unique_url, summary, book_tags[{id,name}], category, document_note, readwise_url, source_url, external_id, asin, highlights[]`. Each `highlights[]` item: `id (number), text, note, location, location_type, color, highlighted_at, updated_at, external_id, url, book_id, tags[{id,name}], readwise_url`. One call yields both document + highlight metadata (better than `/highlights/`, which lacks book detail).
+- **Incremental cursor:** `Cursor.value` = the ISO timestamp of the last successful run; pass it as `?updatedAfter=`. Pagination: response `nextPageCursor` → next request `?pageCursor=<cursor>`; loop until `nextPageCursor` is null.
+- **Dedup keys:** annotation `Message.properties.readwiseId = String(highlight.id)`; `Bookmark` dedup by `source_url` (fallback `unique_url`). A document-level annotation exists when `document_note` is non-empty (treat like a highlight's note, anchored to the document).
+- **Field mapping for `Highlight` (Task 4):** `text→text`, `note→note`, `tags→tags.map(t=>t.name)`, `url→url`, `readwiseId→String(id)`, `sourceTitle→document.title`, `sourceAuthor→document.author`, `sourceUrl→document.source_url`, `sourceCategory→document.category`, `sourceImage→document.cover_image_url`, `updated→updated_at`. The client flattens `results[]` (documents) → `Highlight[]`, carrying the parent document fields onto each.
+- **Fixture shape:** `test/fixtures/highlights.sample.json` is an **array of document objects** (the `export` `results` array), 3 docs / 11 highlights, covering: highlight-with-note, highlight-without-note, highlight-with-tags, and a document with a `document_note`. Task 4's `MockTransport` returns `{ results: <fixture>, nextPageCursor: null }`.
+- **Kanban view-variant (Task 9):** `Kanban.make({ name, view })` from `@dxos/plugin-kanban` builds a `spec.kind:'view'` board (`Kanban.ts:100`). Build a `View.View` whose query is `Query.select(Filter.type(Task)).select(Filter.tag(TRIAGE_TAG))` and whose `projection.pivotFieldId` targets `status`; pass it as `view`. (Confirm the `View` factory used by other view-variant boards; `Filter.tag`/`Filter.type` are from `@dxos/echo`.)
+- **Companion chat (Task 10):** invoke `AssistantOperation.EnsureCompanionChat` (from `@dxos/plugin-assistant`) with `{ db, companionTo: <triage Task> }` → returns `{ chat, persisted }`; it resolves/creates the `Chat` via the `Chat.CompanionTo` relation (`@dxos/assistant-toolkit`). Seed the first suggestion by appending a `Message` (with `properties.suggestedItems`) to the chat's `feed`. NOTE: this makes `@dxos/plugin-assistant` a runtime dependency — record it in the Task 13 host-availability audit.
+
 ---
 
 ### Task 2: Scaffold the plugin package + smoke test
