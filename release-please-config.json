@@ -855,6 +855,11 @@
         },
         {
           "type": "json",
+          "path": "packages/plugins/plugin-readwise/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/plugins/plugin-registry/package.json",
           "jsonpath": "$.version"
         },

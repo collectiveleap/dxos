@@ -1,0 +1,18 @@
+layer: library
+language: typescript
+tags:
+  - ts-build
+  - ts-test
+  - pack
+tasks:
+  compile:
+    args:
+      - '--entryPoint=src/index.ts'
+      - '--entryPoint=src/ReadwisePlugin.tsx'
+      - '--entryPoint=src/ReadwisePlugin.node.ts'
+      - '--entryPoint=src/capabilities/index.ts'
+      - '--entryPoint=src/meta.ts'
+      - '--entryPoint=src/operations/index.ts'
+      - '--entryPoint=src/plugin.ts'
+      - '--entryPoint=src/translations.ts'
+      - '--platform=neutral'
