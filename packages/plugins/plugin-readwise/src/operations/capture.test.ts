@@ -41,6 +41,9 @@ describe('captureHighlights', () => {
 
       // `Filter.tag(TRIAGE_TAG)` must return exactly the triage cards — this is the
       // apply/query symmetry a later triage-board query depends on.
+      // The chained `.select().select()` shape is served by the async index query source, not the
+      // synchronous in-memory scan — flush so the query deterministically sees the just-added Tasks.
+      await space.db.flush();
       const triageTasks = await space.db
         .query(Query.select(Filter.type(Task.Task)).select(Filter.tag(TRIAGE_TAG)))
         .run();
