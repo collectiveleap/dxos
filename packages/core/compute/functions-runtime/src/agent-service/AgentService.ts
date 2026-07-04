@@ -20,7 +20,7 @@ import {
 } from '@dxos/compute/AgentService';
 import { Annotation, Database, Feed, Obj, Ref, Registry } from '@dxos/echo';
 import { EffectEx } from '@dxos/effect';
-import { DXN, EID } from '@dxos/keys';
+import { DXN, EID, type SpaceId } from '@dxos/keys';
 import { log } from '@dxos/log';
 
 import { AGENT_PROCESS_KEY, AgentProcess } from './agent-process';
@@ -79,9 +79,11 @@ export interface AgentServiceOptions {
   provider?: DXN.DXN;
 
   /**
-   * Provider for space-level MCP server configs.
+   * Resolves the space-level MCP server configs for a given space. Invoked per request so that
+   * MCP servers added or toggled at runtime take effect without respawning the agent process.
+   * Space-scoped because a single application-wide service serves sessions across many spaces.
    */
-  getMcpServers?: () => McpServer.McpServer[];
+  getMcpServers?: (spaceId: SpaceId) => Promise<McpServer.McpServer[]>;
 
   /**
    * If true, long-running tool calls are moved to the background and the agent is notified
@@ -111,12 +113,14 @@ export const layer = (opts?: AgentServiceOptions): Layer.Layer<AgentService, nev
         { model: DXN.DXN | undefined; provider: DXN.DXN | undefined; handle: AgentHandle; session: Session }
       >();
 
-      const makeExecutable = (model?: DXN.DXN, provider?: DXN.DXN) =>
+      const makeExecutable = (model?: DXN.DXN, provider?: DXN.DXN, spaceId?: SpaceId) =>
         AgentProcess({
           systemPrompt: opts?.systemPrompt,
           model: model ?? opts?.model,
           provider: provider ?? opts?.provider,
-          getMcpServers: opts?.getMcpServers,
+          // Bind the session's space so the process can resolve that space's MCP servers at request time.
+          getMcpServers:
+            spaceId !== undefined && opts?.getMcpServers ? () => opts.getMcpServers!(spaceId) : undefined,
           enableToolBackgrounding: opts?.enableToolBackgrounding,
           delegationStrategy: opts?.delegationStrategy,
         });
@@ -166,7 +170,7 @@ export const layer = (opts?: AgentServiceOptions): Layer.Layer<AgentService, nev
             const target = Obj.getURI(feed);
             const parsedEchoUri = EID.tryParse(target);
             const spaceId = parsedEchoUri ? EID.getSpaceId(parsedEchoUri) : undefined;
-            const executable = makeExecutable(model, provider);
+            const executable = makeExecutable(model, provider, spaceId);
 
             // Reuse a still-running process for this feed only when there was no cached session
             // (e.g. after the UI remounted). After a model change we always spawn a fresh process,
