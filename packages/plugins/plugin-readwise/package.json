@@ -126,7 +126,9 @@
     "@dxos/react-ui": "workspace:*",
     "@dxos/storybook-utils": "workspace:*",
     "@types/react": "catalog:",
-    "vite": "catalog:"
+    "@vitejs/plugin-react": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-wasm": "catalog:"
   },
   "peerDependencies": {
     "@dxos/react-ui": "workspace:*",

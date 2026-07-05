@@ -19,4 +19,8 @@ export default Config2.make({
     spec: 'PLUGIN.mdl',
     tags: ['labs', 'integration'],
   },
+  publish: {
+    buildCommand: 'vite build',
+    outputDirectory: 'dist',
+  },
 });
