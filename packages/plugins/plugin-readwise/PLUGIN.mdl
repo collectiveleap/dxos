@@ -322,7 +322,7 @@ feat F-4: AI Decomposition
 
   req F-4.1:
     when: op:decomposeAnnotation runs on a card with no existing suggestion
-    then: the AI proposes 0+ candidate items, each tagged comment/question/todo and preserving the source text verbatim, written as the first Message in the card's companion Chat with properties.suggestedItems
+    then: the AI proposes 0+ candidate items, each classified as comment/question/todo and preserving the source text verbatim, presented as the card's companion-chat suggestion for review
 
   req F-4.2:
     when: op:decomposeAnnotation runs again on the same card
@@ -357,8 +357,8 @@ feat F-5: Confirmation
 feat F-6: Per-Card AI Companion
 
   req F-6.1:
-    when: Steve opens the assistant companion on a triage Task card
-    then: the `assistant-chat` companion surface resolves (creating if absent, via EnsureCompanionChat) a persisted Chat scoped to that card
+    when: Steve opens the assistant companion on a triage card
+    then: an AI conversation scoped to that card is available (created on first open and persisted thereafter), so Steve can work the card together with the AI
 ```
 
 ```mdl
@@ -421,8 +421,8 @@ test T-6: AI decomposition persists as the companion chat's first message
   given: a triage card whose annotation contains a question and a to-do
   when: op:decomposeAnnotation runs
   then:
-    - the card's companion Chat's first Message carries properties.suggestedItems with a question entry and a todo entry, each preserving the source text
-    - the Chat is linked to the card via Chat.CompanionTo
+    - the card's companion-chat suggestion lists a question item and a todo item, each preserving the source text
+    - the suggestion is attached to the card through its companion chat
 ```
 
 ```mdl
@@ -447,8 +447,8 @@ test T-8: Confirmation materializes accepted decisions only
 ```mdl
 test T-9: Per-card companion chat resolves
   given: a triage Task card with no companion Chat yet
-  when: the assistant-chat companion surface's EnsureCompanionChat runs for that card
-  then: a persisted Chat is returned, linked to the card via Chat.CompanionTo
+  when: the assistant-chat companion surface is opened for that card
+  then: a persisted companion chat is returned, attached to the card
 ```
 
 ```mdl
