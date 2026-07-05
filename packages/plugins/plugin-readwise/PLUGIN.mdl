@@ -4,21 +4,17 @@ name: ReadwisePlugin
 version: 0.1.0
 ---
 
-Triages Readwise highlights and notes into Composer. Steve saves articles, PDFs,
-and videos to Readwise/Reader and highlights passages with notes; this plugin
-pulls those annotations in, proposes a decomposition of each into discrete
-comments/questions/to-dos, and lets Steve confirm, edit, or reject each proposal
-on a human-gated triage board. Confirmed items land as ordinary `Task`/`Message`
-objects, tagged with their intent and linked back to the source document — ready
-to use alongside everything else in the workspace.
+Connects a Readwise account into Composer. Steve saves articles, PDFs, and videos to Readwise/Reader
+and highlights passages with notes; this plugin connects the account, syncs those highlights in, and
+lets Steve browse them grouped by source — ready to reference alongside everything else in the
+workspace.
 
-This is Increment 1 of a larger arc (see `docs/superpowers/specs/2026-07-04-readwise-annotation-triage-design.md`):
-everything lands in Composer; there is no reach into or sync with external work
-trackers (Tana, GitHub, Apple Notes). No new ECHO types are introduced — the
-plugin composes `Task`, `Message`, `Bookmark`, `AnchoredTo`, `Tag`, `Cursor`,
-`Connection`, `AccessToken`, `Kanban`, and `Chat` (all reused as-is from
-`@dxos/types`, `@dxos/echo`, `@dxos/plugin-bookmarks`, `@dxos/plugin-connector`,
-`@dxos/plugin-kanban`, `@dxos/assistant-toolkit`).
+This is Increment 1 of a larger arc (see `docs/superpowers/specs/2026-07-05-readwise-increment-1.md`):
+connect, sync, and browse only — everything past browsing is reserved for later increments. No new
+ECHO types are introduced beyond the
+plugin's own `Readwise` (account) and `Highlight` (annotation) objects; everything else composes
+`Bookmark`, `Connection`, `AccessToken`, `Cursor`, and `SyncBinding` (all reused as-is from
+`@dxos/types`, `@dxos/echo`, `@dxos/plugin-bookmarks`, `@dxos/plugin-connector`).
 
 ## Extensions
 
@@ -35,8 +31,6 @@ Each extension is defined in the Appendix or resolved via its URI.
 | `service`   | `org.dxos.mdl.service@1.0`    |
 
 ## Types
-
-Wire/domain shapes this plugin introduces (no new ECHO schema types — see above).
 
 ```mdl
 type Highlight
@@ -59,36 +53,10 @@ type Highlight
 ```
 
 ```mdl
-type IntentKind
-  literals: comment | question | todo
-```
-
-```mdl
-type SuggestedItem
-  desc: One AI-proposed candidate item, before Steve confirms/edits/rejects it.
-  fields:
-    suggestedKind: IntentKind
-    text: string           # verbatim source text, never paraphrased
-    note?: string
-```
-
-```mdl
-type Decision
-  desc: Steve's confirm/edit/reject decision over one SuggestedItem.
-  fields:
-    suggestedKind: IntentKind
-    finalKind: IntentKind    # may differ from suggestedKind if Steve re-classified it
-    text: string
-    note?: string
-    accept: boolean
-```
-
-```mdl
 type CaptureResult
   fields:
     created: number
     updated: number
-    cards: number
 ```
 
 ## Services
@@ -113,12 +81,11 @@ service ReadwiseApi
 ```mdl
 op captureHighlights
   desc: |
-    Idempotently captures a batch of Highlight as ECHO objects: one Bookmark
-    per distinct source document, one annotation Message per highlight
-    (AnchoredTo its Bookmark), and one triage Task card per Message
-    (AnchoredTo it, tagged TRIAGE_TAG, status 'todo'). Re-running with the same
-    (or a superset of) highlights creates no duplicates; a highlight whose note
-    changed updates the existing Message in place.
+    Idempotently captures a batch of Highlight as ECHO objects into one connected
+    Readwise account: one Bookmark per distinct source document, one Highlight
+    object per annotation (referencing its Bookmark and the account). Re-running
+    with the same (or a superset of) highlights creates no duplicates; a
+    highlight whose note changed updates the existing object in place.
   input:
     highlights: Highlight[]
   output: CaptureResult
@@ -126,62 +93,18 @@ op captureHighlights
 ```
 
 ```mdl
-op ensureTriageBoard
-  desc: |
-    Finds-or-creates the one tag-scoped triage Kanban per space: a view-variant
-    board whose View filters Task by TRIAGE_TAG and pivots on status. Idempotent,
-    deduped by a foreign key stamped on the board.
-  output: Kanban
-  effects: [echo:write]
-```
-
-```mdl
-op decomposeAnnotation
-  desc: |
-    Decomposes a triage card's annotation into candidate items, persisting the
-    proposal as the first Message in the card's companion Chat
-    (properties.suggestedItems). Idempotent: a second call with an existing
-    suggestion message returns the same Chat unchanged without re-running the
-    AI call. On model failure, degrades to an empty item list rather than
-    failing — a "no suggestions" message is still useful for Steve to confirm/
-    edit by hand.
-  input:
-    card: Task
-  output: Chat
-  effects: [echo:write, http]
-  requires: [AiService]
-```
-
-```mdl
-op confirmItems
-  desc: |
-    Materializes Steve's decisions over the AI's suggested items: an accepted
-    decision becomes a Message (comment) or a Task (question/todo, status
-    'todo'), tagged with its final intent kind, populated with the passage +
-    note, AnchoredTo the source Bookmark and linked back to the card. Rejected
-    decisions materialize nothing. Records the resolution on the companion-chat
-    suggestion message and sets card.status to 'done' — the terminal step of
-    the triage flow.
-  input:
-    card: Task
-    decisions: Decision[]
-  output:
-    results: Obj[]
-  effects: [echo:write]
-```
-
-```mdl
 op ReadwiseOperation.Sync
   desc: |
-    Reconciles Readwise highlights for one SyncBinding: resolves the binding's
-    Connection for credentials, pulls every highlight updated since the
-    binding's cursor, captures them via captureHighlights, ensures the triage
-    board exists, then advances the cursor to the run-start timestamp on
-    success (or records the failure on the cursor, leaving the cursor value
-    untouched, on failure). Pull-only and idempotent — matches the
-    Connector.sync contract so it can be wired as a ConnectorEntry.sync
-    operation in a future increment, though Increment 1 triggers it directly
-    from the triage board's "Sync Readwise" toolbar action.
+    Reconciles Readwise highlights for one connected account: resolves the
+    account's Connection for credentials, pulls every highlight updated since
+    the account's cursor (or since a default recent window on the very first
+    run, rather than the entire library), captures them via captureHighlights,
+    then advances the cursor to the run-start timestamp on success (or records
+    the failure on the cursor, leaving the cursor value untouched, on failure).
+    Pull-only and idempotent — matches the Connector.sync contract so it is
+    wired as a ConnectorEntry.sync operation, and is also triggered directly by
+    the account's own "Sync" affordance and automatically once, right after the
+    account is first connected.
   input:
     binding: Ref<SyncBinding>
   output: CaptureResult
@@ -189,273 +112,169 @@ op ReadwiseOperation.Sync
 ```
 
 ```mdl
-op ReadwiseOperation.Decompose
-  desc: |
-    UI-facing wrapper around decomposeAnnotation, additionally reading back the
-    parsed suggestedItems and the card's own annotation text, so the TriageCard
-    surface gets everything it needs in one round-trip.
-  input:
-    card: Task
-  output:
-    chat: Chat
-    annotationText: string
-    items: SuggestedItem[]
-  effects: [echo:write, http]
-  requires: [AiService]
-```
-
-```mdl
-op ReadwiseOperation.Confirm
-  desc: UI-facing wrapper around confirmItems, invoked by the TriageCard surface's Confirm action.
-  input:
-    card: Task
-    decisions: Decision[]
-  output:
-    results: Obj[]
+op ReadwiseOperation.MaterializeTarget
+  desc: Creates the Readwise account container for a new connection, invoked by the Connector framework when connecting without an existing target.
+  output: Readwise
   effects: [echo:write]
 ```
 
 ## Components
 
 ```mdl
-component TriageBoard
+component ReadwiseContainer
   desc: |
-    Companion surface for the triage Kanban: three fixed columns (Needs Review
-    / In Triage / Done, mapped onto Task.status todo/in-progress/done), each
-    populated by re-running the board's View query and filtering client-side.
-    The toolbar's "Sync Readwise" action invokes op:ReadwiseOperation.Sync for
-    the space's Readwise SyncBinding.
+    Main article surface for a Readwise account. Unconnected, renders a
+    "Connect Readwise" affordance instead of a blank pane. Connected, renders a
+    "Sync" action and the account's highlights grouped by source document,
+    most-recently-active source first. Auto-runs one sync immediately after the
+    account is first connected.
   props:
-    kanban: Kanban
+    subject: Readwise
     attendableId?: string
   actions:
     sync() → CaptureResult
   layout: |
     ┌─────────────────────────────────────┐
-    │ [Sync Readwise]                     │
-    ├──────────────┬──────────────┬───────┤
-    │ Needs Review │ In Triage    │ Done  │
-    │  card        │  card        │ card  │
-    │  card        │              │       │
-    └──────────────┴──────────────┴───────┘
+    │                            [Sync]   │
+    ├─────────────────────────────────────┤
+    │ Source A · 2                        │
+    │  [highlight card]                   │
+    │  [highlight card]                   │
+    ├─────────────────────────────────────┤
+    │ Source B · 1                        │
+    │  [highlight card]                   │
+    └─────────────────────────────────────┘
 ```
 
 ```mdl
-component TriageCard
+component HighlightCard
   desc: |
-    Article surface for one triage Task card. On mount, runs
-    op:ReadwiseOperation.Decompose (idempotent) so a suggestion always exists
-    before Confirm is enabled. Renders the annotation (passage + note) and each
-    suggested item with accept/reject and edit-kind controls; Confirm
-    materializes the accepted decisions via op:ReadwiseOperation.Confirm and
-    disables further edits once done.
+    One highlight's card within the grouped browse view: the passage, the note
+    when present, and tags. Also renders an inert (reserved, non-functional)
+    processing-state indicator and an inert "where it's processed" affordance —
+    placeholders a later increment activates. Opens the highlight's detail view
+    when clicked or activated via keyboard.
   props:
-    subject: Task
-    attendableId: string
-  state:
-    annotationText?: string
-    items?: SuggestedItem[]     # each carrying Steve's editable accept/finalKind decision
-    confirmed: boolean
-  actions:
-    toggleAccept(index: number)
-    setFinalKind(index: number, kind: IntentKind)
-    confirm() → Obj[]
-  layout: |
-    ┌─────────────────────────────────────┐
-    │ [passage + note]                    │
-    ├─────────────────────────────────────┤
-    │ ✨ item text          [kind ▾] [✓/✗]│
-    │ ✨ item text          [kind ▾] [✓/✗]│
-    ├─────────────────────────────────────┤
-    │                          [Confirm]  │
-    └─────────────────────────────────────┘
+    subject: Highlight
+```
+
+```mdl
+component HighlightDetail
+  desc: Full detail for one highlight — the complete passage, the note, tags, and a link to the source document.
+  props:
+    subject: Highlight
 ```
 
 ## Features
 
 ```mdl
-feat F-1: Pull and Capture
+feat F-1: Create and Connect
 
   req F-1.1:
-    when: op:ReadwiseOperation.Sync runs for a binding with a fresh (unset) cursor
-    then: every highlight and document-note annotation is captured as a Bookmark + Message pair, and a triage Task card is created in Needs Review for each
+    given: a space with no Readwise account
+    when: the user creates one from the "+ Add" menu
+    then: a Readwise account is created and opens
 
   req F-1.2:
-    when: op:ReadwiseOperation.Sync runs again with an unchanged remote state
-    then: no duplicate Bookmarks, Messages, AnchoredTo relations, or triage Tasks are created
+    given: a Readwise account with no connection
+    when: the user opens it
+    then: a "Connect Readwise" affordance is shown, not a blank pane
 
   req F-1.3:
-    when: a highlight's note changed since the last capture
-    then: the existing annotation Message is updated in place rather than a new one being created
-
-  req F-1.4:
-    when: op:ReadwiseOperation.Sync succeeds
-    then: the binding's Cursor advances to the run-start timestamp; on failure the cursor value is left untouched and lastError is recorded
+    given: a Readwise account with no connection
+    when: the user enters a valid Readwise API token
+    then: the account is connected without any OAuth step
+    and: the first sync begins automatically
 ```
 
 ```mdl
-feat F-2: Credentials
+feat F-2: Browse
 
   req F-2.1:
-    when: op:ReadwiseOperation.Sync resolves credentials for a binding's Connection
-    then: the token is read from the Connection's referenced AccessToken
+    given: a connected Readwise account with synced highlights
+    when: the user views it
+    then: highlights appear grouped under their source document
+    and: the most-recently-active source is listed first
+    and: each card shows the passage, the note when present, and tags
+    and: each card renders an inert processing-state indicator and an inert "where it's processed" affordance
+
+  req F-2.2:
+    given: a highlight card
+    when: the user opens it
+    then: the full passage, the note, and a link to the source document are shown
 ```
 
 ```mdl
-feat F-3: Triage Board
+feat F-3: Sync
 
   req F-3.1:
-    when: op:ensureTriageBoard runs in a space with no existing triage board
-    then: exactly one Kanban is created, its View filtering Task by TRIAGE_TAG and pivoting on status
+    given: a connected Readwise account
+    when: the user invokes the "Sync" action
+    then: new and changed highlights are pulled in
+    and: nothing already present is duplicated
+    and: a source that gains a highlight moves to the top of the browse view
 
   req F-3.2:
-    when: op:ensureTriageBoard runs again in the same space
-    then: the same Kanban is returned; no second board is created
-
-  req F-3.3:
-    when: Steve opens the space
-    then: component:TriageBoard renders three columns (Needs Review / In Triage / Done) populated from the triage board's live query
-```
-
-```mdl
-feat F-4: AI Decomposition
-
-  req F-4.1:
-    when: op:decomposeAnnotation runs on a card with no existing suggestion
-    then: the AI proposes 0+ candidate items, each classified as comment/question/todo and preserving the source text verbatim, presented as the card's companion-chat suggestion for review
-
-  req F-4.2:
-    when: op:decomposeAnnotation runs again on the same card
-    then: the existing suggestion is returned unchanged; the AI is not called a second time
-
-  req F-4.3:
-    when: the AI call fails or returns malformed output
-    then: decomposition degrades to an empty item list rather than failing the whole operation
-```
-
-```mdl
-feat F-5: Confirmation
-
-  req F-5.1:
-    when: Steve accepts a suggested item as `comment`
-    then: a Message is materialized, tagged `comment`, populated with the passage + note, AnchoredTo the source Bookmark and linked to the card
-
-  req F-5.2:
-    when: Steve accepts a suggested item as `question` or `todo`
-    then: a Task is materialized with status 'todo', tagged accordingly, populated with the passage + note, AnchoredTo the source Bookmark and linked to the card
-
-  req F-5.3:
-    when: Steve rejects a suggested item
-    then: no result object is materialized for it
-
-  req F-5.4:
-    when: op:confirmItems completes
-    then: the resolution (accepted/rejected, final kind, result ref) is recorded on the companion-chat suggestion message, and the card's status is set to 'done'
-```
-
-```mdl
-feat F-6: Per-Card AI Companion
-
-  req F-6.1:
-    when: Steve opens the assistant companion on a triage card
-    then: an AI conversation scoped to that card is available (created on first open and persisted thereafter), so Steve can work the card together with the AI
-```
-
-```mdl
-feat F-7: Sync Action
-
-  req F-7.1:
-    when: Steve invokes the triage board's "Sync Readwise" toolbar action
-    then: op:ReadwiseOperation.Sync is invoked for the space's Readwise SyncBinding
-
-  req F-7.2:
-    when: no Readwise SyncBinding exists yet in the space
-    then: the sync action is disabled
+    given: a Readwise account connecting for the first time
+    when: its first sync runs
+    then: only a default recent window of history is pulled, not the entire library
 ```
 
 ## Acceptance
 
 ```mdl
 test T-1: Capture is idempotent
-  given: a Readwise account with highlights
-  when: sync runs, then runs again with no new remote activity
+  desc: Automated — src/operations/capture.test.ts.
+  given: a connected Readwise account with synced highlights
+  when: sync runs again with no new remote activity
   then:
-    - each highlight appears exactly once as a Bookmark + Message pair
-    - each annotation has exactly one triage Task card in Needs Review
-    - no duplicate Message→Bookmark AnchoredTo relations exist
+    - each highlight still appears exactly once
+    - no duplicate objects are created
+    - a highlight whose note changed is updated in place rather than duplicated
 ```
 
 ```mdl
-test T-2: Note update refreshes in place
-  given: a previously-captured highlight whose note has since changed
-  when: sync runs again
-  then: the existing annotation Message is updated in place; no new Message is created
+test T-2: Browse groups by source, most-recent first
+  desc: Automated — src/operations/browse-query.test.ts.
+  given: synced highlights spanning several source documents with different last-activity times
+  when: the browse view is computed
+  then: highlights are grouped by their source document
+  and: the groups are ordered by that source's most recent activity, newest first
 ```
 
 ```mdl
-test T-3: Credentials resolved from Connection
-  given: a Connection referencing an AccessToken
-  when: op:ReadwiseOperation.Sync resolves credentials
-  then: the token yielded matches the AccessToken's token field
-```
-
-```mdl
-test T-4: Sync captures and advances the cursor
-  given: a fresh SyncBinding with an unset cursor
-  when: op:ReadwiseOperation.Sync runs, then runs again
+test T-3: Connect form validates and builds a connection
+  desc: Automated — src/capabilities/readwise-credential-form.test.ts.
+  given: the "Connect Readwise" form
   then:
-    - the first run creates highlights and exactly one triage board
-    - the second run creates no new highlights
-    - the cursor value is defined after the first run
+    - submitting an empty token is rejected
+    - submitting a valid token produces a working connection, with no OAuth step
 ```
 
 ```mdl
-test T-5: Triage board is a singleton per space
-  given: a space with no triage board
-  when: op:ensureTriageBoard runs twice
-  then: exactly one Kanban exists, its View querying Task by TRIAGE_TAG and pivoting on status
-```
-
-```mdl
-test T-6: AI decomposition persists as the companion chat's first message
-  given: a triage card whose annotation contains a question and a to-do
-  when: op:decomposeAnnotation runs
+test T-4: Sync captures and advances the cursor, bounded by a default window on first run
+  desc: Automated — src/operations/sync.test.ts.
+  given: a newly connected account with no prior sync
+  when: sync runs, then runs again
   then:
-    - the card's companion-chat suggestion lists a question item and a todo item, each preserving the source text
-    - the suggestion is attached to the card through its companion chat
+    - the first run only pulls history back to a default recent window, not the entire library
+    - the first run creates the synced highlights and their source documents
+    - the second run creates nothing new
+    - the account's high-water mark advances after the first run
 ```
 
 ```mdl
-test T-7: Decomposition is idempotent
-  given: a triage card that already has a suggestion message
-  when: op:decomposeAnnotation runs again
-  then: the same Chat is returned; no second suggestion message is added
-```
-
-```mdl
-test T-8: Confirmation materializes accepted decisions only
-  given: a decomposition with one accepted `question`, one accepted `comment`, and one rejected item
-  when: op:confirmItems runs
+test T-5: Walking-skeleton acceptance — create, connect, browse, open
+  desc: Covered by the live manual acceptance run against a running Composer, not a unit test.
+  given: a space with no Readwise account
+  when: the user creates one, connects it with a real token, and browses and opens its highlights
   then:
-    - exactly one Task tagged `question` exists, status 'todo', project unset
-    - exactly one Message tagged `comment` exists, containing the passage and note
-    - no object tagged `todo` (the rejected item's kind) was created
-    - both results are AnchoredTo the source Bookmark and linked to the card
-    - the card's status is 'done'
-```
-
-```mdl
-test T-9: Per-card companion chat resolves
-  given: a triage Task card with no companion Chat yet
-  when: the assistant-chat companion surface is opened for that card
-  then: a persisted companion chat is returned, attached to the card
-```
-
-```mdl
-test T-10: Sync action is registered and resolvable
-  given: ReadwisePlugin is active
-  when: the operation-handler capability is queried for ReadwiseOperation.Sync
-  then: a handler is found — proving the triage board's "Sync Readwise" toolbar action invokes a real, resolvable operation
+    - creating from "+ Add" opens the account
+    - the unconnected account shows "Connect Readwise", not a blank pane
+    - a valid token connects without OAuth and the first sync runs automatically
+    - highlights appear grouped by source, most-recently-active source first
+    - re-running "Sync" pulls changes without duplicating anything
+    - opening a highlight shows its full passage, note, and a link to its source
 ```
 
 ---
