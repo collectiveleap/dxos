@@ -9,16 +9,17 @@ import { Bookmark } from '@dxos/plugin-bookmarks';
 import { OperationHandler, ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
+import { Highlight, Readwise } from '#types';
 
 // eslint-disable-next-line import/no-relative-packages
 import pluginSpec from '../PLUGIN.mdl?raw';
 
 /**
- * Registers the reused ECHO types this plugin queries and creates from Readwise
- * items — Bookmark from `@dxos/plugin-bookmarks`. This plugin defines no new ECHO types of its own.
+ * Registers the plugin's own `Readwise` and `Highlight` ECHO types plus the reused `Bookmark`
+ * (source documents).
  */
 export const ReadwisePlugin = Plugin.define(meta).pipe(
-  AppPlugin.addSchemaModule({ schema: [Bookmark.Bookmark] }),
+  AppPlugin.addSchemaModule({ schema: [Readwise.Readwise, Highlight.Highlight, Bookmark.Bookmark] }),
   AppPlugin.addOperationHandlerModule({ activate: OperationHandler }),
   AppPlugin.addSurfaceModule({ activate: ReactSurface }),
   AppPlugin.addPluginAssetModule({
