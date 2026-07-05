@@ -13,6 +13,7 @@ import { AnchoredTo, Message, Task } from '@dxos/types';
 
 import fixture from '../../test/fixtures/highlights.sample.json';
 import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, Transport } from '../services';
+import { Highlight, Readwise } from '../types';
 
 /**
  * Mock {@link Transport} that always serves the Task-1 fixture as a single
@@ -43,7 +44,7 @@ export type TestLayerOptions = {
 export const TestLayer = async (options: TestLayerOptions = {}) => {
   const builder = await new EchoTestBuilder().open();
   const { db } = await builder.createDatabase({
-    types: [Bookmark.Bookmark, Message.Message, Task.Task, AnchoredTo.AnchoredTo],
+    types: [Bookmark.Bookmark, Message.Message, Task.Task, AnchoredTo.AnchoredTo, Readwise.Readwise, Highlight.Highlight],
   });
 
   const layer = Layer.mergeAll(
