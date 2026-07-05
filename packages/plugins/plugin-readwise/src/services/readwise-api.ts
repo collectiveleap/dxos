@@ -62,7 +62,8 @@ const ExportResponseSchema = Schema.Struct({
   // `count` is always present on the real API but unused here — kept optional so
   // hand-built test/mock payloads aren't forced to carry a field nothing reads.
   count: Schema.Number.pipe(Schema.optional),
-  nextPageCursor: Schema.NullOr(Schema.String).pipe(Schema.optional),
+  // The real export API returns `nextPageCursor` as a number (a page id); accept both for robustness.
+  nextPageCursor: Schema.NullOr(Schema.Union(Schema.Number, Schema.String)).pipe(Schema.optional),
   results: Schema.Array(DocumentWireSchema),
 });
 
@@ -268,7 +269,7 @@ export const ReadwiseApiLayer: Layer.Layer<ReadwiseApi> = Layer.succeed(Readwise
         for (const document of page.results) {
           highlights.push(...flattenDocument(document));
         }
-        pageCursor = page.nextPageCursor ?? undefined;
+        pageCursor = page.nextPageCursor != null ? String(page.nextPageCursor) : undefined;
         nextCursor = pageCursor;
       } while (pageCursor);
       return { highlights, nextCursor };
