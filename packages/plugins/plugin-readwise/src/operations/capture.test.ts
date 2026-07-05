@@ -4,110 +4,93 @@
 
 import { describe, test } from 'vitest';
 
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Query } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
-import { AnchoredTo, Message, Task } from '@dxos/types';
 
-import { TRIAGE_TAG } from '../constants';
-import { TestLayer } from '../test/test-layer';
+import { type Highlight } from '../services';
+import { Readwise } from '../types';
+import { Highlight as HighlightType } from '../types';
+
 import { captureHighlights } from './capture';
+import { TestLayer } from '../test/test-layer';
+
+// Two synthetic highlights sharing one source document, plus a second source.
+const wire = (over: Partial<Highlight>): Highlight => ({
+  readwiseId: 'rw-1',
+  text: 'a highlighted passage',
+  note: '',
+  tags: [],
+  updated: '2026-07-01T00:00:00.000Z',
+  location: undefined,
+  url: undefined,
+  sourceTitle: 'An Article',
+  sourceAuthor: undefined,
+  sourceUrl: 'https://example.com/a',
+  sourceCategory: undefined,
+  sourceImage: undefined,
+  sourceId: 'src-1',
+  sourceUniqueUrl: undefined,
+  ...over,
+});
 
 describe('captureHighlights', () => {
-  test('is idempotent — running twice creates no duplicate Bookmarks or Messages', async ({ expect }) => {
-    const { space, run, highlights, close } = await TestLayer();
+  test('creates one Bookmark per source and one Highlight per highlight', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
     try {
-      const first = await run(captureHighlights(space, highlights));
-      expect(first.created).toBe(highlights.length + 3); // 8 annotations + 3 documents.
-      expect(first.cards).toBe(8); // one triage Task per annotation.
+      const container = db.add(Readwise.make({ name: 'Test' }));
+      const highlights = [
+        wire({ readwiseId: 'rw-1', sourceId: 'src-1' }),
+        wire({ readwiseId: 'rw-2', sourceId: 'src-1', text: 'second passage' }),
+        wire({ readwiseId: 'rw-3', sourceId: 'src-2', sourceTitle: 'Other', text: 'third' }),
+      ];
 
-      const second = await run(captureHighlights(space, highlights));
+      const result = await run(captureHighlights({ db: space.db, container }, highlights));
+      expect(result.created).toBe(5); // 2 bookmarks + 3 highlights
+
+      const bookmarks = await db.query(Query.select(Filter.type(Bookmark.Bookmark))).run();
+      const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
+      expect(bookmarks.length).toBe(2);
+      expect(stored.length).toBe(3);
+      const first = stored.find((highlight) => highlight.readwiseId === 'rw-1')!;
+      expect(first.source.target?.title).toBe('An Article');
+      expect(first.container.target?.id).toBe(container.id);
+    } finally {
+      await close();
+    }
+  });
+
+  test('is idempotent: a second identical run creates nothing', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
+    try {
+      const container = db.add(Readwise.make({ name: 'Test' }));
+      const highlights = [wire({ readwiseId: 'rw-1', sourceId: 'src-1' })];
+
+      await run(captureHighlights({ db: space.db, container }, highlights));
+      const second = await run(captureHighlights({ db: space.db, container }, highlights));
       expect(second.created).toBe(0);
       expect(second.updated).toBe(0);
-      expect(second.cards).toBe(0);
 
-      const messages = await space.db.query(Filter.type(Message.Message)).run();
-      // 7 highlights + 1 synthetic document-note annotation.
-      expect(messages.length).toBe(8);
-
-      const bookmarks = await space.db.query(Filter.type(Bookmark.Bookmark)).run();
-      // 3 distinct documents.
-      expect(bookmarks.length).toBe(3);
-
-      const tasks = await space.db.query(Filter.type(Task.Task)).run();
-      expect(tasks.length).toBe(8);
-      for (const task of tasks) {
-        expect(task.status).toBe('todo');
-      }
-
-      // `Filter.tag(TRIAGE_TAG)` must return exactly the triage cards — this is the
-      // apply/query symmetry a later triage-board query depends on.
-      // The chained `.select().select()` shape is served by the async index query source, not the
-      // synchronous in-memory scan — flush so the query deterministically sees the just-added Tasks.
-      await space.db.flush();
-      const triageTasks = await space.db
-        .query(Query.select(Filter.type(Task.Task)).select(Filter.tag(TRIAGE_TAG)))
-        .run();
-      expect(triageTasks.length).toBe(8);
-      expect(new Set(triageTasks.map((task) => task.id))).toEqual(new Set(tasks.map((task) => task.id)));
-
-      // Each triage Task is anchored to its annotation Message (Task is the relation source,
-      // Message is the target — the same direction as Message→Bookmark).
-      for (const task of triageTasks) {
-        const relations = await space.db.query(Query.select(Filter.id(task.id)).sourceOf(AnchoredTo.AnchoredTo)).run();
-        expect(relations.length).toBe(1);
-        const target = Relation.getTarget(relations[0]);
-        expect(messages.some((message) => message.id === target.id)).toBe(true);
-      }
+      const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
+      expect(stored.length).toBe(1);
     } finally {
       await close();
     }
   });
 
-  test('running twice creates no duplicate Message→Bookmark AnchoredTo relations', async ({ expect }) => {
-    const { space, run, highlights, close } = await TestLayer();
+  test('updates an existing Highlight when its note changed', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
     try {
-      await run(captureHighlights(space, highlights));
-      await run(captureHighlights(space, highlights));
+      const container = db.add(Readwise.make({ name: 'Test' }));
 
-      const messages = await space.db.query(Filter.type(Message.Message)).run();
-      expect(messages.length).toBe(8);
-
-      // Each annotation Message is anchored to its document's Bookmark (Message is the relation
-      // source, Bookmark is the target). Re-running capture must not add a second relation.
-      for (const message of messages) {
-        const relations = await space.db
-          .query(Query.select(Filter.id(message.id)).sourceOf(AnchoredTo.AnchoredTo))
-          .run();
-        expect(relations.length).toBe(1);
-      }
-    } finally {
-      await close();
-    }
-  });
-
-  test('a changed note updates the existing Message rather than adding one', async ({ expect }) => {
-    const { space, run, highlights, close } = await TestLayer();
-    try {
-      await run(captureHighlights(space, highlights));
-
-      const target = highlights[0];
-      const updatedHighlights = highlights.map((highlight) =>
-        highlight.readwiseId === target.readwiseId ? { ...highlight, note: 'Updated note text.' } : highlight,
+      await run(captureHighlights({ db: space.db, container }, [wire({ readwiseId: 'rw-1', note: '' })]));
+      const result = await run(
+        captureHighlights({ db: space.db, container }, [wire({ readwiseId: 'rw-1', note: 'a new note' })]),
       );
-
-      const result = await run(captureHighlights(space, updatedHighlights));
-      expect(result.created).toBe(0);
       expect(result.updated).toBe(1);
-      expect(result.cards).toBe(0);
 
-      const messages = await space.db.query(Filter.type(Message.Message)).run();
-      expect(messages.length).toBe(8);
-
-      const updatedMessage = messages.find(
-        (message) => (message.properties as { readwiseId?: string } | undefined)?.readwiseId === target.readwiseId,
-      );
-      expect(updatedMessage).toBeDefined();
-      expect(Message.extractText(updatedMessage!)).toContain('Updated note text.');
+      const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
+      expect(stored.length).toBe(1);
+      expect(stored[0].note).toBe('a new note');
     } finally {
       await close();
     }
