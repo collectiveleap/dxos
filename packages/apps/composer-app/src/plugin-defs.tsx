@@ -61,6 +61,7 @@ import { PipelinePlugin } from '@dxos/plugin-pipeline/plugin';
 import { PresenterPlugin } from '@dxos/plugin-presenter/plugin';
 import { PreviewPlugin } from '@dxos/plugin-preview/plugin';
 import { PwaPlugin } from '@dxos/plugin-pwa/plugin';
+import { ReadwisePlugin } from '@dxos/plugin-readwise/plugin';
 import { RegistryPlugin } from '@dxos/plugin-registry/plugin';
 import { RoutinePlugin } from '@dxos/plugin-routine/plugin';
 import { SamplePlugin } from '@dxos/plugin-sample/plugin';
@@ -157,6 +158,7 @@ export const getDefaults = ({ isDev, isLocal, isLabs }: PluginConfig): string[] 
       CrmPlugin.meta.profile.key,
       SequencerPlugin.meta.profile.key,
       SandboxPlugin.meta.profile.key,
+      ReadwisePlugin.meta.profile.key,
       SidekickPlugin.meta.profile.key,
       TranscriptionPlugin.meta.profile.key,
       VideoPlugin.meta.profile.key,
@@ -246,6 +248,7 @@ export const getPlugins = ({
     CommercePlugin(),
     CrmPlugin(),
     !isTauri && isPwa && PwaPlugin(),
+    ReadwisePlugin(),
     RegistryPlugin(),
     RoutinePlugin(),
     isLocal && SamplePlugin(),

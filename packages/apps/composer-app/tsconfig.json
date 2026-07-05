@@ -376,6 +376,9 @@
       "path": "../../plugins/plugin-pwa"
     },
     {
+      "path": "../../plugins/plugin-readwise"
+    },
+    {
       "path": "../../plugins/plugin-registry"
     },
     {
