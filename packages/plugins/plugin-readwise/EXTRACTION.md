@@ -44,7 +44,7 @@ premise actually holds for this plugin's specific imports, not just assumes it.
 | `@dxos/util` | Yes | — | Externalized — safe |
 | `@dxos/plugin-assistant` | **No** | No — only `ReadwisePlugin.test.ts` imports `AssistantCapabilities`/`AssistantOperation`, and only `TriageCard.stories.tsx` imports `AssistantPlugin` | Not a real runtime dependency today. If it becomes one, see risk below. |
 | `@dxos/plugin-bookmarks` | **No** | Yes — `Bookmark` (ECHO type), imported by `ReadwisePlugin.tsx`, `.node.ts`, `operations/capture.ts`, `operations/confirm.ts` | Bundled duplicate — see risk analysis below. Safe. |
-| `@dxos/plugin-client` | **No** | No — only tests/stories (`ClientPlugin`, `ClientCapabilities`, `initializeIdentity`) | Not a runtime dependency; test/story only. Should move to `devDependencies` in the extracted repo (already a `devDependency` in-tree). |
+| `@dxos/plugin-client` | **No** | No — only tests/stories (`ClientPlugin`, `ClientCapabilities`, `initializeIdentity`) | Not a runtime dependency; test/story only. Should move to `devDependencies` in the extracted repo (currently a `dependencies` entry despite being test/story-only). |
 | `@dxos/plugin-connector` | **No** | Yes — `Connection` (type-only) and `SyncBinding` (ECHO relation), imported by `services/credentials.ts`, `hooks/useReadwiseSyncBinding.ts`, `types/ReadwiseOperation.ts` | Bundled duplicate — see risk analysis below. Safe. |
 | `@dxos/plugin-kanban` | **No** | Yes — `Kanban` (ECHO type), imported by `ReadwisePlugin.tsx`, `operations/ensure-board.ts`, `capabilities/react-surface.tsx`, `containers/TriageBoard/TriageBoard.tsx` | Bundled duplicate — see risk analysis below. Safe. |
 
