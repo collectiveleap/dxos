@@ -9,10 +9,20 @@ import { Operation } from '@dxos/compute';
 import { Database, Obj, Relation } from '@dxos/echo';
 import { Cursor } from '@dxos/types';
 
+import { DEFAULT_SYNC_WINDOW_DAYS } from '../constants';
 import { formatReadwiseSyncFailure } from '../errors';
 import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, type Transport, TransportLive } from '../services';
 import { Readwise, ReadwiseOperation } from '../types';
 import { captureHighlights } from './capture';
+
+/**
+ * The ISO timestamp a binding's first sync should pass as `updatedAfter`, bounding the initial pull
+ * to the last {@link DEFAULT_SYNC_WINDOW_DAYS} days instead of the account's entire history. Takes
+ * `nowMs` as a parameter (rather than reading `Date.now()` internally) so the window computation is
+ * deterministically testable.
+ */
+export const firstSyncSince = (nowMs: number): string =>
+  new Date(nowMs - DEFAULT_SYNC_WINDOW_DAYS * 86_400_000).toISOString();
 
 /**
  * Builds the `Sync` handler with the given {@link Transport} layer. Defaults to the production
@@ -28,6 +38,10 @@ import { captureHighlights } from './capture';
  * mark even when Readwise returns items out of update order). On failure the cursor records
  * `lastError` and its `value` is left untouched, so the next run resumes from the same position
  * rather than skipping unprocessed highlights.
+ *
+ * When the cursor has no `value` yet (the binding's first run), `updatedAfter` falls back to
+ * {@link firstSyncSince} instead of `undefined` — otherwise the first sync would pull the account's
+ * entire history. Subsequent runs use the cursor's own value, so incremental sync is unaffected.
  *
  * Mirrors `plugin-linear`'s `SyncLinearTeams` handler shape: the caller (`SyncConnection` in
  * `plugin-connector`, or a direct invocation) is responsible for preloading `binding.target` —
@@ -60,10 +74,12 @@ export const makeHandler = (
           return yield* Effect.dieMessage('Sync binding target is not a Readwise container.');
         }
 
+        const updatedAfter = cursor.value ?? firstSyncSince(Date.now());
+
         const outcome = yield* Effect.either(
           Effect.gen(function* () {
             const { highlights } = yield* ReadwiseApi.pipe(
-              Effect.flatMap((api) => api.listHighlightsSince(cursor.value)),
+              Effect.flatMap((api) => api.listHighlightsSince(updatedAfter)),
             );
             return yield* captureHighlights({ db, container }, highlights);
           }).pipe(

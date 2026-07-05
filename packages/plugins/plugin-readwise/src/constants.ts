@@ -10,3 +10,11 @@ export const READWISE_API_BASE = 'https://readwise.io/api/v2';
 
 /** `AccessToken.source` value for Readwise credentials. */
 export const READWISE_SOURCE = 'readwise.io';
+
+/**
+ * Default recent-history window (in days) for a binding's first sync, applied when its cursor has
+ * no `value` yet. Bounds the initial pull instead of fetching the account's entire history. Inc 5's
+ * sync-criteria picker will let this be configured per binding; this constant is the field's
+ * default until that picker exists.
+ */
+export const DEFAULT_SYNC_WINDOW_DAYS = 30;

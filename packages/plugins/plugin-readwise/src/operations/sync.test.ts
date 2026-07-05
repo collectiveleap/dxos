@@ -12,11 +12,11 @@ import { Bookmark } from '@dxos/plugin-bookmarks';
 import { Connection, SyncBinding } from '@dxos/plugin-connector';
 import { AccessToken, AnchoredTo, Cursor, Message, Task } from '@dxos/types';
 
-import { READWISE_SOURCE } from '../constants';
+import { DEFAULT_SYNC_WINDOW_DAYS, READWISE_SOURCE } from '../constants';
 import { MockTransport } from '../test/test-layer';
 import { Highlight, Readwise } from '../types';
 
-import { makeHandler } from './sync';
+import { firstSyncSince, makeHandler } from './sync';
 
 /**
  * Seeds a real in-memory space with an AccessToken + Connection + a `Readwise` container, bound by a
@@ -50,6 +50,14 @@ const seedConnection = async (builder: EchoTestBuilder) => {
   );
   return { db, binding, container };
 };
+
+describe('firstSyncSince', () => {
+  test('returns an ISO timestamp DEFAULT_SYNC_WINDOW_DAYS before the given instant', ({ expect }) => {
+    const now = Date.parse('2026-07-31T00:00:00.000Z');
+    expect(firstSyncSince(now)).toBe(new Date(now - DEFAULT_SYNC_WINDOW_DAYS * 86_400_000).toISOString());
+    expect(firstSyncSince(now)).toBe('2026-07-01T00:00:00.000Z');
+  });
+});
 
 describe('Readwise sync operation', () => {
   let builder: EchoTestBuilder;
