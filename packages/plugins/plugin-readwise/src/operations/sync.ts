@@ -11,7 +11,7 @@ import { Cursor } from '@dxos/types';
 
 import { formatReadwiseSyncFailure } from '../errors';
 import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, type Transport, TransportLive } from '../services';
-import { ReadwiseOperation } from '../types';
+import { Readwise, ReadwiseOperation } from '../types';
 import { captureHighlights } from './capture';
 
 /**
@@ -55,14 +55,17 @@ export const makeHandler = (
         const binding = yield* Database.load(bindingRef).pipe(Effect.provide(dbLayer));
         const cursor = yield* Database.load(binding.cursor).pipe(Effect.provide(dbLayer));
         const connection = Relation.getSource(binding);
+        const container = Relation.getTarget(binding);
+        if (!Readwise.instanceOf(container)) {
+          return yield* Effect.dieMessage('Sync binding target is not a Readwise container.');
+        }
 
         const outcome = yield* Effect.either(
           Effect.gen(function* () {
             const { highlights } = yield* ReadwiseApi.pipe(
               Effect.flatMap((api) => api.listHighlightsSince(cursor.value)),
             );
-            const result = yield* captureHighlights({ db }, highlights);
-            return result;
+            return yield* captureHighlights({ db, container }, highlights);
           }).pipe(
             Effect.provide(dbLayer),
             Effect.provide(ReadwiseCredentials.fromConnection(connection)),

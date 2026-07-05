@@ -5,7 +5,7 @@
 import * as Effect from 'effect/Effect';
 import { afterEach, beforeEach, describe, test } from 'vitest';
 
-import { Database, Obj, Ref, Relation } from '@dxos/echo';
+import { Database, Filter, Obj, Query, Ref, Relation } from '@dxos/echo';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { EffectEx } from '@dxos/effect';
 import { Bookmark } from '@dxos/plugin-bookmarks';
@@ -14,9 +14,15 @@ import { AccessToken, AnchoredTo, Cursor, Message, Task } from '@dxos/types';
 
 import { READWISE_SOURCE } from '../constants';
 import { MockTransport } from '../test/test-layer';
+import { Highlight, Readwise } from '../types';
+
 import { makeHandler } from './sync';
 
-/** Seeds a real in-memory space with an AccessToken + Connection + SyncBinding, mirroring `plugin-linear`'s sync.test.ts setup. */
+/**
+ * Seeds a real in-memory space with an AccessToken + Connection + a `Readwise` container, bound by a
+ * SyncBinding whose target is that container (the capture destination the sync handler resolves via
+ * `Relation.getTarget`). Mirrors `plugin-linear`'s sync.test.ts setup.
+ */
 const seedConnection = async (builder: EchoTestBuilder) => {
   const { db, graph } = await builder.createDatabase();
   graph.registry.add([
@@ -28,18 +34,21 @@ const seedConnection = async (builder: EchoTestBuilder) => {
     Message.Message,
     Task.Task,
     AnchoredTo.AnchoredTo,
+    Readwise.Readwise,
+    Highlight.Highlight,
   ]);
   const token = db.add(Obj.make(AccessToken.AccessToken, { source: READWISE_SOURCE, token: 'test-token' }));
   const connection = db.add(
     Obj.make(Connection.Connection, { name: 'Readwise', connectorId: 'readwise', accessToken: Ref.make(token) }),
   );
+  const container = db.add(Readwise.make({ name: 'Readwise' }));
   const binding = db.add(
     SyncBinding.make({
       [Relation.Source]: connection,
-      [Relation.Target]: connection,
+      [Relation.Target]: container,
     }),
   );
-  return { db, binding };
+  return { db, binding, container };
 };
 
 describe('Readwise sync operation', () => {
@@ -53,7 +62,9 @@ describe('Readwise sync operation', () => {
     await builder.close();
   });
 
-  test('captures highlights idempotently and advances the cursor', async ({ expect }) => {
+  test('captures highlights into the bound Readwise container idempotently and advances the cursor', async ({
+    expect,
+  }) => {
     const { binding } = await seedConnection(builder);
     const db = Obj.getDatabase(binding)!;
     const dbLayer = Database.layer(db);
@@ -69,6 +80,12 @@ describe('Readwise sync operation', () => {
 
     const first = await EffectEx.runAndForwardErrors(syncHandler.handler({ binding: Ref.make(binding) }));
     expect(first.created).toBeGreaterThan(0);
+
+    // The mock fixture carries 3 distinct documents with 8 annotations (7 highlights + 1 document note).
+    const bookmarks = await db.query(Query.select(Filter.type(Bookmark.Bookmark))).run();
+    expect(bookmarks.length).toBe(3);
+    const highlights = await db.query(Query.select(Filter.type(Highlight.Highlight))).run();
+    expect(highlights.length).toBe(8);
 
     const second = await EffectEx.runAndForwardErrors(syncHandler.handler({ binding: Ref.make(binding) }));
     expect(second.created).toBe(0);
