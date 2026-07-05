@@ -43,9 +43,10 @@ const DecompositionSchema = Schema.Struct({
 
 /**
  * Finds the annotation `Message` anchored to `card` (the Task is the `AnchoredTo` relation source,
- * the Message is the target — see `capture.ts`'s `upsertTriageTask`).
+ * the Message is the target — see `capture.ts`'s `upsertTriageTask`). Exported for reuse by
+ * `confirm.ts`, which needs the same card → annotation traversal to reach the source `Bookmark`.
  */
-const findAnnotation = (db: Database.Database, card: Task.Task): Effect.Effect<Message.Message, ReadwiseError> =>
+export const findAnnotation = (db: Database.Database, card: Task.Task): Effect.Effect<Message.Message, ReadwiseError> =>
   Effect.tryPromise({
     try: () => db.query(Query.select(Filter.id(card.id)).sourceOf(AnchoredTo.AnchoredTo).target()).run(),
     catch: (cause) => new ReadwiseError({ message: 'Failed to query the card’s anchored annotation.', cause }),
@@ -58,8 +59,14 @@ const findAnnotation = (db: Database.Database, card: Task.Task): Effect.Effect<M
     }),
   );
 
-/** Finds the persisted companion `Chat` for `card` via the `Chat.CompanionTo` relation, if any. */
-const findCompanionChat = (db: Database.Database, card: Task.Task): Effect.Effect<Chat.Chat | undefined, ReadwiseError> =>
+/**
+ * Finds the persisted companion `Chat` for `card` via the `Chat.CompanionTo` relation, if any.
+ * Exported for reuse by `confirm.ts`, which locates the same chat to record the resolution.
+ */
+export const findCompanionChat = (
+  db: Database.Database,
+  card: Task.Task,
+): Effect.Effect<Chat.Chat | undefined, ReadwiseError> =>
   Effect.tryPromise({
     try: () => db.query(Query.select(Filter.id(card.id)).targetOf(Chat.CompanionTo).source()).run(),
     catch: (cause) => new ReadwiseError({ message: 'Failed to query the card’s companion Chat.', cause }),
@@ -89,12 +96,16 @@ const ensureCompanionChat = (db: Database.Database, card: Task.Task): Effect.Eff
     return chat;
   });
 
-/** True when `message.properties.suggestedItems` is present — the marker the idempotency check looks for. */
-const isSuggestionMessage = (message: Message.Message): boolean =>
+/**
+ * True when `message.properties.suggestedItems` is present — the marker the idempotency check
+ * looks for. Exported for reuse by `confirm.ts`, which locates the same suggestion message to
+ * record the confirmation resolution onto it.
+ */
+export const isSuggestionMessage = (message: Message.Message): boolean =>
   Array.isArray(message.properties?.suggestedItems);
 
 /** Finds the existing suggestion `Message` in `chat`'s feed, if the decomposition already ran. */
-const findExistingSuggestion = (
+export const findExistingSuggestion = (
   db: Database.Database,
   chat: Chat.Chat,
 ): Effect.Effect<Message.Message | undefined, ReadwiseError> =>
