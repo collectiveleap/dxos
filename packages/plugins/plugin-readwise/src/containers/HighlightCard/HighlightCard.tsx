@@ -2,7 +2,10 @@
 // Copyright 2026 DXOS.org
 //
 
-import React from 'react';
+import React, { type KeyboardEvent, useCallback } from 'react';
+
+import { useOperationInvoker } from '@dxos/app-framework/ui';
+import { LayoutOperation, Paths } from '@dxos/app-toolkit';
 
 import { type Highlight } from '../../types';
 
@@ -14,12 +17,36 @@ export type HighlightCardProps = {
 /**
  * One highlight card: passage + source-agnostic content (the source header is rendered by the
  * container). The processing-state dot and the forward affordance are INERT in Inc 1 — reserved
- * placeholders that Inc 2 activates.
+ * placeholders that Inc 2 activates. Clicking (or pressing Enter/Space on) the card opens the
+ * highlight's `HighlightDetail` Article surface, matching the `LayoutOperation.Open` convention used
+ * by other object cards (e.g. `SpaceHomeRecent`'s `RecentObjectTile`, `CollectionArticle`'s tile).
  */
 export const HighlightCard = ({ subject }: HighlightCardProps) => {
+  const { invokePromise } = useOperationInvoker();
   const state = subject.processingState ?? 'none';
+
+  const handleOpen = useCallback(() => {
+    void invokePromise(LayoutOperation.Open, { subject: [Paths.getObjectPathFromObject(subject)] });
+  }, [invokePromise, subject]);
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleOpen();
+      }
+    },
+    [handleOpen],
+  );
+
   return (
-    <div className='grid grid-cols-[20px_1fr] gap-2 items-start rounded border border-neutral-200 dark:border-neutral-700 p-2 mbe-2'>
+    <div
+      role='button'
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={handleKeyDown}
+      className='grid grid-cols-[20px_1fr] gap-2 items-start rounded border border-neutral-200 dark:border-neutral-700 p-2 mbe-2 cursor-pointer'
+    >
       {/* Reserved (Inc 2): processing-state dot. Inert. */}
       <div
         aria-hidden
