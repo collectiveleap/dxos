@@ -41,12 +41,6 @@
       "path": "../../common/util"
     },
     {
-      "path": "../../core/compute/ai"
-    },
-    {
-      "path": "../../core/compute/assistant-toolkit"
-    },
-    {
       "path": "../../core/compute/compute"
     },
     {
@@ -87,9 +81,6 @@
     },
     {
       "path": "../../ui/react-ui-mosaic"
-    },
-    {
-      "path": "../plugin-assistant"
     },
     {
       "path": "../plugin-attention"
