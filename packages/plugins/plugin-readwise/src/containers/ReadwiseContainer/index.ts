@@ -2,6 +2,4 @@
 // Copyright 2026 DXOS.org
 //
 
-export * from './HighlightCard';
-export * from './HighlightDetail';
 export * from './ReadwiseContainer';
