@@ -3,10 +3,10 @@
 //
 
 import { Plugin } from '@dxos/app-framework';
-import { AppPlugin } from '@dxos/app-toolkit';
+import { AppActivationEvents, AppPlugin } from '@dxos/app-toolkit';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 
-import { OperationHandler, ReactSurface } from '#capabilities';
+import { Connector, OperationHandler, ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
 import { Highlight, Readwise } from '#types';
@@ -26,6 +26,7 @@ export const ReadwisePlugin = Plugin.define(meta).pipe(
     asset: { pluginId: meta.profile.key, path: 'PLUGIN.mdl', content: pluginSpec, mimeType: 'application/x-mdl' },
   }),
   AppPlugin.addTranslationsModule({ translations }),
+  Plugin.addModule({ activatesOn: AppActivationEvents.SetupConnectors, activate: Connector }),
   Plugin.make,
 );
 

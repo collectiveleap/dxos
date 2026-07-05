@@ -11,6 +11,8 @@ import { DXN, Ref } from '@dxos/echo';
 import {
   // eslint-disable-next-line unused-imports/no-unused-imports
   type Connection,
+  MaterializeTargetInput,
+  MaterializeTargetOutput,
   SyncBinding,
 } from '@dxos/plugin-connector';
 
@@ -39,3 +41,18 @@ export const Sync = Operation.make({
     updated: Schema.Number,
   }),
 }).pipe(Operation.visible);
+
+/**
+ * Creates the `Readwise` container for a new connection (the Connector framework calls this when
+ * connecting without an existing target). Mirrors `plugin-inbox`'s `MaterializeJmapTarget`.
+ */
+export const MaterializeTarget = Operation.make({
+  meta: {
+    key: makeKey('materializeTarget'),
+    name: 'Create Readwise',
+    description: 'Create the Readwise account container for a new connection.',
+    icon: 'ph--book-open--regular',
+  },
+  input: MaterializeTargetInput,
+  output: MaterializeTargetOutput,
+});

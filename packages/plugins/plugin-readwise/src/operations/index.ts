@@ -12,4 +12,5 @@ export * from './capture';
  */
 export const ReadwiseOperationHandlerSet = OperationHandlerSet.lazy(
   () => import('./sync'),
+  () => import('./materialize-target'),
 );

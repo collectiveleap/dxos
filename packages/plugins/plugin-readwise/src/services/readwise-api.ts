@@ -275,3 +275,23 @@ export const ReadwiseApiLayer: Layer.Layer<ReadwiseApi> = Layer.succeed(Readwise
       return { highlights, nextCursor };
     }),
 });
+
+/**
+ * Validates a Readwise token against `GET /auth/` through the EDGE CORS proxy (Readwise sends no CORS
+ * headers, so a direct browser fetch is blocked). Succeeds on 204/200; fails with a readable message
+ * on 401 so the credential form can surface it inline.
+ */
+export const validateToken = (token: string): Effect.Effect<void, ReadwiseError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const response = await proxyFetchLegacy(new URL(`${READWISE_API_BASE}/auth/`), {
+        headers: { Authorization: `Token ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 401 ? 'Invalid Readwise token.' : `Readwise auth check failed (${response.status}).`,
+        );
+      }
+    },
+    catch: (cause) => new ReadwiseError({ message: 'Could not validate the Readwise token.', cause }),
+  });
