@@ -2,20 +2,20 @@
 // Copyright 2026 DXOS.org
 //
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-import { Surface } from '@dxos/app-framework/ui';
+import { Surface, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Filter, Obj, Ref } from '@dxos/echo';
 import { ConnectorAuth } from '@dxos/plugin-connector';
-import { useQuery } from '@dxos/react-client/echo';
-import { useTranslation } from '@dxos/react-ui';
+import { useObject, useQuery } from '@dxos/react-client/echo';
+import { IconButton, useTranslation } from '@dxos/react-ui';
 
 import { HighlightCard } from '../HighlightCard';
 import { buildSourceGroups } from '../../operations/browse-query';
 import { meta } from '#meta';
 import { READWISE_CONNECTOR_ID } from '../../constants';
 import { useReadwiseSyncBinding } from '../../hooks';
-import { Highlight, type Readwise } from '../../types';
+import { Highlight, type Readwise, ReadwiseOperation } from '../../types';
 
 export type ReadwiseContainerProps = {
   readonly subject: Readwise.Readwise;
@@ -25,10 +25,37 @@ export type ReadwiseContainerProps = {
 
 export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
   const { t } = useTranslation(meta.profile.key);
+  const { invokePromise } = useOperationInvoker();
   const db = Obj.getDatabase(subject);
   const binding = useReadwiseSyncBinding(db, subject);
+  const [cursor] = useObject(binding?.cursor);
   const allHighlights = useQuery(db, Filter.type(Highlight.Highlight));
   const highlights = allHighlights.filter((highlight) => highlight.container.target?.id === subject.id);
+
+  const [syncing, setSyncing] = useState(false);
+  const sync = async () => {
+    if (!binding) {
+      return;
+    }
+    setSyncing(true);
+    try {
+      await invokePromise(ReadwiseOperation.Sync, { binding: Ref.make(binding) }, { spaceId: db?.spaceId });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Auto-run the first sync once a binding is connected and has never completed a run. Guarded by a
+  // ref (keyed on the binding id) so reconnecting a different binding can still auto-sync once, but a
+  // re-render for the same binding never re-fires it.
+  const autoSyncedBindingId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (binding && cursor && !cursor.lastRunAt && autoSyncedBindingId.current !== binding.id) {
+      autoSyncedBindingId.current = binding.id;
+      void sync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [binding?.id, cursor?.lastRunAt]);
 
   if (!binding) {
     return (
@@ -46,19 +73,33 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
   const groups = buildSourceGroups(highlights);
   return (
     <div className='p-3 max-is-[60rem] mli-auto'>
-      {groups.map((group) => (
-        <section key={group.source.id} className='mbe-4'>
-          <header className='flex items-center gap-2 pbe-1 mbe-2 border-be border-neutral-200 dark:border-neutral-700 text-sm font-medium'>
-            <span>{group.source.title || group.source.url}</span>
-            <span className='text-xs text-neutral-500'>· {group.highlights.length}</span>
-          </header>
-          <div className='pis-4'>
-            {group.highlights.map((highlight) => (
-              <HighlightCard key={highlight.id} subject={highlight} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className='flex justify-end mbe-3'>
+        <IconButton
+          disabled={syncing}
+          variant='primary'
+          iconClassNames={syncing ? 'animate-spin' : undefined}
+          icon={syncing ? 'ph--spinner-gap--regular' : 'ph--arrows-clockwise--regular'}
+          label={syncing ? t('sync-syncing.label') : t('sync.label')}
+          onClick={sync}
+        />
+      </div>
+      {groups.length === 0 ? (
+        <p className='text-sm text-neutral-500 text-center p-8'>{t('no-highlights.message')}</p>
+      ) : (
+        groups.map((group) => (
+          <section key={group.source.id} className='mbe-4'>
+            <header className='flex items-center gap-2 pbe-1 mbe-2 border-be border-neutral-200 dark:border-neutral-700 text-sm font-medium'>
+              <span>{group.source.title || group.source.url}</span>
+              <span className='text-xs text-neutral-500'>· {group.highlights.length}</span>
+            </header>
+            <div className='pis-4'>
+              {group.highlights.map((highlight) => (
+                <HighlightCard key={highlight.id} subject={highlight} />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 };

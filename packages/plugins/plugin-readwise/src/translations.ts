@@ -2,17 +2,23 @@
 // Copyright 2026 DXOS.org
 //
 
+import { Type } from '@dxos/echo';
 import { type Resource } from '@dxos/react-ui';
 
 import { meta } from '#meta';
+import { Readwise } from '#types';
 
 export const translations = [
   {
     'en-US': {
+      [Type.getTypename(Readwise.Readwise)]: {
+        'typename.label': 'Readwise',
+        'typename.label_zero': 'Readwise accounts',
+        'typename.label_one': 'Readwise',
+        'typename.label_other': 'Readwise accounts',
+      },
       [meta.profile.key]: {
         'plugin.name': 'Readwise',
-        'sync-readwise.label': 'Sync Readwise',
-        'sync-readwise-syncing.label': 'Syncing…',
         'loading.label': 'Loading…',
         'no-suggested-items.message': 'No candidate items found in this annotation.',
         'accept-item.label': 'Accept',
@@ -22,8 +28,10 @@ export const translations = [
         'item-kind-question.label': 'Question',
         'item-kind-todo.label': 'To-do',
         'sync.label': 'Sync',
+        'sync-syncing.label': 'Syncing…',
         'connect.label': 'Connect Readwise',
         'empty.message': 'Connect a Readwise account to see your highlights.',
+        'no-highlights.message': 'No highlights yet. Sync to pull your latest Readwise highlights.',
       },
     },
   },

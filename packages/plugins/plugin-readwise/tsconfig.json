@@ -83,9 +83,6 @@
       "path": "../../ui/react-ui-mosaic"
     },
     {
-      "path": "../plugin-attention"
-    },
-    {
       "path": "../plugin-bookmarks"
     },
     {
@@ -93,9 +90,6 @@
     },
     {
       "path": "../plugin-connector"
-    },
-    {
-      "path": "../plugin-graph"
     },
     {
       "path": "../plugin-kanban"

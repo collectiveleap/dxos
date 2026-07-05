@@ -42,11 +42,10 @@ describe('ReadwisePlugin', () => {
     await using harness = await createComposerTestApp({ plugins: [ClientPlugin({}), ReadwisePlugin()] });
     await harness.fire(ActivationEvents.SetupProcessManager);
 
-    // The app graph's "Sync Readwise" toolbar action (`app-graph-builder.ts`) invokes
-    // `ReadwiseOperation.Sync` through the operation invoker — proving the operation is
-    // registered and resolvable is sufficient here (per the brief) since actually running it
-    // needs a live `SyncBinding` + network transport, already covered without network by
-    // `operations/sync.test.ts`.
+    // `ReadwiseContainer`'s inline sync affordance invokes `ReadwiseOperation.Sync` through the
+    // operation invoker — proving the operation is registered and resolvable is sufficient here
+    // (per the brief) since actually running it needs a live `SyncBinding` + network transport,
+    // already covered without network by `operations/sync.test.ts`.
     const handlerSets = harness.getAll(Capabilities.OperationHandler);
     const handler = await EffectEx.runAndForwardErrors(
       OperationHandlerSet.getHandler(OperationHandlerSet.merge(...handlerSets), ReadwiseOperation.Sync),
