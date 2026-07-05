@@ -2,5 +2,5 @@
 // Copyright 2026 DXOS.org
 //
 
-export * from './TriageBoard';
-export * from './TriageCard';
+// Containers are contributed in Task 9.
+export {};
