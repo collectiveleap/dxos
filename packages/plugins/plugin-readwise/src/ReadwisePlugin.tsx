@@ -2,11 +2,12 @@
 // Copyright 2026 DXOS.org
 //
 
-import { Plugin } from '@dxos/app-framework';
+import { ActivationEvent, Plugin } from '@dxos/app-framework';
 import { AppActivationEvents, AppPlugin } from '@dxos/app-toolkit';
+import { AttentionEvents } from '@dxos/plugin-attention';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 
-import { Connector, CreateObject, OperationHandler, ReactSurface } from '#capabilities';
+import { AppGraphBuilder, Connector, CreateObject, OperationHandler, ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
 import { Highlight, Readwise } from '#types';
@@ -19,6 +20,10 @@ import pluginSpec from '../PLUGIN.mdl?raw';
  * (source documents).
  */
 export const ReadwisePlugin = Plugin.define(meta).pipe(
+  AppPlugin.addAppGraphModule({
+    activatesOn: ActivationEvent.allOf(AppActivationEvents.SetupAppGraph, AttentionEvents.AttentionReady),
+    activate: AppGraphBuilder,
+  }),
   AppPlugin.addSchemaModule({ schema: [Readwise.Readwise, Highlight.Highlight, Bookmark.Bookmark] }),
   AppPlugin.addCreateObjectModule({ activate: CreateObject }),
   AppPlugin.addOperationHandlerModule({ activate: OperationHandler }),

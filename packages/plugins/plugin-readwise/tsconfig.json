@@ -92,6 +92,9 @@
       "path": "../plugin-assistant"
     },
     {
+      "path": "../plugin-attention"
+    },
+    {
       "path": "../plugin-bookmarks"
     },
     {
@@ -99,6 +102,9 @@
     },
     {
       "path": "../plugin-connector"
+    },
+    {
+      "path": "../plugin-graph"
     },
     {
       "path": "../plugin-kanban"
