@@ -3,14 +3,20 @@
 //
 
 import { Atom, RegistryContext } from '@effect-atom/atom-react';
-import React, { forwardRef, useContext, useMemo } from 'react';
+import React, { forwardRef, useCallback, useContext, useMemo, useState } from 'react';
 
-import { Obj, Query } from '@dxos/echo';
+import { useOperationInvoker } from '@dxos/app-framework/ui';
+import { Obj, Query, Ref } from '@dxos/echo';
 import { useObject } from '@dxos/echo-react';
 import { type Kanban } from '@dxos/plugin-kanban';
 import { Panel } from '@dxos/react-ui';
 import { Board, type BoardColumnProps, type BoardModel } from '@dxos/react-ui-mosaic';
+import { Menu, MenuBuilder, useMenuActions } from '@dxos/react-ui-menu';
 import { Task } from '@dxos/types';
+
+import { useReadwiseSyncBinding } from '#hooks';
+import { meta } from '#meta';
+import { ReadwiseOperation } from '#types';
 
 /** Non-optional `Task.status`, the pivot the triage board's columns are keyed by. */
 type TriageColumnValue = Exclude<Task.Task['status'], undefined>;
@@ -52,6 +58,8 @@ TriageColumn.displayName = 'TriageColumn';
 
 export type TriageBoardProps = {
   readonly kanban: Kanban.Kanban;
+  /** Threaded into the toolbar's `Menu.Root` so attention-driven contributions target this surface. */
+  readonly attendableId?: string;
 };
 
 /**
@@ -60,11 +68,52 @@ export type TriageBoardProps = {
  * `Board.Root`/`Board.Content`/`Board.Column`'s default item tile (`@dxos/react-ui-mosaic`) rather
  * than copying `plugin-kanban`'s internal `KanbanColumn`/`KanbanCard` — those aren't part of that
  * package's public surface (see `packages/plugins/plugin-kanban/package.json` `exports`).
+ *
+ * The toolbar's "Sync Readwise" action invokes `ReadwiseOperation.Sync` directly for the space's
+ * Readwise `SyncBinding` (found via `useReadwiseSyncBinding`) — Increment 1 has no `Connector`
+ * registration for Readwise (see `docs/superpowers/specs/2026-07-04-readwise-annotation-triage-design.md`
+ * §7: "a Sync operation Steve triggers"), so the generic `plugin-connector` fan-out
+ * (`ConnectorOperation.SyncConnection`) isn't available here.
  */
-export const TriageBoard = ({ kanban }: TriageBoardProps) => {
+export const TriageBoard = ({ kanban, attendableId }: TriageBoardProps) => {
+  const { invokePromise } = useOperationInvoker();
   const registry = useContext(RegistryContext);
   const db = Obj.getDatabase(kanban);
   const [view] = useObject(kanban.spec.kind === 'view' ? kanban.spec.view : undefined);
+  const binding = useReadwiseSyncBinding(db);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = useCallback(async () => {
+    if (!binding) {
+      return;
+    }
+    setSyncing(true);
+    try {
+      await invokePromise(ReadwiseOperation.Sync, { binding: Ref.make(binding) }, { spaceId: db?.spaceId });
+    } finally {
+      setSyncing(false);
+    }
+  }, [binding, db?.spaceId, invokePromise]);
+
+  const actionsAtom = useMemo(
+    () =>
+      Atom.make(() =>
+        MenuBuilder.make()
+          .action(
+            'sync',
+            {
+              label: [syncing ? 'sync-readwise-syncing.label' : 'sync-readwise.label', { ns: meta.profile.key }],
+              icon: 'ph--arrows-clockwise--regular',
+              disposition: 'toolbar',
+              disabled: !binding || syncing,
+            },
+            handleSync,
+          )
+          .build(),
+      ),
+    [binding, syncing, handleSync],
+  );
+  const menuActions = useMenuActions(actionsAtom);
 
   const itemsAtom = useMemo(() => {
     if (!db || !view) {
@@ -98,6 +147,11 @@ export const TriageBoard = ({ kanban }: TriageBoardProps) => {
 
   return (
     <Panel.Root>
+      <Panel.Toolbar>
+        <Menu.Root {...menuActions} attendableId={attendableId ?? 'triage-board'} alwaysActive>
+          <Menu.Toolbar />
+        </Menu.Root>
+      </Panel.Toolbar>
       <Board.Root model={model}>
         <Panel.Content asChild>
           <Board.Content Tile={TriageColumn} />

@@ -16,6 +16,7 @@ export default Config2.make({
       Messages already queryable in a space, ready to organize alongside everything else.
     `,
     icon: { key: 'ph--highlighter--regular', hue: 'amber' },
+    spec: 'PLUGIN.mdl',
     tags: ['labs', 'integration'],
   },
 });

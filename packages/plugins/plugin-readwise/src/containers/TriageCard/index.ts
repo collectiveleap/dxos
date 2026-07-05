@@ -2,5 +2,4 @@
 // Copyright 2026 DXOS.org
 //
 
-export * from './TriageBoard';
 export * from './TriageCard';

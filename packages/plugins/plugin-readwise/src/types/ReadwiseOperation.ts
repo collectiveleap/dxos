@@ -6,15 +6,20 @@
 
 import * as Schema from 'effect/Schema';
 
+import { AiService } from '@dxos/ai';
+import { Chat } from '@dxos/assistant-toolkit';
 import { Operation } from '@dxos/compute';
-import { DXN, Ref } from '@dxos/echo';
+import { Database, DXN, Obj, Ref, Type } from '@dxos/echo';
 import {
   // eslint-disable-next-line unused-imports/no-unused-imports
   type Connection,
   SyncBinding,
 } from '@dxos/plugin-connector';
+import { Task } from '@dxos/types';
 
 import { meta } from '#meta';
+
+import { INTENT_KINDS } from './intent';
 
 const makeKey = (name: string) => DXN.make(`${meta.profile.key}.operation.${name}`);
 
@@ -43,3 +48,70 @@ export const Sync = Operation.make({
     cards: Schema.Number,
   }),
 }).pipe(Operation.visible);
+
+/** One candidate item as proposed by the decomposition step (mirrors `SuggestedItem` in `operations/decompose.ts`). */
+const SuggestedItemSchema = Schema.Struct({
+  suggestedKind: Schema.Literal(...INTENT_KINDS),
+  text: Schema.String,
+  note: Schema.optional(Schema.String),
+});
+
+/** Steve's confirm/edit/reject decision over one suggested item (mirrors `Decision` in `operations/confirm.ts`). */
+const DecisionSchema = Schema.Struct({
+  suggestedKind: Schema.Literal(...INTENT_KINDS),
+  finalKind: Schema.Literal(...INTENT_KINDS),
+  text: Schema.String,
+  note: Schema.optional(Schema.String),
+  accept: Schema.Boolean,
+});
+
+/**
+ * UI-facing wrapper around `decomposeAnnotation` (see `operations/decompose.ts`) — lets the
+ * `TriageCard` container trigger the AI decomposition (and, once it already ran, read back the
+ * existing proposal) without reaching into `AiService`/`Database` layer wiring itself. Returns
+ * both the companion `Chat` and the parsed `items` so the container never needs a second feed
+ * query. Internal to this plugin's own surfaces, so it is excluded from the agent tool registry
+ * (mirrors `AssistantOperation.GenerateHomeSuggestions`'s `skipRegistry: true`).
+ */
+export const Decompose = Operation.make({
+  meta: {
+    key: makeKey('decompose'),
+    name: 'Decompose Readwise Annotation',
+    description: "Ask the AI to decompose a triage card's annotation into candidate items.",
+    icon: 'ph--sparkle--regular',
+    skipRegistry: true,
+  },
+  services: [Database.Service, AiService.AiService],
+  input: Schema.Struct({
+    card: Type.getSchema(Task.Task),
+  }),
+  output: Schema.Struct({
+    chat: Type.getSchema(Chat.Chat),
+    /** The card's annotation passage + note (see `Message.extractText`), for display alongside the items. */
+    annotationText: Schema.String,
+    items: Schema.Array(SuggestedItemSchema),
+  }),
+});
+
+/**
+ * UI-facing wrapper around `confirmItems` (see `operations/confirm.ts`) — lets the `TriageCard`
+ * container materialize Steve's decisions through the operation-invoker rather than calling the
+ * space-layer function directly. Internal to this plugin's own surfaces (`skipRegistry: true`).
+ */
+export const Confirm = Operation.make({
+  meta: {
+    key: makeKey('confirm'),
+    name: 'Confirm Readwise Triage',
+    description: 'Materialize confirmed/edited triage decisions and mark the card done.',
+    icon: 'ph--check-circle--regular',
+    skipRegistry: true,
+  },
+  services: [Database.Service],
+  input: Schema.Struct({
+    card: Type.getSchema(Task.Task),
+    decisions: Schema.Array(DecisionSchema),
+  }),
+  output: Schema.Struct({
+    results: Schema.Array(Obj.Unknown),
+  }),
+});
