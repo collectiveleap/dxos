@@ -10,7 +10,7 @@ import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { EffectEx } from '@dxos/effect';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 import { Connection, SyncBinding } from '@dxos/plugin-connector';
-import { AccessToken, AnchoredTo, Cursor, Message, Task } from '@dxos/types';
+import { AccessToken, Cursor } from '@dxos/types';
 
 import { DEFAULT_SYNC_WINDOW_DAYS, READWISE_SOURCE } from '../constants';
 import { MockTransport } from '../test/test-layer';
@@ -31,9 +31,6 @@ const seedConnection = async (builder: EchoTestBuilder) => {
     Cursor.Cursor,
     SyncBinding.SyncBinding,
     Bookmark.Bookmark,
-    Message.Message,
-    Task.Task,
-    AnchoredTo.AnchoredTo,
     Readwise.Readwise,
     Highlight.Highlight,
   ]);

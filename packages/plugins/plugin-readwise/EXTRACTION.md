@@ -21,12 +21,10 @@ bundle their own copy of any plugin-subpath import, which is safe because those 
 limited to lightweight types/operation defs."* This audit checks whether that "safe because…"
 premise actually holds for this plugin's specific imports, not just assumes it.
 
-| Dependency | Host-provided? | Used in runtime src (not test/story)? | Verdict |
+| Dependency | Host-provided? | Used in runtime src (not test)? | Verdict |
 |---|---|---|---|
-| `@dxos/ai` | Yes | — | Externalized — safe |
 | `@dxos/app-framework` | Yes | Yes | Externalized — safe |
 | `@dxos/app-toolkit` | Yes | Yes | Externalized — safe |
-| `@dxos/assistant-toolkit` | Yes | — | Externalized — safe |
 | `@dxos/compute` | Yes | — | Externalized — safe |
 | `@dxos/echo` | Yes | Yes | Externalized — safe |
 | `@dxos/echo-react` | Yes | — | Externalized — safe |
@@ -42,20 +40,18 @@ premise actually holds for this plugin's specific imports, not just assumes it.
 | `@dxos/schema` | Yes | — | Externalized — safe |
 | `@dxos/types` | Yes | Yes | Externalized — safe |
 | `@dxos/util` | Yes | — | Externalized — safe |
-| `@dxos/plugin-assistant` | **No** | No — only `ReadwisePlugin.test.ts` imports `AssistantCapabilities`/`AssistantOperation`, and only `TriageCard.stories.tsx` imports `AssistantPlugin` | Not a real runtime dependency today. If it becomes one, see risk below. |
-| `@dxos/plugin-bookmarks` | **No** | Yes — `Bookmark` (ECHO type), imported by `ReadwisePlugin.tsx`, `.node.ts`, `operations/capture.ts`, `operations/confirm.ts` | Bundled duplicate — see risk analysis below. Safe. |
-| `@dxos/plugin-client` | **No** | No — only tests/stories (`ClientPlugin`, `ClientCapabilities`, `initializeIdentity`) | Not a runtime dependency; test/story only. Should move to `devDependencies` in the extracted repo (currently a `dependencies` entry despite being test/story-only). |
-| `@dxos/plugin-connector` | **No** | Yes — `Connection` (type-only) and `SyncBinding` (ECHO relation), imported by `services/credentials.ts`, `hooks/useReadwiseSyncBinding.ts`, `types/ReadwiseOperation.ts` | Bundled duplicate — see risk analysis below. Safe. |
-| `@dxos/plugin-kanban` | **No** | Yes — `Kanban` (ECHO type), imported by `ReadwisePlugin.tsx`, `operations/ensure-board.ts`, `capabilities/react-surface.tsx`, `containers/TriageBoard/TriageBoard.tsx` | Bundled duplicate — see risk analysis below. Safe. |
+| `@dxos/plugin-bookmarks` | **No** | Yes — `Bookmark` (ECHO type), imported by `ReadwisePlugin.tsx`, `.node.ts`, `operations/capture.ts`, `operations/sync.ts` | Bundled duplicate — see risk analysis below. Safe. |
+| `@dxos/plugin-client` | **No** | No — only `ReadwisePlugin.test.ts` imports `ClientPlugin` | Not a runtime dependency; test only. Should move to `devDependencies` in the extracted repo (currently a `dependencies` entry despite being test-only). |
+| `@dxos/plugin-connector` | **No** | Yes — `Connection` and `SyncBinding` (ECHO relation), imported by `services/credentials.ts`, `hooks/useReadwiseSyncBinding.ts`, `types/ReadwiseOperation.ts`, `capabilities/connector.ts`, `operations/sync.ts` | Bundled duplicate — see risk analysis below. Safe. |
+| `@dxos/plugin-space` | **No** | Yes — `SpaceCapabilities`/`SpaceOperation`, imported by `capabilities/create-object.ts` (routes a newly-created `Readwise` container into the navtree) | Bundled duplicate — see risk analysis below. Safe. |
 
 ### Risk analysis: bundling a duplicate copy of an ECHO type
 
-The real question isn't "is the import type-only" (some of these — `Bookmark`, `Kanban`,
-`SyncBinding` — are ECHO **type classes**, not plain interfaces) but whether ECHO resolves an
-object's type by comparing **class identity** (unsafe to duplicate — the readwise bundle's
-copy of the `Bookmark` class would be a different JS object than the host's) or by a
-**typename string** (safe — any two classes declaring the same typename are treated as the
-same type).
+The real question isn't "is the import type-only" (`Bookmark` and `SyncBinding` are ECHO
+**type classes**, not plain interfaces) but whether ECHO resolves an object's type by
+comparing **class identity** (unsafe to duplicate — the readwise bundle's copy of the
+`Bookmark` class would be a different JS object than the host's) or by a **typename string**
+(safe — any two classes declaring the same typename are treated as the same type).
 
 Verified in `@dxos/echo`'s own source: `isInstanceOf` in
 `packages/core/echo/echo/src/internal/Entity/type-uri.ts:52-58` documents *"Only typename is
@@ -66,11 +62,13 @@ identity check. `Filter.type()` (`packages/core/echo/echo/src/Filter.ts:143-146`
 query filter from the same string URI, not a schema reference. The same pattern holds outside
 ECHO: `Capability.make` and `Operation.make` register by a string `identifier`/`meta.key`, not
 by object reference (`packages/sdk/app-framework/src/core/capability.ts`,
-`packages/core/compute/compute/src/Operation.ts`).
+`packages/core/compute/compute/src/Operation.ts`) — which is the relevant case for
+`@dxos/plugin-space`'s `SpaceCapabilities`/`SpaceOperation` (Capability/Operation
+registrations, not ECHO type classes).
 
-**Conclusion: bundling a duplicate copy of `Bookmark`, `Kanban`, and `SyncBinding` is safe.**
-Confirmed empirically too — building the external bundle shows `Bookmark`/`Kanban` compiled
-into `dist/chunks/*.js` as fresh class declarations (`class $ extends
+**Conclusion: bundling a duplicate copy of `Bookmark` and `SyncBinding` is safe.**
+Confirmed empirically too — building the external bundle shows `Bookmark` compiled into
+`dist/chunks/*.js` as a fresh class declaration (`class $ extends
 Type.makeObject(DXN.make('org.dxos.type.bookmark', '0.1.0'))(...)`), a different JS object
 than the host's own `Bookmark` class, while `@dxos/echo`/`@dxos/app-framework`/`@dxos/types`
 remain bare `import` statements resolved against the host's copies.
@@ -85,10 +83,9 @@ though `isInstanceOf`/`Filter.type()` still consider them the same type. This is
 compatibility contract to maintain (pin close to the host's SDK version, per Step 3 below),
 not a runtime-identity bug.
 
-**`@dxos/plugin-client`, `@dxos/plugin-assistant` are not currently exercised by runtime
-code** — only by tests and Storybook stories. No extraction risk today; flag if a future
-change adds a real runtime import (e.g. wiring `AssistantOperation` into an actual Sync
-handler) — at that point, re-run this audit for the newly-live import.
+**`@dxos/plugin-client` is not currently exercised by runtime code** — only by
+`ReadwisePlugin.test.ts`. No extraction risk today; flag if a future change adds a real
+runtime import — at that point, re-run this audit for the newly-live import.
 
 ## 2. `vite.config.ts` — external build
 
@@ -152,15 +149,12 @@ Notes:
 
 ## 3. Build output
 
-```
-$ npx vite build
-dist/index.mjs        21.67 kB
-dist/manifest.json     4.36 kB
-dist/chunks/*.js       (58 code-split chunks — lazy capabilities, operation handlers, and
-                        the bundled copies of Bookmark/Kanban/SyncBinding types)
-```
-
-`dist/manifest.json` key fields:
+The build was last actually run against an earlier dependency surface (before Inc 1 dropped
+`@dxos/plugin-kanban`, `@dxos/ai`, `@dxos/assistant-toolkit`, `@dxos/plugin-assistant`,
+`@dxos/plugin-graph`, and `@dxos/plugin-attention`); the exact chunk count/byte sizes below are
+not re-verified against the current dependency set and should be re-run (`npx vite build`)
+before relying on them. The shape of `dist/manifest.json`'s `dependencies` field, though,
+reflects today's `package.json`:
 
 ```json
 {
@@ -168,10 +162,8 @@ dist/chunks/*.js       (58 code-split chunks — lazy capabilities, operation ha
   "name": "Readwise",
   "version": "0.0.1",
   "dependencies": {
-    "@dxos/ai": "0.10.0",
     "@dxos/app-framework": "0.10.0",
     "@dxos/app-toolkit": "0.10.0",
-    "@dxos/assistant-toolkit": "0.10.0",
     "@dxos/compute": "0.10.0",
     "@dxos/echo": "0.10.0",
     "@dxos/echo-react": "0.10.0",
@@ -180,11 +172,10 @@ dist/chunks/*.js       (58 code-split chunks — lazy capabilities, operation ha
     "@dxos/invariant": "0.10.0",
     "@dxos/keys": "0.10.0",
     "@dxos/log": "0.10.0",
-    "@dxos/plugin-assistant": "0.10.0",
     "@dxos/plugin-bookmarks": "0.10.0",
     "@dxos/plugin-client": "0.10.0",
     "@dxos/plugin-connector": "0.10.0",
-    "@dxos/plugin-kanban": "0.10.0",
+    "@dxos/plugin-space": "0.10.0",
     "@dxos/react-client": "0.10.0",
     "@dxos/react-ui-list": "0.10.0",
     "@dxos/react-ui-menu": "0.10.0",
@@ -193,7 +184,6 @@ dist/chunks/*.js       (58 code-split chunks — lazy capabilities, operation ha
     "@dxos/types": "0.10.0",
     "@dxos/util": "0.10.0",
     "@effect-atom/atom-react": "0.5.0",
-    "@effect/ai": "0.36.0",
     "effect": "3.21.4"
   },
   "assets": ["chunks/…", "…", "index.mjs"]
@@ -202,8 +192,8 @@ dist/chunks/*.js       (58 code-split chunks — lazy capabilities, operation ha
 
 `key` matches `org.dxos.plugin.readwise` as required. `dependencies` is the resolved-version
 snapshot the extraction rewrite (Step 4 below) targets — note it lists every declared
-dependency, including the 5 non-externalized `@dxos/plugin-*` packages, for transparency, even
-though only the 19 packages in `DEFAULT_PACKAGES` (§1 above) actually matter for host SDK
+dependency, including the non-externalized `@dxos/plugin-*` packages, for transparency, even
+though only the packages in `DEFAULT_PACKAGES` (§1 above) actually matter for host SDK
 compatibility.
 
 ## 4. Runbook — moving to an external repo
@@ -227,8 +217,8 @@ compatibility.
 
    Keep this in lockstep with whatever Composer host version you're targeting — see the
    version-skew caveat in §1: an extracted plugin pinned to a stale `@dxos/plugin-bookmarks`/
-   `@dxos/plugin-kanban`/`@dxos/plugin-connector` risks a schema-shape mismatch with a newer
-   host, even though type-identity resolution (typename-based) itself won't break.
+   `@dxos/plugin-connector` risks a schema-shape mismatch with a newer host, even though
+   type-identity resolution (typename-based) itself won't break.
 
 3. **Keep `dx.config.ts` verbatim** — the `publish` block already declares
    `buildCommand: 'vite build'` and `outputDirectory: 'dist'`; nothing in `dx.config.ts`
@@ -255,10 +245,10 @@ compatibility.
    `http://localhost:3967/manifest.json`, and enable `devPluginEnabled`
    (`packages/plugins/plugin-registry/src/components/RegistrySettings/RegistrySettings.tsx`).
    Confirm:
-   - The Readwise schema module activates (no console errors resolving `Bookmark`/`Kanban`
-     from the bundled dev server against the host's live ECHO database).
-   - The triage board's "Sync Readwise" action appears and is wired to a resolvable
-     `ReadwiseOperation.Sync` handler.
+   - The Readwise schema module activates (no console errors resolving `Bookmark` from the
+     bundled dev server against the host's live ECHO database).
+   - Opening a `Readwise` container shows its inline "Sync" affordance, and clicking it invokes
+     a resolvable `ReadwiseOperation.Sync` handler.
 
    This step was **not executed** as part of this task — it requires a human-operated
    browser session against a running Composer instance and is documented here as the
