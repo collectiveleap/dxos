@@ -23,6 +23,7 @@ const wire = (over: Partial<Highlight>): Highlight => ({
   updated: '2026-07-01T00:00:00.000Z',
   location: undefined,
   url: undefined,
+  origin: undefined,
   sourceTitle: 'An Article',
   sourceAuthor: undefined,
   sourceUrl: 'https://example.com/a',
@@ -91,6 +92,50 @@ describe('captureHighlights', () => {
       const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
       expect(stored.length).toBe(1);
       expect(stored[0].note).toBe('a new note');
+    } finally {
+      await close();
+    }
+  });
+
+  test('sets Highlight.origin from the wire highlight readwise_url', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
+    try {
+      const container = db.add(Readwise.make({ name: 'Test' }));
+      const highlights = [
+        wire({ readwiseId: 'rw-1', sourceId: 'src-1', origin: 'https://readwise.io/reader/highlight/rw-1' }),
+      ];
+
+      await run(captureHighlights({ db: space.db, container }, highlights));
+
+      const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
+      expect(stored.length).toBe(1);
+      expect(stored[0].origin).toBe('https://readwise.io/reader/highlight/rw-1');
+    } finally {
+      await close();
+    }
+  });
+
+  test('refreshes Highlight.origin on update-in-place', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
+    try {
+      const container = db.add(Readwise.make({ name: 'Test' }));
+
+      await run(
+        captureHighlights(
+          { db: space.db, container },
+          [wire({ readwiseId: 'rw-1', origin: 'https://readwise.io/reader/highlight/rw-1' })],
+        ),
+      );
+      await run(
+        captureHighlights(
+          { db: space.db, container },
+          [wire({ readwiseId: 'rw-1', origin: 'https://readwise.io/reader/highlight/rw-1-moved' })],
+        ),
+      );
+
+      const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
+      expect(stored.length).toBe(1);
+      expect(stored[0].origin).toBe('https://readwise.io/reader/highlight/rw-1-moved');
     } finally {
       await close();
     }

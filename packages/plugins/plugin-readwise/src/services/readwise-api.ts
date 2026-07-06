@@ -95,6 +95,12 @@ export interface Highlight {
   readonly sourceId: string;
   /** Readwise Reader's own permalink for the document, always present. */
   readonly sourceUniqueUrl: string | undefined;
+  /**
+   * The Readwise reader/annotated view for this highlight (the **origin** — where you met it),
+   * distinct from `sourceUrl`/`sourceUniqueUrl` (the **referent** — the original article). Prefers
+   * the highlight's own `readwise_url`, falling back to the parent document's.
+   */
+  readonly origin: string | undefined;
 }
 
 /** Result of a single (paginated) `listHighlightsSince` call. */
@@ -178,6 +184,7 @@ const flattenDocument = (document: Schema.Schema.Type<typeof DocumentWireSchema>
     location: highlight.location ?? undefined,
     url: highlight.url ?? undefined,
     updated: highlight.updated_at,
+    origin: highlight.readwise_url ?? document.readwise_url ?? undefined,
     ...shared,
   }));
 
@@ -203,6 +210,7 @@ const flattenDocument = (document: Schema.Schema.Type<typeof DocumentWireSchema>
     location: undefined,
     url: document.readwise_url ?? undefined,
     updated: mostRecentHighlightUpdate ?? new Date(0).toISOString(),
+    origin: document.readwise_url ?? undefined,
     ...shared,
   };
   return [...highlights, docNote];

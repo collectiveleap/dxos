@@ -23,7 +23,9 @@ export type HighlightCardProps = {
  */
 export const HighlightCard = ({ subject }: HighlightCardProps) => {
   const { invokePromise } = useOperationInvoker();
-  const state = subject.processingState ?? 'none';
+  // Reserved (Inc 2): the dot will be driven by the future Capture envelope's processing state, not
+  // by a field on this Highlight. Static until that state exists.
+  const state = 'none';
 
   const handleOpen = useCallback(() => {
     void invokePromise(LayoutOperation.Open, { subject: [Paths.getObjectPathFromObject(subject)] });

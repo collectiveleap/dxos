@@ -62,6 +62,8 @@ describe('ReadwiseApi.listHighlightsSince', () => {
     expect(first.updated).toBe('2026-06-30T14:12:00.000Z');
     expect(first.sourceId).toBe('70000001');
     expect(first.sourceUniqueUrl).toBe('https://read.readwise.io/read/01example0000000000000001');
+    // origin prefers the highlight's own readwise_url over the document's.
+    expect(first.origin).toBe('https://readwise.io/open/8000001001');
 
     // Un-noted highlight keeps an empty string, not undefined.
     const unNoted = highlights.find((highlight) => highlight.readwiseId === '8000001002');
@@ -85,6 +87,8 @@ describe('ReadwiseApi.listHighlightsSince', () => {
     expect(docNote?.sourceTitle).toBe('Notes on Local-First Software');
     expect(docNote?.sourceId).toBe('70000002');
     expect(docNote?.url).toBe('https://readwise.io/bookreview/70000002');
+    // origin falls back to the document's readwise_url (no highlight-level one for a docNote).
+    expect(docNote?.origin).toBe('https://readwise.io/bookreview/70000002');
   });
 
   test('threads the cursor into the request URL', async ({ expect }) => {

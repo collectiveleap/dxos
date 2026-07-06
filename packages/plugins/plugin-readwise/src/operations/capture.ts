@@ -63,10 +63,11 @@ const upsertBookmark = (
     return { bookmark: created, created: true };
   });
 
-/** True when a highlight's mutable content (note, tags) differs from what is stored. */
+/** True when a highlight's mutable content (note, tags, origin) differs from what is stored. */
 const contentChanged = (stored: Highlight.Highlight, next: WireHighlight): boolean =>
   (stored.note ?? undefined) !== (next.note || undefined) ||
-  JSON.stringify([...stored.tags]) !== JSON.stringify(next.tags);
+  JSON.stringify([...stored.tags]) !== JSON.stringify(next.tags) ||
+  stored.origin !== next.origin;
 
 /**
  * Upserts the `Highlight` for one wire highlight, deduped by `readwiseId` (stored as an ECHO foreign
@@ -86,6 +87,7 @@ const upsertHighlight = (
         Obj.update(existing, (existing) => {
           existing.note = highlight.note || undefined;
           existing.tags = [...highlight.tags];
+          existing.origin = highlight.origin;
         });
       }
       return { created: false, updated: changed };
@@ -100,6 +102,7 @@ const upsertHighlight = (
         updated: highlight.updated,
         source: Ref.make(bookmark),
         container: Ref.make(container),
+        origin: highlight.origin,
       }),
     );
     return { created: true, updated: false };
