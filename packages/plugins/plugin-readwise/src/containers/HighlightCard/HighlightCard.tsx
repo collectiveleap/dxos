@@ -2,11 +2,13 @@
 // Copyright 2026 DXOS.org
 //
 
-import React, { type KeyboardEvent, useCallback } from 'react';
+import React, { type KeyboardEvent, type MouseEvent, useCallback } from 'react';
 
 import { useOperationInvoker } from '@dxos/app-framework/ui';
 import { LayoutOperation, Paths } from '@dxos/app-toolkit';
+import { Icon, useTranslation } from '@dxos/react-ui';
 
+import { meta } from '#meta';
 import { type Highlight } from '../../types';
 
 export type HighlightCardProps = {
@@ -22,6 +24,7 @@ export type HighlightCardProps = {
  * by other object cards (e.g. `SpaceHomeRecent`'s `RecentObjectTile`, `CollectionArticle`'s tile).
  */
 export const HighlightCard = ({ subject }: HighlightCardProps) => {
+  const { t } = useTranslation(meta.profile.key);
   const { invokePromise } = useOperationInvoker();
   // Reserved (Inc 2): the dot will be driven by the future Capture envelope's processing state, not
   // by a field on this Highlight. Static until that state exists.
@@ -33,6 +36,11 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      // Keydown on the nested origin link bubbles here; let the anchor's own activation (native link
+      // navigation) proceed instead of also opening the detail pane.
+      if (event.target !== event.currentTarget) {
+        return;
+      }
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         handleOpen();
@@ -40,6 +48,12 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
     },
     [handleOpen],
   );
+
+  // The card itself is a `role='button'` that opens the detail Article on click; this link must not
+  // also trigger that (the two affordances are distinct: open Readwise vs. open the detail pane).
+  const handleOpenOrigin = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    event.stopPropagation();
+  }, []);
 
   return (
     <div
@@ -68,6 +82,18 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
               #{tag}
             </span>
           ))}
+          {subject.origin && (
+            <a
+              href={subject.origin}
+              target='_blank'
+              rel='noreferrer'
+              onClick={handleOpenOrigin}
+              className='flex items-center gap-1 text-xs text-neutral-500 hover:text-primary-500 underline'
+            >
+              <Icon icon='ph--arrow-square-out--regular' size={3} />
+              {t('open-origin.label')}
+            </a>
+          )}
           {/* Reserved (Inc 2): forward link to where the highlight is processed. Inert. */}
           <span aria-hidden className='mis-auto rounded-full border border-dashed border-violet-400 px-2 text-xs text-violet-500'>
             → not yet processed

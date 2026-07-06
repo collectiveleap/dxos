@@ -35,6 +35,8 @@ export const translations = [
         'connect.label': 'Connect Readwise',
         'empty.message': 'Connect a Readwise account to see your highlights.',
         'no-highlights.message': 'No highlights yet. Sync to pull your latest Readwise highlights.',
+        'open-origin.label': 'See in Readwise',
+        'open-referent.label': 'Read the original',
       },
     },
   },

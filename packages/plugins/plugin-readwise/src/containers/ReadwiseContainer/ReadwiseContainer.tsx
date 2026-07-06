@@ -8,7 +8,7 @@ import { Surface, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Filter, Obj, Ref } from '@dxos/echo';
 import { ConnectorAuth } from '@dxos/plugin-connector';
 import { useObject, useQuery } from '@dxos/react-client/echo';
-import { IconButton, useTranslation } from '@dxos/react-ui';
+import { Icon, IconButton, useTranslation } from '@dxos/react-ui';
 
 import { HighlightCard } from '../HighlightCard';
 import { buildSourceGroups } from '../../operations/browse-query';
@@ -91,6 +91,17 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
             <header className='flex items-center gap-2 pbe-1 mbe-2 border-be border-neutral-200 dark:border-neutral-700 text-sm font-medium'>
               <span>{group.source.title || group.source.url}</span>
               <span className='text-xs text-neutral-500'>· {group.highlights.length}</span>
+              {group.source.url && (
+                <a
+                  href={group.source.url}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='mis-auto flex items-center gap-1 text-xs font-normal text-neutral-500 hover:text-primary-500 underline'
+                >
+                  <Icon icon='ph--arrow-square-out--regular' size={3} />
+                  {t('open-referent.label')}
+                </a>
+              )}
             </header>
             <div className='pis-4'>
               {group.highlights.map((highlight) => (
