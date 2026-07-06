@@ -9,8 +9,10 @@ and highlights passages with notes; this plugin connects the account, syncs thos
 lets Steve browse them grouped by source — ready to reference alongside everything else in the
 workspace.
 
-This is Increment 1 of a larger arc (see `docs/superpowers/specs/2026-07-05-readwise-increment-1.md`):
-connect, sync, and browse only — everything past browsing is reserved for later increments. No new
+This is the first increment of a larger arc — the horizontal **Workbench** (see
+`docs/superpowers/specs/2026-07-06-workbench-concept.md`), which Readwise merely feeds: connect, sync,
+and browse only — everything past browsing (triage / AI / work / connect) is reserved for later
+Workbench increments. No new
 ECHO types are introduced beyond the
 plugin's own `Readwise` (account) and `Highlight` (annotation) objects; everything else composes
 `Bookmark`, `Connection`, `AccessToken`, `Cursor`, and `SyncBinding` (all reused as-is from
