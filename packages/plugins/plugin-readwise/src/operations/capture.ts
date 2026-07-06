@@ -7,9 +7,9 @@ import * as Effect from 'effect/Effect';
 import { type Database, Filter, Obj, Query, Ref } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 
-import { READWISE_SOURCE } from '../constants';
+import { CANONICAL_URL_SOURCE, READWISE_SOURCE } from '../constants';
 import { ReadwiseError } from '../errors';
-import { type Highlight as WireHighlight } from '../services';
+import { type Highlight as WireHighlight, canonicalizeUrl } from '../services';
 import { Highlight, type Readwise } from '../types';
 
 /** The subset of state capture needs: the space db and the account container highlights belong to. */
@@ -51,11 +51,17 @@ const upsertBookmark = (
     if (existing) {
       return { bookmark: existing, created: false };
     }
+    const url = highlight.sourceUrl ?? highlight.sourceUniqueUrl ?? '';
+    const canonicalUrl = canonicalizeUrl(url);
+    const keys = [fkFor(highlight.sourceId)];
+    if (canonicalUrl) {
+      keys.push({ source: CANONICAL_URL_SOURCE, id: canonicalUrl });
+    }
     const created = db.add(
       Bookmark.make({
-        [Obj.Meta]: { keys: [fkFor(highlight.sourceId)] },
+        [Obj.Meta]: { keys },
         title: highlight.sourceTitle,
-        url: highlight.sourceUrl ?? highlight.sourceUniqueUrl ?? '',
+        url,
         image: highlight.sourceImage,
         excerpt: highlight.text || undefined,
       }),

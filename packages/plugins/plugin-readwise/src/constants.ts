@@ -12,6 +12,13 @@ export const READWISE_API_BASE = 'https://readwise.io/api/v2';
 export const READWISE_SOURCE = 'readwise.io';
 
 /**
+ * Foreign-key `source` for a Bookmark's canonical-URL referent key. Forward-compat only: lets a
+ * future cross-source capture (e.g. a Bluesky post linking the same article) find the same
+ * Bookmark by canonical URL. Inc-1 dedup of captured Bookmarks stays keyed by {@link READWISE_SOURCE}.
+ */
+export const CANONICAL_URL_SOURCE = 'canonical-url';
+
+/**
  * Default recent-history window (in days) for a binding's first sync, applied when its cursor has
  * no `value` yet. Bounds the initial pull instead of fetching the account's entire history. Inc 5's
  * sync-criteria picker will let this be configured per binding; this constant is the field's

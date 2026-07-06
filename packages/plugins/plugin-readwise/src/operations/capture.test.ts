@@ -4,10 +4,11 @@
 
 import { describe, test } from 'vitest';
 
-import { Filter, Query } from '@dxos/echo';
+import { Filter, Obj, Query } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 
-import { type Highlight } from '../services';
+import { CANONICAL_URL_SOURCE, READWISE_SOURCE } from '../constants';
+import { type Highlight, canonicalizeUrl } from '../services';
 import { Readwise } from '../types';
 import { Highlight as HighlightType } from '../types';
 
@@ -92,6 +93,25 @@ describe('captureHighlights', () => {
       const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
       expect(stored.length).toBe(1);
       expect(stored[0].note).toBe('a new note');
+    } finally {
+      await close();
+    }
+  });
+
+  test('stamps a Bookmark with both a Readwise and a canonical-URL foreign key', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
+    try {
+      const container = db.add(Readwise.make({ name: 'Test' }));
+      const sourceUrl = 'https://example.com/a?utm_source=readwise';
+      const highlights = [wire({ readwiseId: 'rw-1', sourceId: 'src-1', sourceUrl })];
+
+      await run(captureHighlights({ db: space.db, container }, highlights));
+
+      const bookmarks = await db.query(Query.select(Filter.type(Bookmark.Bookmark))).run();
+      expect(bookmarks.length).toBe(1);
+      const keys = Obj.getMeta(bookmarks[0]).keys;
+      expect(keys.find((key) => key.source === READWISE_SOURCE)?.id).toBe('src-1');
+      expect(keys.find((key) => key.source === CANONICAL_URL_SOURCE)?.id).toBe(canonicalizeUrl(sourceUrl));
     } finally {
       await close();
     }
