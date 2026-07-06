@@ -2026,3 +2026,67 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Type consistency:** `captureHighlights({ db, container }, highlights)` and `CaptureResult { created, updated }` are used identically in Tasks 4, 5. `ReadwiseOperation.Sync` output `{ created, updated }` (Task 2) matches `CaptureResult` (Task 4). `selectBindingForTarget(bindings, containerId)` defined in Task 8, consumed in Tasks 8 (graph) and 9 (container via the hook). `READWISE_CONNECTOR_ID` defined in Task 6, used in Tasks 6, 9. Surface roles `AppSurface.Article`/`AppSurface.CardContent` consistent Task 9. `Readwise.instanceOf` (Task 3) used in Task 5.
 
 **Known verification points handed to implementers (cited precedents, to confirm against `main` at build time):** the exact import sources for plugin-wiring symbols (`Plugin.addModule`, `AppActivationEvents`, `allOf`, `SetupAppGraph`, `AttentionReady`) — mirror `plugin-inbox/src/InboxPlugin.tsx`; `GraphBuilder.createTypeExtension`/`Node.makeAction` shapes — mirror `plugin-assistant`; `Database.add` vs `db.add` in materialize-target — mirror `plugin-inbox`; `Surface.Surface` + `ConnectorAuth` usage — mirror `plugin-inbox/src/components/Initialize/InitializeAction.tsx`; Tailwind logical-property class names — mirror a sibling plugin card.
+
+---
+
+# Increment 1 — Reconciliation with the Workbench design (Tasks 15+)
+
+**Added 2026-07-06.** The Workbench design brainstorm (`docs/superpowers/specs/2026-07-06-workbench-concept.md`) is the durable context; read it first. Inc 1 is the first slice of that model, so this phase makes it *forward-compatible* (data-model) and closes the *visual* gap between the plain rendered view and the mockup (https://claude.ai/code/artifact/a6dc2447-7b07-4303-9543-4aaf9ca67490), including the missing left-nav treatment.
+
+**Process:** solo work — **no PR**; land on the branch (`claude/friendly-hawking-a5a2b3`). Each task keeps the bite-sized build→test→lint→commit rhythm; the visual tasks (18–21) are verified **live** against the mockup with the preview tools, not TDD. All Global Constraints above still apply (no casts; author as Steve; commit trailer; `:build` mandatory gate).
+
+## A. Data-model reconciliation
+
+### Task 15 — Add `Highlight.origin` (the two-links model)
+The export already parses the Readwise reader URL (`readwise_url` on both the document and the highlight) — we only propagate `source_url` → `Bookmark` (the **referent**). Add the **origin** (where you met it / your annotated view).
+- **Modify** `services/readwise-api.ts`: add `readonly origin: string | undefined` to the wire `Highlight` interface; in the flatten (`flattenDocument`/`documentFields`) set `origin` = the highlight's `readwise_url` ?? the document's `readwise_url` ?? undefined.
+- **Modify** `operations/capture.ts`: set `origin` on create; refresh it in the update-in-place branch (treat like note/tags for change detection or just overwrite).
+- **Modify** `types/Highlight.ts`: add `origin: Schema.optional(Schema.String).pipe(FormInputAnnotation.set(false))`.
+- **TDD:** extend `capture.test.ts` — a wire highlight with a `readwise_url` yields `Highlight.origin` set; fixture is synthetic.
+- Gate: build 0 / test / lint. Commit `feat(plugin-readwise): capture the Readwise reader URL as Highlight.origin`.
+
+### Task 16 — Remove reserved `Highlight.processingState`
+Per the design, processing/workbench state lives on the future **Capture envelope**, not the source object. The field is inert and reserved; drop it so it can't rot.
+- **Modify** `types/Highlight.ts`: remove the `processingState` field + its mention in the JSDoc.
+- **Modify** `containers/HighlightCard/HighlightCard.tsx:26`: replace `subject.processingState ?? 'none'` with a static inert `'none'` (the dot stays as reserved UI, later driven by Capture state).
+- Update any test asserting the field.
+- Gate + commit `refactor(plugin-readwise): drop reserved Highlight.processingState (state belongs on the Capture)`.
+
+### Task 17 — Canonical-URL referent key (forward-compat for clustering)
+Inc-1 dedups `Bookmark` by Readwise's document id (`sourceId`). Cross-source clustering needs **canonical-URL** identity. Keep sourceId as the primary Readwise dedup key, but ALSO stamp a canonical-URL foreign key so a future Bluesky/email capture of the same article finds the same referent.
+- **Create** `services/canonical-url.ts`: `canonicalizeUrl(url: string): string` — **allowlist** canonicalization only (lowercase scheme+host, drop default ports, strip trailing slash, remove a fixed tracking-param list `utm_*`,`fbclid`,`gclid`,`mc_eid`,`ref`,`ref_src`; **keep every other param**; return `''` for empty/unparseable). Never strip an unknown param.
+- **Create** `services/canonical-url.test.ts`: deterministic cases (tracking-param stripped; `?id=123` preserved; http/https + case + trailing-slash normalized; empty → '').
+- **Modify** `operations/capture.ts`: in `upsertBookmark`, add a second foreign key `{ source: 'canonical-url', id: canonicalizeUrl(url) }` on the Bookmark's meta (in addition to the Readwise-source key), when the URL is non-empty. Dedup stays by `sourceId` for Inc-1; the canonical key is for future lookup.
+- **TDD:** unit-test `canonicalizeUrl`; extend capture test to assert the canonical key is stamped.
+- Gate + commit `feat(plugin-readwise): stamp a canonical-URL referent key on captured Bookmarks`.
+
+## B. Visual reconciliation (live-verified against the mockup)
+
+### Task 18 — Navtree treatment: a "Readwise" section with per-account nesting
+Today a Readwise account is a bare type node under SYSTEM › Database. Give it the plugin-inbox *Mailboxes* treatment (`plugin-inbox/src/capabilities/app-graph-builder.ts:138-253`).
+- **Re-add** `capabilities/app-graph-builder.ts` (removed in the Task-12 fix) + the lazy `AppGraphBuilder` handle in `capabilities/index.ts` + `AppPlugin.addAppGraphModule({ activatesOn: allOf(SetupAppGraph, AttentionReady), activate: AppGraphBuilder })` in `ReadwisePlugin.tsx`. Re-add `@dxos/plugin-graph` (+ `@dxos/plugin-attention` if the activation needs it) as `workspace:*`.
+- Contribute: (a) a **section** node (`AppNode.makeSection`, label "Readwise" / "Reading") attached under an **existing** group — default `whenNavTreeGroup(Paths.GroupTypes.content)` (referencing an existing group is allowed; a NEW group edits shared `app-toolkit/Paths.ts` → out-of-scope, needs approval — if `content` doesn't fit, attach under the space via `whenSpace`); (b) a **listing** extension over `Filter.type(Readwise.Readwise)` — one node per account; (c) per-account **nested children** "Sources" and "Highlights" (synthetic `Node.make` nodes, mirroring inbox's "Drafts"; or query-based connectors).
+- Update `create-object.ts` so a new Readwise routes into this section (via `targetNodeId`) rather than the default database subtree.
+- **Live-verify:** the account shows under a "Readwise" section with nested Sources/Highlights, not under SYSTEM › Database. Screenshot.
+- Gate + commit `feat(plugin-readwise): navtree section + per-account nesting`.
+
+### Task 19 — Two "opens": origin vs referent
+Surface both links (depends on Task 15). On the source-group header (and/or the highlight card + `HighlightDetail`): **"See in Readwise"** (the highlight/source `origin`) and **"Read the original"** (the source `Bookmark.url` = referent). Mirror the mockup's `↗ Original` + per-capture origin link.
+- Gate + commit `feat(plugin-readwise): open a highlight in Readwise or at its source`.
+
+### Task 20 — Empty-state: Callout treatment
+Replace the plain `<p>` empty state in `ReadwiseContainer` with the shared `Callout`/`Message valence='warning'` + the connect affordance, mirroring `plugin-inbox`'s `Initialize`/`InitializeEmpty` (centered warning banner + connect action in the header). Live-verify.
+- Gate + commit `feat(plugin-readwise): warning-callout empty state`.
+
+### Task 21 — Browse-view visual polish to match the mockup (controller-driven)
+Close the "not as good looking as the mockup" gap. Iterate `ReadwiseContainer` / `HighlightCard` / `HighlightDetail` **live against the mockup** (preview tools + screenshots): serif passages with an amber left-rule, cream note boxes, tag chips, the inert processing dot + forward affordance, polished source-group headers (title + count + the two opens), and overall spacing/neutral palette. Match a sibling plugin's `Card.*` primitives + logical-property utilities. Iterate until it reads like the mockup; capture before/after screenshots.
+- Gate + commit `style(plugin-readwise): polish the browse view to match the design`.
+
+## C. Hygiene
+
+### Task 22 — Remove the dead `@dxos/plugin-kanban` dependency
+The triage board that used it was removed in Task 2, but `package.json` still lists `@dxos/plugin-kanban` (and `EXTRACTION.md` already claims it's gone). Grep `src` to confirm no import; if unused, remove it from `package.json` + `tsconfig.json` refs + reconcile `pnpm-lock.yaml`. Also verify the duplicated `@dxos/react-ui` entries in `package.json` are legitimate (deps vs devDeps) and not a merge artifact.
+- Gate + commit `chore(plugin-readwise): drop dead @dxos/plugin-kanban dependency`.
+
+## After this phase
+Final whole-branch review (merge-base `9e38ecd0db`..HEAD), then land on the branch — **no PR** (solo work). Carry the accumulated Minors from the ledger into the final review.
