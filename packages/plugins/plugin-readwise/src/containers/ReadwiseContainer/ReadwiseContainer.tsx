@@ -8,7 +8,7 @@ import { Surface, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Filter, Obj, Ref } from '@dxos/echo';
 import { ConnectorAuth } from '@dxos/plugin-connector';
 import { useObject, useQuery } from '@dxos/react-client/echo';
-import { Icon, IconButton, useTranslation } from '@dxos/react-ui';
+import { Icon, IconButton, Message, useTranslation } from '@dxos/react-ui';
 
 import { HighlightCard } from '../HighlightCard';
 import { buildSourceGroups } from '../../operations/browse-query';
@@ -60,7 +60,9 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
   if (!binding) {
     return (
       <div className='flex flex-col items-center justify-center bs-full gap-3 p-8 text-center'>
-        <p className='text-sm text-neutral-500'>{t('empty.message')}</p>
+        <Message.Root valence='warning'>
+          <Message.Title>{t('empty.message')}</Message.Title>
+        </Message.Root>
         <Surface.Surface
           type={ConnectorAuth}
           data={{ connectorIds: [READWISE_CONNECTOR_ID], existingTarget: Ref.make(subject) }}
@@ -84,7 +86,11 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
         />
       </div>
       {groups.length === 0 ? (
-        <p className='text-sm text-neutral-500 text-center p-8'>{t('no-highlights.message')}</p>
+        <div className='flex flex-col items-center gap-4 p-8'>
+          <Message.Root valence='warning'>
+            <Message.Title>{t('no-highlights.message')}</Message.Title>
+          </Message.Root>
+        </div>
       ) : (
         groups.map((group) => (
           <section key={group.source.id} className='mbe-4'>
