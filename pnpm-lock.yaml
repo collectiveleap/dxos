@@ -13875,6 +13875,9 @@ importers:
       '@dxos/log':
         specifier: workspace:*
         version: link:../../common/log
+      '@dxos/plugin-attention':
+        specifier: workspace:*
+        version: link:../plugin-attention
       '@dxos/plugin-bookmarks':
         specifier: workspace:*
         version: link:../plugin-bookmarks
@@ -13884,6 +13887,9 @@ importers:
       '@dxos/plugin-connector':
         specifier: workspace:*
         version: link:../plugin-connector
+      '@dxos/plugin-graph':
+        specifier: workspace:*
+        version: link:../plugin-graph
       '@dxos/plugin-kanban':
         specifier: workspace:*
         version: link:../plugin-kanban

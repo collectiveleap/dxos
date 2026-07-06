@@ -19,6 +19,9 @@ export const translations = [
       },
       [meta.profile.key]: {
         'plugin.name': 'Readwise',
+        'readwise-section.label': 'Readwise',
+        'sources.label': 'Sources',
+        'highlights.label': 'Highlights',
         'loading.label': 'Loading…',
         'no-suggested-items.message': 'No candidate items found in this annotation.',
         'accept-item.label': 'Accept',

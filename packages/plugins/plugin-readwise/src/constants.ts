@@ -2,8 +2,26 @@
 // Copyright 2026 DXOS.org
 //
 
+import { meta } from '#meta';
+
 /** `ConnectorEntry.id` for Readwise; stored as `Connection.connectorId` and used to route sync. */
 export const READWISE_CONNECTOR_ID = 'readwise';
+
+/** App-graph node `type` for the Readwise section (the navtree group that lists accounts). */
+export const READWISE_SECTION_TYPE = `${meta.profile.key}.readwise-section`;
+
+/** App-graph node `type` for an account's Sources child folder. */
+export const READWISE_SOURCES_TYPE = `${meta.profile.key}.sources`;
+
+/** App-graph node `type` for an account's Highlights child folder. */
+export const READWISE_HIGHLIGHTS_TYPE = `${meta.profile.key}.highlights`;
+
+/**
+ * Sentinel `data` values for the Sources / Highlights folder nodes. Non-null so the nav tree can
+ * select them (selection skips nodes with falsy `data`); the account is carried in `properties`.
+ */
+export const READWISE_SOURCES_NODE_DATA = `${meta.profile.key}.sources-folder` as const;
+export const READWISE_HIGHLIGHTS_NODE_DATA = `${meta.profile.key}.highlights-folder` as const;
 
 /** Base URL for the Readwise REST API. */
 export const READWISE_API_BASE = 'https://readwise.io/api/v2';
