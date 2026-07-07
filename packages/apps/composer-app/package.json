@@ -111,6 +111,7 @@
     "@dxos/plugin-sandbox": "workspace:*",
     "@dxos/plugin-script": "workspace:*",
     "@dxos/plugin-search": "workspace:*",
+    "@dxos/plugin-sensemaking": "workspace:*",
     "@dxos/plugin-sequencer": "workspace:*",
     "@dxos/plugin-settings": "workspace:*",
     "@dxos/plugin-sheet": "workspace:*",

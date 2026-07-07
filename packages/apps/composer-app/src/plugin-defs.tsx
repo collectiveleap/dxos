@@ -68,6 +68,7 @@ import { SamplePlugin } from '@dxos/plugin-sample/plugin';
 import { SandboxPlugin } from '@dxos/plugin-sandbox/plugin';
 import { ScriptPlugin } from '@dxos/plugin-script/plugin';
 import { SearchPlugin } from '@dxos/plugin-search/plugin';
+import { SensemakingPlugin } from '@dxos/plugin-sensemaking/plugin';
 import { SequencerPlugin } from '@dxos/plugin-sequencer/plugin';
 import { SettingsPlugin } from '@dxos/plugin-settings/plugin';
 import { SheetPlugin } from '@dxos/plugin-sheet/plugin';
@@ -159,6 +160,7 @@ export const getDefaults = ({ isDev, isLocal, isLabs }: PluginConfig): string[] 
       SequencerPlugin.meta.profile.key,
       SandboxPlugin.meta.profile.key,
       ReadwisePlugin.meta.profile.key,
+      SensemakingPlugin.meta.profile.key,
       SidekickPlugin.meta.profile.key,
       TranscriptionPlugin.meta.profile.key,
       VideoPlugin.meta.profile.key,
@@ -249,6 +251,7 @@ export const getPlugins = ({
     CrmPlugin(),
     !isTauri && isPwa && PwaPlugin(),
     ReadwisePlugin(),
+    SensemakingPlugin(),
     RegistryPlugin(),
     RoutinePlugin(),
     isLocal && SamplePlugin(),

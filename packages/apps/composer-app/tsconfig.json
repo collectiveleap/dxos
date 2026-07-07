@@ -397,6 +397,9 @@
       "path": "../../plugins/plugin-search"
     },
     {
+      "path": "../../plugins/plugin-sensemaking"
+    },
+    {
       "path": "../../plugins/plugin-sequencer"
     },
     {
