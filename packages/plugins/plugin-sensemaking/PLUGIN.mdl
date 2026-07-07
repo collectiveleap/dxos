@@ -1,0 +1,324 @@
+---
+id: org.dxos.plugin.sensemaking
+name: SensemakingPlugin
+version: 0.1.0
+---
+
+Sensemaking is the horizontal **Workbench** layer over Composer. Its first increment is the
+**Inbox**: captures — items Steve flagged from any source (fed today by `plugin-readwise`'s Readwise
+highlights) — land here, grouped by the document they came from, where Steve manually triages each
+into **results** (to-dos, questions) or **connects** it to a project, with every result traceable
+back to the capture it came from.
+
+This is the first increment of the Workbench arc (see
+`docs/superpowers/specs/2026-07-06-workbench-concept.md`); later increments add the Pipeline (tracked
+work) and AI-assisted triage, and more sources feeding the same Inbox. The plugin owns two ECHO types
+— `Capture` (the source-agnostic envelope) and `Result` — plus two relations (`DerivedFrom` for
+traceability, `ConnectedTo` for connect); it composes `Collection` (as connect targets) and renders
+each capture's source item via that source's own card, so the Inbox stays source-agnostic.
+
+## Extensions
+
+The following extension dialects are used in this document.
+Each extension is defined in the Appendix or resolved via its URI.
+
+| Term        | URI                            |
+|-------------|--------------------------------|
+| `type`      | `org.dxos.mdl.type@1.0`       |
+| `feat`      | `org.dxos.mdl.feat@1.0`       |
+| `test`      | `org.dxos.mdl.test@1.0`       |
+| `component` | `org.dxos.mdl.component@1.0`  |
+| `op`        | `org.dxos.mdl.op@1.0`         |
+
+## Types
+
+```mdl
+type Capture
+  desc: |
+    The source-agnostic envelope: an item Steve flagged, where it came from, and his optional
+    note/tags. `source` is the flagged item itself (a reading highlight today); `referent` is the
+    document it belongs to, used to cluster the Inbox; `flaggedAt` orders the Inbox.
+  fields:
+    source: Ref<any>          # the flagged source item
+    referent?: Ref<any>       # the document it belongs to (clusters the Inbox)
+    flaggedAt: string         # ISO timestamp; orders the Inbox
+    note?: string
+    tags?: string[]
+```
+
+```mdl
+type Result
+  desc: One triage outcome derived from a capture.
+  fields:
+    kind: todo | question
+    body: string
+```
+
+## Relations
+
+```mdl
+type DerivedFrom
+  desc: Traceability relation, source → target = Result → the Capture it was derived from. Every result stays reachable from its origin capture.
+```
+
+```mdl
+type ConnectedTo
+  desc: Connect relation, source → target = Capture → the object it belongs with (a project Collection today, any object in principle).
+```
+
+## Operations
+
+```mdl
+op SensemakingOperation.CreateResult
+  desc: |
+    Creates a triage Result (to-do or question) from a capture and records a DerivedFrom relation
+    from the result back to the capture, so the result is always traceable to its origin.
+  input:
+    capture: Ref<Capture>
+    kind: todo | question
+    body: string
+  output:
+    result: Ref<Result>
+  effects: [echo:write]
+```
+
+```mdl
+op SensemakingOperation.Connect
+  desc: Connects a capture to a target object (a project Collection today) via a ConnectedTo relation.
+  input:
+    capture: Ref<Capture>
+    target: Ref<any>
+  effects: [echo:write]
+```
+
+## Components
+
+```mdl
+component Inbox
+  desc: |
+    The Inbox article surface for a space. Groups the space's captures under the source document
+    they came from, most-recently-active document first, and renders each capture with its triage
+    controls. Appears in the space navigation only when the space has at least one capture.
+  props:
+    space: Space
+  layout: |
+    ┌─────────────────────────────────────────────┐
+    │ N captures                                   │
+    ├─────────────────────────────────────────────┤
+    │ ┌ The Great Reorg · Azeem Azhar · 3  [↗]  ┐ │
+    │ │  ● source · see in source ↗              │ │
+    │ │  ▍ passage                               │ │
+    │ │  ✎ note                                  │ │
+    │ │  YOUR RESULTS                            │ │
+    │ │   ✓ a to-do    ↳ from this capture   ✕   │ │
+    │ │  [+ result ▾]                            │ │
+    │ │ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ │ │
+    │ │  ● source · see in source ↗              │ │
+    │ │  ▍ passage …                             │ │
+    │ └──────────────────────────────────────────┘ │
+    └─────────────────────────────────────────────┘
+```
+
+```mdl
+component CaptureRow
+  desc: |
+    One capture within the Inbox: its source item rendered inline via that source's own card, a
+    source-tag with a link to the item's origin, an inline list of the capture's results (each
+    labelled as derived from this capture and individually removable), and a "+ result" control to
+    add a to-do / question or connect the capture to a project. Aligned in a single body column so
+    the source card, results, and controls share one left edge.
+  props:
+    capture: Capture
+    space: Space
+  actions:
+    addResult(kind) → Result
+    connect(target)
+    removeResult(result)
+```
+
+## Features
+
+```mdl
+feat F-1: Inbox
+
+  req F-1.1:
+    given: a space whose sources have produced at least one capture
+    when: the user opens the space
+    then: an "Inbox" appears in the space navigation
+    and: a space with no captures shows no Inbox
+
+  req F-1.2:
+    given: an Inbox holding captures from one or more source documents
+    when: the user views it
+    then: captures are grouped under the source document they were captured from
+    and: each group is labelled with the document's title and its capture count
+    and: groups with more-recent activity appear first
+
+  req F-1.3:
+    given: a capture in the Inbox
+    when: the user views it
+    then: the captured item is shown inline (for a reading highlight: its passage, the note when present, and tags)
+    and: the capture is labelled with the source it came from
+    and: a link opens the item at its origin
+```
+
+```mdl
+feat F-2: Triage into results
+
+  req F-2.1:
+    given: a capture in the Inbox
+    when: the user adds a to-do or a question from the capture's "+ result" control
+    then: the result is created and listed under the capture
+    and: the result records the capture it was derived from
+
+  req F-2.2:
+    given: a capture with one or more results
+    when: the user views it
+    then: each result shows its kind (to-do or question) and its text
+    and: each result shows that it was derived from this capture
+
+  req F-2.3:
+    given: a result listed under a capture
+    when: the user removes it
+    then: the result no longer appears under the capture
+```
+
+```mdl
+feat F-3: Connect
+
+  req F-3.1:
+    given: a capture in the Inbox and one or more projects in the space
+    when: the user connects the capture to a project from the "+ result" control
+    then: a connection is recorded from the capture to that project
+
+  req F-3.2:
+    given: a space with no projects
+    when: the user opens the connect options in the "+ result" control
+    then: the control indicates there are no projects to connect to
+```
+
+## Acceptance
+
+```mdl
+test T-1: Triage creates a result traceable to its capture
+  desc: Automated — src/operations/triage.test.ts, src/types/relations.test.ts, src/types/Result.test.ts.
+  given: a capture
+  when: a to-do result is created from it
+  then:
+    - the result is persisted with its kind and body
+    - the result is reachable from the capture via the DerivedFrom relation
+```
+
+```mdl
+test T-2: Connect records a relation from the capture to the target
+  desc: Automated — src/operations/triage.test.ts, src/types/relations.test.ts.
+  given: a capture and a target object
+  when: the capture is connected to the target
+  then: a ConnectedTo relation exists from the capture to the target
+```
+
+```mdl
+test T-3: Captures cluster by source, most-recent first
+  desc: Automated — src/operations/cluster.test.ts.
+  given: captures spanning several source documents flagged at different times
+  when: the Inbox clustering is computed
+  then:
+    - captures are grouped by their source document
+    - the groups are ordered by their most recent flag time, newest first
+```
+
+```mdl
+test T-4: The plugin registers its types on startup
+  desc: Automated — src/SensemakingPlugin.test.ts.
+  given: the plugin is enabled in a test app
+  when: it starts up
+  then: its schema module activates and registers the Capture type
+```
+
+```mdl
+test T-5: Walking-skeleton acceptance — capture, triage, connect, verified against the mockup
+  desc: |
+    Covered by a live manual acceptance run against a running Composer, computed-style-verified with
+    the `visual-verification` skill (.agents/skills/visual-verification), not a unit test.
+  given: a space fed by a connected source (Readwise), with synced captures
+  when: the user opens the Inbox and triages a capture
+  then:
+    - the Inbox appears in navigation once the space has captures
+    - captures are grouped by source document, most-recently-active first
+    - each capture shows its source item inline with a link to its origin
+    - adding a to-do / question lists it under the capture, marked as derived from it
+    - removing a result drops it from the capture
+    - connecting a capture to a project records the connection
+    - the rendered Inbox matches the Workbench mockup on every measured property (per the
+      visual-verification differ), residual differences being deliberate design-token / platform
+      choices only
+```
+
+---
+
+## Appendix: Extension Definitions
+
+Extension block types used in this document are defined below using
+the core `ext` primitive — the only construct the base language provides.
+
+```mdl
+ext type
+  uri: dxos.spec/ext/type@1.0
+  desc: A named data structure with typed fields and optional literals.
+  fields:
+    desc?: Prose
+    fields?: FieldMap        # name[?]: TypeExpr  (# inline comment)
+    literals?: UnionList     # a | b | c
+    extends?: TypeRef[]
+```
+
+```mdl
+ext feat
+  uri: dxos.spec/ext/feat@1.0
+  desc: A named feature grouping one or more requirements.
+  fields:
+    desc?: Prose
+    req: RequirementList
+  nesting: self              # feat blocks may contain feat blocks
+```
+
+```mdl
+ext test
+  uri: dxos.spec/ext/test@1.0
+  desc: An acceptance scenario expressed as given / when / then steps.
+  fields:
+    given?: Step | Step[]
+    when?: Step | Step[]
+    then: Step | Step[]
+    tags?: TagList
+```
+
+```mdl
+ext component
+  uri: org.dxos.mdl.component@1.0
+  desc: A UI component with props, internal state, slots, actions, and events.
+  fields:
+    desc?: Prose
+    props?: FieldMap            # external inputs (immutable inside component)
+    state?: FieldMap            # internal reactive state
+    slots?: FieldMap            # named ReactNode injection points
+    actions?: ActionMap         # methods the component exposes or handles
+    emits?: EventMap            # events the component raises to its parent
+    layout?: CodeBlock          # ASCII sketch of visual structure (non-normative)
+```
+
+```mdl
+ext op
+  uri: org.dxos.mdl.op@1.0
+  desc: |
+    A named operation with typed inputs, outputs, and declared errors.
+    Pure ops have no effects or requires. Effectful ops declare both.
+  fields:
+    desc?: Prose
+    input?: FieldMap            # named input parameters
+    output?: TypeExpr           # return type
+    errors?: ErrorMap           # name: Prose  (when this error occurs)
+    effects?: EffectList        # echo:read | echo:write | http | fs | ...
+    requires?: ServiceList      # injected service dependencies
+    note?: Prose                # implementation guidance (non-normative)
+```
