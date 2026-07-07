@@ -11,6 +11,7 @@ tasks:
       - '--entryPoint=src/SensemakingPlugin.tsx'
       - '--entryPoint=src/capabilities/index.ts'
       - '--entryPoint=src/meta.ts'
+      - '--entryPoint=src/operations/index.ts'
       - '--entryPoint=src/plugin.ts'
       - '--entryPoint=src/translations.ts'
       - '--entryPoint=src/types/index.ts'
