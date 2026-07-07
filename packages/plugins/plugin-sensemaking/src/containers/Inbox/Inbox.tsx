@@ -110,7 +110,7 @@ export const Inbox = ({ space }: InboxProps) => {
                       href={url}
                       target='_blank'
                       rel='noreferrer'
-                      className='flex items-center gap-1 rounded-md border border-separator plb-0.5 pli-2 text-xs text-description hover:text-primary-500'
+                      className='flex items-center gap-1 rounded-md border border-separator pbs-0.5 pbe-0.5 ps-2 pe-2 text-xs text-description hover:text-primary-500'
                     >
                       <Icon icon='ph--arrow-square-out--regular' size={3} />
                       {t('open-original.label')}

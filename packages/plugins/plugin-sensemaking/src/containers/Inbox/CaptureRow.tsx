@@ -157,7 +157,12 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
           ) : (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button data-testid='inbox.add-result' density='sm' classNames='text-[11px]'>
+                <Button
+                data-testid='inbox.add-result'
+                density='sm'
+                variant='outline'
+                classNames='text-[11px] rounded-[7px]! border-[#d9d3c8]! text-[#4b463f] dark:text-neutral-300'
+              >
                 {`${t('result-add.label')} ▾`}
               </Button>
               </DropdownMenu.Trigger>
