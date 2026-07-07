@@ -85,15 +85,23 @@ export const Inbox = ({ space }: InboxProps) => {
             return (
               <section
                 key={cluster.referent?.id ?? 'uncategorized'}
+                data-testid='inbox.cluster'
                 className='dx-card-surface rounded-xl border border-separator overflow-hidden mbe-4'
               >
                 <header
+                  data-testid='inbox.cluster-header'
                   className='flex items-center gap-2 plb-2 pli-3 border-be border-separator flex-wrap'
                   style={{ background: 'light-dark(oklch(0.985 0.006 80), oklch(0.225 0.01 78))' }}
                 >
-                  <span className='font-serif font-semibold text-base-fg'>{title}</span>
-                  {byline && <span className='text-xs font-normal text-subdued'>{byline}</span>}
-                  <span className='font-mono text-xs text-subdued'>
+                  <span data-testid='inbox.cluster-title' className='font-serif font-semibold text-base-fg'>
+                    {title}
+                  </span>
+                  {byline && (
+                    <span data-testid='inbox.cluster-byline' className='text-xs font-normal text-subdued'>
+                      {byline}
+                    </span>
+                  )}
+                  <span data-testid='inbox.cluster-count' className='font-mono text-xs text-subdued'>
                     {t('cluster-captures.label', { count: cluster.captures.length })}
                   </span>
                   <span className='flex-1' />

@@ -74,15 +74,21 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
   const triageResults = results.filter(Result.instanceOf);
 
   return (
-    <div className='plb-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0 grid grid-cols-[16px_1fr] gap-2.5 items-start'>
+    <div
+      data-testid='inbox.capture'
+      className='plb-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0 grid grid-cols-[16px_1fr] gap-2.5 items-start'
+    >
       {/* Processing-state gutter dot, shared by the whole capture so the source card, results, and
           controls align in one body column. Inert in Inc 1 — Inc 2 drives its fill/colour. */}
-      <div aria-hidden className='is-2.5 bs-2.5 mbs-1 rounded-full border border-separator' />
+      <div aria-hidden data-testid='inbox.capture-dot' className='is-2.5 bs-2.5 mbs-1 rounded-full border border-separator' />
       <div className='min-is-0'>
         <Surface.Surface type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
         {triageResults.length > 0 && (
-          <div className='mbs-2'>
-            <p className='mbe-1.5 font-mono text-[10px] uppercase tracking-wide text-violet-600 dark:text-violet-300'>
+          <div data-testid='inbox.results-block' className='mbs-2'>
+            <p
+              data-testid='inbox.results-label'
+              className='mbe-1.5 font-mono text-[10px] uppercase tracking-wide text-violet-600 dark:text-violet-300'
+            >
               {t('your-results.label')}
             </p>
             <div className='flex flex-col gap-1.5'>
@@ -90,6 +96,7 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
                 <div key={result.id} className='grid grid-cols-[17px_1fr_auto] gap-2 items-start text-xs'>
                   <span
                     aria-hidden
+                    data-testid={result.kind === 'todo' ? 'inbox.result-icon-todo' : undefined}
                     className={`is-4 bs-4 mbs-0.5 rounded grid place-items-center text-[9px] text-white ${
                       result.kind === 'todo' ? 'bg-blue-600' : 'bg-purple-600'
                     }`}
@@ -143,7 +150,7 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
           ) : (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button density='sm'>{`${t('result-add.label')} ▾`}</Button>
+                <Button data-testid='inbox.add-result' density='sm'>{`${t('result-add.label')} ▾`}</Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content>
