@@ -30,10 +30,10 @@ type WarmSurfaceVars = CSSProperties & {
 // and their derived states read these via `var()`, so the whole subtree warms and both light/dark
 // follow via `light-dark`.
 const warmSurfaces: WarmSurfaceVars = {
-  '--color-base-surface': 'light-dark(oklch(0.982 0.008 84), oklch(0.205 0.008 78))',
-  '--color-card-surface': 'light-dark(oklch(0.998 0.004 88), oklch(0.242 0.01 78))',
-  '--color-separator': 'light-dark(oklch(0.905 0.014 82), oklch(0.32 0.01 78))',
-  '--color-subdued-separator': 'light-dark(oklch(0.925 0.012 82), oklch(0.3 0.01 78))',
+  '--color-base-surface': 'light-dark(oklch(0.979 0.016 80), oklch(0.205 0.01 78))',
+  '--color-card-surface': 'light-dark(oklch(0.996 0.012 82), oklch(0.242 0.012 78))',
+  '--color-separator': 'light-dark(oklch(0.9 0.018 80), oklch(0.32 0.012 78))',
+  '--color-subdued-separator': 'light-dark(oklch(0.92 0.016 80), oklch(0.3 0.012 78))',
 };
 
 // A referent's "open original" link reads a `url` field when present (e.g. a Bookmark). Narrowed
