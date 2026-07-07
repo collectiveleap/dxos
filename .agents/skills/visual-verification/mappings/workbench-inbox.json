@@ -1,0 +1,177 @@
+{
+  "view": "workbench-inbox",
+  "mockup": "docs/superpowers/specs/2026-07-06-workbench-mockup.html",
+  "app": "composer-app → Personal Space → Inbox (requires ≥1 synced Capture)",
+  "note": "Expected values are extracted from the mockup's <style> block (cited per region). The canonical upgrade is to render the mockup and harvest the same props with harvest-styles.js so expected and actual are both browser-resolved; until then these are the source-CSS values with tolerant color/length comparison. Selectors are data-testids on the plugin source.",
+  "viewport": { "width": 1400, "height": 900 },
+  "tolerances": { "lengthPx": 1, "colorChannel": 6, "weight": 40 },
+  "regions": [
+    {
+      "name": "cluster",
+      "app": "[data-testid=\"inbox.cluster\"]",
+      "mockup": ".cluster (mockup css :98)",
+      "expect": {
+        "border-top-width": "1px",
+        "border-top-style": "solid",
+        "border-top-color": "#e8e4dc",
+        "border-top-left-radius": "11px",
+        "background-color": "#ffffff"
+      }
+    },
+    {
+      "name": "cluster-header",
+      "app": "[data-testid=\"inbox.cluster-header\"]",
+      "mockup": ".cl-head (:99)",
+      "expect": {
+        "background-color": "#faf9f5",
+        "padding-top": "9px",
+        "padding-left": "12px",
+        "border-bottom-width": "1px",
+        "border-bottom-color": "#e8e4dc"
+      }
+    },
+    {
+      "name": "cluster-title",
+      "app": "[data-testid=\"inbox.cluster-title\"]",
+      "mockup": ".cl-head .rt (:100)",
+      "expect": {
+        "font-family": "New York, Georgia, serif",
+        "font-size": "14px",
+        "font-weight": "600",
+        "color": "#26221c"
+      }
+    },
+    {
+      "name": "cluster-byline",
+      "app": "[data-testid=\"inbox.cluster-byline\"]",
+      "mockup": ".cl-head .au (:101)",
+      "expect": {
+        "font-size": "11.5px",
+        "color": "#7a746c"
+      }
+    },
+    {
+      "name": "cluster-count",
+      "app": "[data-testid=\"inbox.cluster-count\"]",
+      "mockup": ".cl-head .cnt (:106)",
+      "expect": {
+        "font-family": "SF Mono, ui-monospace, monospace",
+        "font-size": "10.5px",
+        "color": "#7a746c"
+      }
+    },
+    {
+      "name": "capture",
+      "app": "[data-testid=\"inbox.capture\"]:not(:first-of-type)",
+      "mockup": ".cap (:116)",
+      "expect": {
+        "border-top-width": "1px",
+        "border-top-style": "dashed",
+        "border-top-color": "#e8e4dc",
+        "column-gap": "10px"
+      }
+    },
+    {
+      "name": "capture-dot",
+      "app": "[data-testid=\"inbox.capture-dot\"]",
+      "mockup": ".dot.none (:118,:119)",
+      "expect": {
+        "width": "11px",
+        "height": "11px",
+        "border-top-width": "1.5px",
+        "border-top-color": "#d9d3c8"
+      }
+    },
+    {
+      "name": "srctag",
+      "app": "[data-testid=\"inbox.srctag\"]",
+      "mockup": ".srctag (:123)",
+      "expect": {
+        "font-size": "11px",
+        "color": "#7a746c",
+        "margin-bottom": "5px"
+      }
+    },
+    {
+      "name": "srctag-dot",
+      "app": "[data-testid=\"inbox.srctag-dot\"]",
+      "mockup": ".srctag .sd.readwise (:124,:125)",
+      "expect": {
+        "width": "7px",
+        "height": "7px",
+        "background-color": "#eab308"
+      }
+    },
+    {
+      "name": "passage",
+      "app": "[data-testid=\"inbox.passage\"]",
+      "mockup": ".passage (:130)",
+      "expect": {
+        "font-family": "New York, Georgia, serif",
+        "font-size": "14px",
+        "color": "#26221c",
+        "border-left-width": "3px",
+        "border-left-color": "#f2c94c",
+        "padding-left": "10px"
+      }
+    },
+    {
+      "name": "note",
+      "app": "[data-testid=\"inbox.note\"]",
+      "mockup": ".note (:135)",
+      "expect": {
+        "font-size": "12px",
+        "color": "#7c5e00",
+        "background-color": "#fdf6e3",
+        "border-top-left-radius": "6px",
+        "padding-left": "8px"
+      }
+    },
+    {
+      "name": "results-label",
+      "app": "[data-testid=\"inbox.results-label\"]",
+      "mockup": ".tlabel (:156)",
+      "expect": {
+        "font-size": "9px",
+        "color": "#a8a29a",
+        "font-weight": "640",
+        "text-transform": "uppercase"
+      }
+    },
+    {
+      "name": "results-block",
+      "app": "[data-testid=\"inbox.results-block\"]",
+      "mockup": ".triage (:149)",
+      "expect": {
+        "border-top-width": "1px",
+        "border-top-style": "dashed",
+        "border-top-color": "#d9d3c8",
+        "padding-top": "7px"
+      }
+    },
+    {
+      "name": "result-icon-todo",
+      "app": "[data-testid=\"inbox.result-icon-todo\"]",
+      "mockup": ".item.todo .ik (:151,:152)",
+      "expect": {
+        "width": "15px",
+        "height": "15px",
+        "border-top-left-radius": "5px",
+        "background-color": "#2563eb"
+      }
+    },
+    {
+      "name": "add-result-btn",
+      "app": "[data-testid=\"inbox.add-result\"]",
+      "mockup": ".cardbtn.add (:144,:146)",
+      "expect": {
+        "font-size": "11px",
+        "border-top-left-radius": "7px",
+        "color": "#4b463f",
+        "border-top-width": "1px",
+        "border-top-color": "#d9d3c8",
+        "background-color": "#ffffff"
+      }
+    }
+  ]
+}
