@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workbench Inbox — design mockup</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#fbfaf7; --panel:#fff; --sidebar:#f3f1ec;
+    --ink:#1c1a17; --muted:#7a746c; --faint:#a8a29a;
+    --line:#e8e4dc; --line-strong:#d9d3c8;
+    --amber:#eab308; --amber-rule:#f2c94c; --note-bg:#fdf6e3; --note-ink:#7c5e00;
+    --violet:#7c5cff; --violet-soft:#efeaff; --violet-ink:#5b45c8;
+    --sky:#1185fe; --sky-soft:#e8f2ff;
+    --rose:#e0518b; --rose-soft:#fdeef4;
+    --graphite:#57534e; --graphite-soft:#efedea;
+    --blue:#3b6fe0; --green:#16a34a;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    --serif:"New York",Georgia,"Iowan Old Style","Times New Roman",serif;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  .wb{font-family:var(--sans);color:var(--ink);background:var(--ground);
+    -webkit-font-smoothing:antialiased;line-height:1.5;max-width:1220px;margin:0 auto;padding:24px 20px 40px}
+  .wb h1,.wb p{margin:0}
+
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .title{font-size:22px;font-weight:680;letter-spacing:-.01em;margin-top:2px}
+  .sub{font-size:13px;color:var(--muted);max-width:74ch;margin-top:3px}
+
+  .controls{display:flex;flex-wrap:wrap;gap:18px;margin:16px 0 8px;align-items:flex-start}
+  .ctl{display:flex;flex-direction:column;gap:6px}
+  .ctl .lab{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:640}
+  .srcrow{display:flex;gap:6px;flex-wrap:wrap}
+  .src-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-strong);background:#fff;
+    border-radius:999px;padding:5px 12px 5px 9px;font-size:12.5px;cursor:pointer;font-family:inherit;color:#4b463f;
+    transition:border-color .14s,background .14s,opacity .14s}
+  .src-chip .d{width:8px;height:8px;border-radius:50%}
+  .src-chip[data-on="false"]{opacity:.5;background:#faf9f6}
+  .src-chip[data-on="false"] .d{background:var(--faint)!important}
+  .src-chip[data-lock="1"]{cursor:default}
+  .src-chip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .src-chip .chk{font-size:11px;color:var(--muted);width:10px}
+
+  .stagerow{display:flex;gap:5px;flex-wrap:wrap}
+  .stage-btn{appearance:none;border:1px solid var(--line-strong);background:#fff;border-radius:8px;
+    padding:6px 11px;cursor:pointer;font-family:inherit;color:#4b463f;display:flex;flex-direction:column;gap:1px;min-width:106px}
+  .stage-btn .sn{font-size:10px;color:var(--muted);font-weight:600}
+  .stage-btn .snm{font-size:12.5px;font-weight:600;letter-spacing:-.01em}
+  .stage-btn[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+  .stage-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .surf-tag{display:inline-block;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+    border-radius:4px;padding:0 4px;margin-top:2px;width:max-content}
+  .surf-tag.inbox{color:#8a6d00;background:#faedc0}
+  .surf-tag.pipe{color:#fff;background:var(--violet)}
+
+  .caption{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);
+    border-left:3px solid var(--amber);border-radius:8px;padding:9px 13px;margin:8px 0 6px}
+  .caption .val{font-size:13.5px;font-weight:560}
+  .caption .prec{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+  .caption .prec b{color:var(--violet-ink)}
+  .mixnote{font-size:12px;color:var(--muted);margin:0 2px 12px;min-height:16px}
+  .mixnote b{color:var(--ink);font-weight:600}
+
+  .shell{display:flex;border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;background:#fff;
+    height:614px;box-shadow:0 1px 2px rgba(28,26,23,.04),0 14px 36px -22px rgba(28,26,23,.30)}
+  .rail{width:50px;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;
+    align-items:center;gap:14px;padding:13px 0;flex:none}
+  .rail .ico{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--muted);font-size:14px}
+  .rail .ico.on{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .rail .brand{margin-top:auto;width:26px;height:26px;border-radius:50%;background:var(--ink);display:grid;place-items:center;color:#fff;font-size:12px}
+
+  .nav{width:212px;background:var(--sidebar);border-right:1px solid var(--line);padding:11px 8px;overflow-y:auto;flex:none;font-size:12.5px}
+  .nav .space{display:flex;align-items:center;gap:6px;padding:2px 6px 8px;font-weight:620}
+  .grp{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:640;padding:11px 8px 4px}
+  .row{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:7px;color:#37322c}
+  .row:hover{background:#eceae3}
+  .row.sel{background:#e7e4db;font-weight:560}
+  .row .tw{color:var(--faint);width:9px;font-size:9px}
+  .row .gi{width:15px;text-align:center;font-size:12px}
+  .row .ct{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .row[data-on="false"]{opacity:.42}
+  .sd{padding-left:15px}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .phead{display:flex;align-items:center;gap:9px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .phead .ic{font-size:15px}
+  .phead .ttl{font-size:14px;font-weight:660}
+  .phead .sp{flex:1}
+  .phead .cnt{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .toolbar{display:flex;align-items:center;gap:6px;padding:7px 12px;border-bottom:1px solid var(--line);background:#fcfbf8;flex-wrap:wrap}
+  .tbtn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4b463f;border:1px solid var(--line-strong);
+    background:#fff;border-radius:7px;padding:5px 9px}
+  .scroll{overflow-y:auto;padding:12px 15px 26px;flex:1}
+
+  .cluster{margin-bottom:16px;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+  .cl-head{display:flex;align-items:center;gap:9px;padding:9px 12px;background:#faf9f5;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .cl-head .rt{font-family:var(--serif);font-size:14px;font-weight:600;color:#26221c}
+  .cl-head .au{font-size:11.5px;color:var(--muted)}
+  .badges{display:inline-flex;gap:5px;align-items:center}
+  .badge{font-size:9.5px;font-family:var(--mono);border-radius:4px;padding:1px 6px;color:#fff;letter-spacing:.02em}
+  .badge.readwise{background:var(--amber)}.badge.bluesky{background:var(--sky)}
+  .badge.email{background:var(--rose)}.badge.notes{background:var(--graphite)}
+  .cl-head .cnt{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .cl-head .sp{flex:1}
+  .open{font-size:11px;color:#4b463f;border:1px solid var(--line-strong);border-radius:6px;padding:2px 8px;background:#fff}
+  .open.orig{color:var(--blue);border-color:#cdd9f5}
+  .proj{font-size:10.5px;color:var(--violet-ink);background:var(--violet-soft);border:1px solid #e0d9ff;border-radius:999px;padding:1px 9px}
+  .merge{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+  .cl-body{padding:9px 11px}
+  .cluster.solo .cl-head{background:#faf9f6}
+  .cluster.solo .cl-head .rt{font-family:var(--sans);font-size:12px;color:var(--muted);font-weight:560}
+
+  .cap{display:grid;grid-template-columns:14px 1fr;gap:10px;padding:9px 4px 9px 2px;border-top:1px dashed var(--line)}
+  .cl-body > .cap:first-child{border-top:0;padding-top:2px}
+  .dot{width:11px;height:11px;border-radius:50%;margin-top:5px;border:1.5px dashed var(--faint);background:transparent}
+  .dot.none{border:1.5px solid var(--line-strong)}
+  .dot.partial{border:1.5px solid var(--amber);background:conic-gradient(var(--amber) 55%,transparent 0)}
+  .dot.complete{border:1.5px solid var(--green);background:var(--green)}
+  .cbody{min-width:0}
+  .srctag{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:5px}
+  .srctag .sd{width:7px;height:7px;border-radius:50%;padding:0}
+  .srctag .sd.readwise{background:var(--amber)}.srctag .sd.bluesky{background:var(--sky)}
+  .srctag .sd.email{background:var(--rose)}.srctag .sd.notes{background:var(--graphite)}
+  .srctag .flag{margin-left:2px;color:var(--faint)}
+  .srctag .oo{color:var(--blue);text-decoration:none}
+
+  .passage{font-family:var(--serif);font-size:14px;line-height:1.5;color:#26221c;border-left:3px solid var(--amber-rule);padding-left:10px;margin-bottom:6px}
+  .skeet{font-size:13px;color:#26221c;margin-bottom:5px}
+  .subject{font-size:13px;font-weight:640;margin-bottom:2px}
+  .snip{font-size:12.5px;color:#4b463f;margin-bottom:5px}
+  .thought{font-size:13.5px;color:#26221c;margin-bottom:6px}
+  .note{font-size:12px;color:var(--note-ink);background:var(--note-bg);border-radius:6px;padding:4px 8px;margin:2px 0 7px}
+  .ref-line{font-size:11px;color:var(--muted);margin-bottom:6px}
+  .ref-line b{color:#4b463f}
+  .foot{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .chip{font-size:10.5px;color:#5c554c;background:#f0ede6;border-radius:999px;padding:1px 8px}
+  .social{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+  .fwd{font-size:11px;margin-left:auto;border-radius:999px;padding:1px 9px}
+  .fwd.inert{color:var(--violet);border:1px dashed var(--violet);opacity:.85}
+  .fwd.live{color:var(--green);background:#e7f6ec;border:1px solid #cde8d6}
+  .cardbtn{font-size:11px;border-radius:7px;padding:3px 8px;display:inline-flex;gap:5px;align-items:center}
+  .cardbtn.ai{color:var(--violet-ink);background:var(--violet-soft);border:1px solid #e0d9ff}
+  .cardbtn.add{color:#4b463f;border:1px solid var(--line-strong);background:#fff}
+
+  /* triage results */
+  .triage{margin:7px 0 2px;border-top:1px dashed var(--line-strong);padding-top:7px;display:flex;flex-direction:column;gap:5px}
+  .item{display:grid;grid-template-columns:17px 1fr auto;gap:8px;font-size:12px}
+  .item .ik{width:15px;height:15px;border-radius:5px;display:grid;place-items:center;font-size:9px;color:#fff;margin-top:1px}
+  .item.todo .ik{background:#2563eb}.item.q .ik{background:#9333ea}.item.connect .ik{background:var(--violet);font-size:8px}
+  .item .trace{display:block;font-size:10px;color:var(--muted)}
+  .item .trace b{color:var(--amber)}
+  .item .rm{color:var(--faint);font-size:11px}
+  .tlabel{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:640;margin-bottom:3px}
+
+  /* companion */
+  .companion{width:298px;border-left:1px solid var(--line);background:#fcfbf9;display:flex;flex-direction:column;flex:none}
+  .comp-head{display:flex;align-items:center;gap:7px;padding:10px 13px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+  .comp-head .sk{color:var(--violet)}
+  .comp-head .frm{color:var(--faint);font-weight:400;font-size:11px}
+  .ctx{margin:10px 12px 4px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff}
+  .ctx .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:3px}
+  .ctx .pq{font-family:var(--serif);font-size:12px;border-left:2px solid var(--amber-rule);padding-left:8px;color:#3a342c}
+  .ctx .wq{font-size:12.5px;font-weight:560;color:#26221c;display:flex;gap:6px}
+  .ctx .wq .ik{width:15px;height:15px;border-radius:5px;display:grid;place-items:center;font-size:9px;color:#fff;background:#2563eb;flex:none;margin-top:1px}
+  .ctx .trace2{font-size:10.5px;color:var(--muted);margin-top:4px}
+  .ctx .trace2 b{color:var(--amber)}
+  .chat{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:90%;font-size:12px;line-height:1.45;padding:6px 9px;border-radius:11px}
+  .msg.u{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:3px}
+  .msg.a{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:3px}
+  .msg.a .tref{color:var(--amber);font-weight:600}
+  .comp-input{margin:0 12px 12px;border:1px solid var(--line-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--faint);background:#fff}
+  .compv{display:flex;flex-direction:column;flex:1;min-height:0}
+  .learn{margin:0 12px 8px;font-size:10.5px;color:var(--violet-ink);background:var(--violet-soft);border:1px solid #e6e0ff;border-radius:7px;padding:6px 9px}
+
+  /* pipeline board */
+  .pipeline{flex:1;overflow:auto;padding:12px 15px;display:flex;flex-direction:column;gap:10px}
+  .pipe-note{font-size:11px;color:var(--violet-ink);background:var(--violet-soft);border:1px dashed var(--violet);border-radius:8px;padding:7px 10px}
+  .pipe-note b{color:var(--violet-ink)}
+  .board{display:flex;gap:12px;flex:1;min-height:0}
+  .col{flex:1;background:#faf9f5;border:1px solid var(--line);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .col-h{font-size:11px;font-weight:640;color:#4b463f;display:flex;gap:6px;align-items:center}
+  .col-h .cc{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 9px;display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:start}
+  .pcard.sel{box-shadow:0 0 0 2px #fff,0 0 0 3px var(--violet);border-color:transparent}
+  .pcard.done{opacity:.55}
+  .pk{width:15px;height:15px;border-radius:5px;display:grid;place-items:center;font-size:9px;color:#fff;margin-top:1px}
+  .pk.todo{background:#2563eb}.pk.q{background:#9333ea}
+  .pt{font-size:12px;color:#26221c}
+  .pfrom{font-size:10px;color:var(--muted);margin-top:2px}
+  .pwork{font-size:10px;color:var(--violet-ink);white-space:nowrap;margin-top:1px}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:13px;font-size:11.5px;color:var(--muted)}
+  .legend .k{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:4px}
+  .sw.amber{background:var(--amber-rule)}.sw.sky{background:var(--sky)}.sw.rose{background:var(--rose)}.sw.gra{background:var(--graphite)}
+  .sw.newr{box-shadow:0 0 0 2px #fff,0 0 0 3px var(--violet)}
+
+  .is-hidden{display:none!important}
+  [data-hero].is-new{position:relative;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--violet);border-radius:9px}
+  [data-hero].is-new::after{content:"new";position:absolute;top:-8px;left:10px;font-size:8.5px;letter-spacing:.05em;
+    text-transform:uppercase;font-weight:700;color:#fff;background:var(--violet);border-radius:999px;padding:1px 6px}
+  .cap.just{position:relative;border-radius:9px;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--sky);animation:ring 1.1s ease}
+  @keyframes ring{from{box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(17,133,254,0)}}
+  @media (prefers-reduced-motion:reduce){.cap.just{animation:none}}
+
+  @media(max-width:860px){.shell{height:auto;flex-direction:column}.rail{flex-direction:row;width:auto}
+    .nav,.companion{width:auto}.companion{border-left:0;border-top:1px solid var(--line)}.caption .prec{margin-left:0}
+    .board{flex-direction:column}}
+</style>
+
+<div class="wb" id="wb">
+  <div class="eyebrow">Composer · workbench concept</div>
+  <h1 class="title">Inbox → triage → pipeline: one workbench, many sources</h1>
+  <p class="sub">Anything you flag — a Readwise highlight, a Bluesky post, an email, a stray note — lands in the <b>Inbox</b> and clusters around its <em>referent</em> (the underlying thing). You triage each capture — by hand or an AI chat — into <b>results</b>: to-dos, questions, and connections. The <b>action</b>-results then flow onto a <b>Pipeline</b> you work with AI. Add <b>sources</b> to watch clusters assemble; step the <b>stage</b> to walk the flow.</p>
+
+  <div class="controls">
+    <div class="ctl">
+      <span class="lab">Sources feeding the workbench</span>
+      <div class="srcrow" id="srcrow">
+        <button class="src-chip" data-src="readwise" data-lock="1" data-on="true"><span class="chk">✓</span><span class="d" style="background:var(--amber)"></span>Readwise</button>
+        <button class="src-chip" data-src="bluesky" data-on="false"><span class="chk"></span><span class="d" style="background:var(--sky)"></span>Bluesky</button>
+        <button class="src-chip" data-src="email" data-on="false"><span class="chk"></span><span class="d" style="background:var(--rose)"></span>Email</button>
+        <button class="src-chip" data-src="notes" data-on="false"><span class="chk"></span><span class="d" style="background:var(--graphite)"></span>Notes</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lab">Stage</span>
+      <div class="stagerow" id="stagerow">
+        <button class="stage-btn" data-stage="1" aria-pressed="true"><span class="sn">1</span><span class="snm">Browse</span><span class="surf-tag inbox">inbox</span></button>
+        <button class="stage-btn" data-stage="2" aria-pressed="false"><span class="sn">2</span><span class="snm">Manual triage</span><span class="surf-tag inbox">inbox</span></button>
+        <button class="stage-btn" data-stage="3" aria-pressed="false"><span class="sn">3</span><span class="snm">AI triage</span><span class="surf-tag inbox">inbox</span></button>
+        <button class="stage-btn" data-stage="4" aria-pressed="false"><span class="sn">4</span><span class="snm">Pipeline</span><span class="surf-tag pipe">pipeline</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption"><span class="val" id="capVal"></span><span class="prec" id="capPrec"></span></div>
+  <p class="mixnote" id="mixnote"></p>
+
+  <div class="shell">
+    <div class="rail">
+      <div class="ico on">☰</div><div class="ico">⌂</div><div class="ico">▤</div>
+      <div class="brand">✦</div>
+    </div>
+
+    <nav class="nav">
+      <div class="space">Personal Space</div>
+      <div class="row"><span class="tw">▸</span><span class="gi">⌂</span>Home</div>
+
+      <div class="grp">Workbench</div>
+      <div class="row" data-navinbox><span class="tw">▾</span><span class="gi">▧</span>Inbox <span class="ct" id="navcount">—</span></div>
+      <div class="row" data-navpipe><span class="tw">▸</span><span class="gi">▦</span>Pipeline <span class="ct">5</span></div>
+
+      <div class="grp">Sources</div>
+      <div class="row" data-srcrow="readwise" data-on="true"><span class="tw">▸</span><span class="gi">📖</span>Readwise · My Reading</div>
+      <div class="row" data-srcrow="bluesky" data-on="false"><span class="tw">▸</span><span class="gi">🦋</span>Bluesky · @you</div>
+      <div class="row" data-srcrow="email" data-on="false"><span class="tw">▸</span><span class="gi">✉</span>Email · Personal</div>
+      <div class="row" data-srcrow="notes" data-on="false"><span class="tw">▸</span><span class="gi">✎</span>Notes</div>
+
+      <div class="grp" data-since="2">Projects · connect targets</div>
+      <div class="row" data-since="2"><span class="tw">▸</span><span class="gi">◎</span>Pricing strategy</div>
+      <div class="row" data-since="2"><span class="tw">▸</span><span class="gi">◎</span>AI &amp; orgs</div>
+    </nav>
+
+    <div class="main">
+      <div class="phead"><span class="ic">▧</span><span class="ttl">Workbench · Inbox</span><span class="sp"></span>
+        <span class="cnt" id="phcount">—</span></div>
+      <div class="toolbar">
+        <span class="tbtn" data-since="1" data-until="3">↕ Sort: recent ▾</span>
+        <span class="tbtn" data-since="1" data-until="3">⟳ Sync all</span>
+        <span class="tbtn" data-since="4">▦ Group: status ▾</span>
+        <span class="tbtn" data-since="4">⤢ Filter ▾</span>
+      </div>
+
+      <!-- ===== INBOX SURFACE (stages 1–3) ===== -->
+      <div class="scroll" id="stage-area" data-since="1" data-until="3">
+
+        <!-- Cluster 1: The Great Reorg -->
+        <div class="cluster" data-cl>
+          <div class="cl-head">
+            <span class="rt">The Great Reorg Is Just Getting Started</span><span class="au">· Azeem Azhar</span>
+            <span class="badges" data-badges></span><span class="cnt" data-clcnt></span><span class="sp"></span>
+            <span class="proj" data-since="2">→ AI &amp; orgs</span><span class="merge">⇄ merge</span><span class="open orig">↗ Original</span>
+          </div>
+          <div class="cl-body">
+            <div class="cap" data-src="readwise" data-since="1">
+              <div class="dot none" data-dot></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd readwise"></span>Readwise <span class="flag">⚑</span> · <a class="oo">in reader ↗</a></div>
+                <p class="passage">As individuals we're all running much faster, but somehow as a team we're moving at the same speed. We call it congestion.</p>
+                <div class="note">✎ Worth a post — tie to the pricing thesis.</div>
+                <div class="triage" data-since="2" data-hero>
+                  <div class="item todo"><span class="ik">✓</span><span>Draft a post on “AI congestion” in teams<span class="trace">↳ from <b>this capture</b></span></span></div>
+                  <div class="item connect"><span class="ik">🔗</span><span>Connect to <b>AI &amp; orgs</b> project<span class="trace">↳ from <b>this capture</b></span></span></div>
+                </div>
+                <div class="foot"><span class="chip">#genai</span><span class="chip">#orgs</span><span class="fwd inert" data-fwd>→ not yet triaged</span></div>
+              </div>
+            </div>
+            <div class="cap" data-src="bluesky" data-since="1">
+              <div class="dot none" data-dot data-state="none"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd bluesky"></span>Bluesky <span class="flag">⚑</span> · <a class="oo">@azhar ↗</a></div>
+                <p class="skeet">The congestion framing is exactly right — individual AI speedups don't compound into team speed. Been chewing on this all week.</p>
+                <div class="ref-line">↩ links <b>The Great Reorg Is Just Getting Started</b></div>
+                <div class="triage" data-since="2"><div class="item todo"><span class="ik">✓</span><span>Reply with the pricing angle<span class="trace">↳ from <b>this skeet</b></span></span></div></div>
+                <div class="foot"><span class="social">♺ 42 · ♡ 310</span><span class="fwd inert" data-fwd data-state="none">→ not yet triaged</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cluster 2: AI Is Repricing Software (3-source) -->
+        <div class="cluster" data-cl>
+          <div class="cl-head">
+            <span class="rt">AI Is Repricing Software Which Is Splitting Old Moats</span><span class="au">· Forbes</span>
+            <span class="badges" data-badges></span><span class="cnt" data-clcnt></span><span class="sp"></span>
+            <span class="proj" data-since="2">→ Pricing strategy</span><span class="merge">⇄ merge</span><span class="open orig">↗ Original</span>
+          </div>
+          <div class="cl-body">
+            <div class="cap" data-src="readwise" data-since="1">
+              <div class="dot complete" data-dot data-state="complete"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd readwise"></span>Readwise <span class="flag">⚑</span> · <a class="oo">in reader ↗</a></div>
+                <p class="passage">PE bought software at pandemic-era multiples and is now repricing it as AI erodes the moat.</p>
+                <div class="foot"><span class="chip">#investing</span><span class="fwd inert" data-fwd data-state="complete">→ not yet triaged</span></div>
+              </div>
+            </div>
+            <div class="cap" data-src="email" data-since="1">
+              <div class="dot none" data-dot data-state="none"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd email"></span>Email <span class="flag">⚑</span> · <a class="oo">Exponential View ↗</a></div>
+                <div class="subject">The moat is melting</div>
+                <p class="snip">…which is why the repricing story matters more than the model story this quarter…</p>
+                <div class="ref-line">↳ links <b>AI Is Repricing Software…</b></div>
+                <div class="foot"><span class="fwd inert" data-fwd data-state="none">→ not yet triaged</span></div>
+              </div>
+            </div>
+            <div class="cap" data-src="bluesky" data-since="1">
+              <div class="dot none" data-dot data-state="none"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd bluesky"></span>Bluesky <span class="flag">⚑</span> · <a class="oo">@packyM ↗</a></div>
+                <p class="skeet">Repricing &gt; models as the 2026 story. This Forbes piece nails it.</p>
+                <div class="ref-line">↩ links <b>AI Is Repricing Software…</b></div>
+                <div class="foot"><span class="social">♺ 18 · ♡ 96</span><span class="fwd inert" data-fwd data-state="none">→ not yet triaged</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cluster 3: single-source contrast -->
+        <div class="cluster" data-cl>
+          <div class="cl-head">
+            <span class="rt">The Positioning Manual for Indie Consultants</span><span class="au">· Philip Morgan</span>
+            <span class="badges" data-badges></span><span class="cnt" data-clcnt></span><span class="sp"></span>
+            <span class="proj" data-since="2">→ Pricing strategy</span><span class="open orig">↗ Original</span>
+          </div>
+          <div class="cl-body">
+            <div class="cap" data-src="readwise" data-since="1">
+              <div class="dot partial" data-dot data-state="partial"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd readwise"></span>Readwise <span class="flag">⚑</span> · <a class="oo">in reader ↗</a></div>
+                <p class="passage">Specialists are perceived as more expert than generalists — and expertise is what commands premium fees.</p>
+                <div class="foot"><span class="chip">#pricing</span><span class="fwd inert" data-fwd data-state="partial">→ not yet triaged</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bare thought (no referent) -->
+        <div class="cluster solo" data-cl>
+          <div class="cl-head"><span class="rt">No referent · flagged in Composer</span><span class="sp"></span>
+            <span class="proj" data-since="2">→ Pricing strategy</span></div>
+          <div class="cl-body">
+            <div class="cap" data-src="notes" data-since="1">
+              <div class="dot none" data-dot data-state="none"></div>
+              <div class="cbody">
+                <div class="srctag"><span class="sd notes"></span>Note <span class="flag">⚑</span> · you, in Composer</div>
+                <p class="thought">Positioning is the pricing lever. Where's the Readwise evidence I keep half-remembering?</p>
+                <div class="foot"><span class="chip">#pricing</span><span class="fwd inert" data-fwd data-state="none">→ not yet triaged</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== PIPELINE SURFACE (stage 4): action-results, worked ===== -->
+      <div class="pipeline" data-since="4">
+        <div class="pipe-note">The <b>action</b>-results triage produced (to-dos &amp; questions) — pulled out of the Inbox onto a board. <b>Connections aren't here</b> (they're relations, not work). A simple <b>To&nbsp;work → Working → Done</b> pipeline for now.</div>
+        <div class="board">
+          <div class="col">
+            <div class="col-h">To work <span class="cc">3</span></div>
+            <div class="pcard sel"><span class="pk todo">✓</span><div class="pt">Draft a post on “AI congestion” in teams<div class="pfrom">↳ highlight · The Great Reorg</div></div><span class="pwork">✦ work</span></div>
+            <div class="pcard"><span class="pk q">?</span><div class="pt">Is congestion measurable per-team?<div class="pfrom">↳ highlight · The Great Reorg</div></div><span class="pwork">✦ work</span></div>
+            <div class="pcard"><span class="pk todo">✓</span><div class="pt">Reply with the pricing angle<div class="pfrom">↳ skeet · @azhar</div></div><span class="pwork">✦ work</span></div>
+          </div>
+          <div class="col">
+            <div class="col-h">Working <span class="cc">1</span></div>
+            <div class="pcard"><span class="pk q">?</span><div class="pt">What's the repricing evidence across my reading?<div class="pfrom">↳ email · Exponential View</div></div><span class="pwork">✦ work</span></div>
+          </div>
+          <div class="col">
+            <div class="col-h">Done <span class="cc">1</span></div>
+            <div class="pcard done"><span class="pk todo">✓</span><div class="pt">Note the positioning→pricing link<div class="pfrom">↳ highlight · Positioning Manual</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- companion -->
+    <aside class="companion" data-since="3">
+      <!-- Stage 3: AI TRIAGE CHAT — a chat on the capture, seeded by the proposal, refined in conversation -->
+      <div class="compv" data-since="3" data-until="3">
+        <div class="comp-head"><span class="sk">✦</span> AI triage <span class="frm">· this capture</span></div>
+        <div class="ctx"><div class="l">Chatting about</div><div class="pq">…as a team we're moving at the same speed. We call it congestion.</div></div>
+        <div class="chat">
+          <div class="msg a">I'd split this into:<br>✓ <b>To-do</b> — draft a post on “AI congestion”<br>🔗 <b>Connect</b> — to the AI &amp; orgs project<br>? <b>Question</b> — is congestion measurable per-team?<br>Approve these, or tell me what to change.</div>
+          <div class="msg u">Drop the question. Make the to-do about teams specifically.</div>
+          <div class="msg a">Done — tightened the to-do, kept the connection, removed the question. Created <b>2 results</b> ✓</div>
+        </div>
+        <div class="learn">↺ Your edits become learning for future proposals on similar captures.</div>
+        <div class="comp-input">✦ Refine the triage…</div>
+      </div>
+      <!-- Stage 4: RESULT WORK CHAT — one chat per action-result on the pipeline -->
+      <div class="compv" data-since="4">
+        <div class="comp-head"><span class="sk">✦</span> Work <span class="frm">· a pipeline result</span></div>
+        <div class="ctx"><div class="l">Working</div>
+          <div class="wq"><span class="ik">✓</span>Draft a post on “AI congestion” in teams</div>
+          <div class="trace2">↳ pulled through: your highlight · <b>The Great Reorg</b> · +2 related captures in the cluster</div></div>
+        <div class="chat">
+          <div class="msg u">Draft it.</div>
+          <div class="msg a">Using the <span class="tref">highlight</span>, its source, and the 2 other takes clustered under the same referent:<br>1 · Individual speed ≠ team speed<br>2 · Congestion is the real bottleneck<br>3 · What unblocks a team</div>
+          <div class="msg u">Tighten the open and tie it to pricing.</div>
+        </div>
+        <div class="comp-input">✦ Work this to-do…</div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="legend">
+    <span class="k"><span class="sw amber"></span>Readwise</span>
+    <span class="k"><span class="sw sky"></span>Bluesky</span>
+    <span class="k"><span class="sw rose"></span>Email</span>
+    <span class="k"><span class="sw gra"></span>Note</span>
+    <span class="k"><span class="sw newr"></span>New at this stage</span>
+    <span class="k">Results: <b style="color:#2563eb">✓ to-do</b> · <b style="color:#9333ea">? question</b> · <b style="color:var(--violet-ink)">🔗 connect</b></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var wb=document.getElementById('wb');
+  // Capture action set (Inbox surface): only triage lives on a capture — by hand (＋ result) or an
+  // AI chat (✦ AI triage). Work & connect are NOT capture actions: work happens on the Pipeline,
+  // connect is a result type.
+  var ACTIONS='<span class="cardbtn add" data-since="2">＋ result ▾</span>'+
+    '<span class="cardbtn ai" data-since="3">✦ AI triage ▾</span>';
+  [].slice.call(document.querySelectorAll('.cap .foot')).forEach(function(f){
+    var fwd=f.querySelector('.fwd');
+    if(fwd){ fwd.insertAdjacentHTML('beforebegin',ACTIONS); } else { f.insertAdjacentHTML('beforeend',ACTIONS); }
+  });
+  [].slice.call(document.querySelectorAll('.triage')).forEach(function(t){
+    t.insertAdjacentHTML('afterbegin','<div class="tlabel">Your results</div>');
+    [].slice.call(t.querySelectorAll('.item')).forEach(function(it){ it.insertAdjacentHTML('beforeend','<span class="rm">✕</span>'); });
+  });
+
+  var state={sources:{readwise:true,bluesky:false,email:false,notes:false},stage:1};
+  var caps={
+    1:['Everything you flag — highlights, posts, mail, notes — lands in the Inbox, clustered by what it’s about.','grounds in · <b>plugin-space</b> cluster + CardContent fan-out'],
+    2:['Manually split a capture into results — to-dos, questions, connections — each traceable back, whatever its source.','grounds in · <b>plugin-inbox</b> master/detail'],
+    3:['AI triage is a chat on the capture — a proposed split you refine in conversation. Per-capture only (there’s no “triage all”); your edits train future proposals.','grounds in · <b>plugin-assistant</b> companion + learning loop (new)'],
+    4:['Action-results (to-dos & questions) flow off the Inbox onto a pipeline board; work each with an AI chat. The sensemaking pipeline.','grounds in · <b>plugin-kanban</b> board + <b>plugin-assistant</b> companion']
+  };
+  var SRC_ORDER=['readwise','bluesky','email','notes'];
+  var capVal=document.getElementById('capVal'),capPrec=document.getElementById('capPrec'),mix=document.getElementById('mixnote');
+  var chips=[].slice.call(document.querySelectorAll('.src-chip')),stages=[].slice.call(document.querySelectorAll('.stage-btn'));
+  var sinceEls=[].slice.call(document.querySelectorAll('[data-since]')),navSrc=[].slice.call(document.querySelectorAll('[data-srcrow]'));
+  var clusters=[].slice.call(document.querySelectorAll('[data-cl]')),allCaps=[].slice.call(document.querySelectorAll('.cap'));
+
+  function capVisible(c){return state.sources[c.dataset.src] && (+c.dataset.since<=state.stage);}
+
+  function render(justSrc){
+    wb.dataset.stage=state.stage;
+    capVal.innerHTML=caps[state.stage][0]; capPrec.innerHTML=caps[state.stage][1];
+    stages.forEach(function(b){b.setAttribute('aria-pressed', (+b.dataset.stage===state.stage)?'true':'false');});
+    chips.forEach(function(c){var on=state.sources[c.dataset.src];c.dataset.on=on;c.querySelector('.chk').textContent=on?'✓':'';});
+    navSrc.forEach(function(r){r.dataset.on=state.sources[r.dataset.srcrow];});
+    sinceEls.forEach(function(el){
+      if(el.classList.contains('cap')) return;
+      var s=+el.dataset.since, until=el.dataset.until?+el.dataset.until:99, show=s<=state.stage && state.stage<=until;
+      el.classList.toggle('is-hidden',!show);
+      el.classList.toggle('is-new', el.hasAttribute('data-hero') && s===state.stage);
+    });
+    allCaps.forEach(function(c){
+      var vis=capVisible(c);
+      c.classList.toggle('is-hidden',!vis);
+      c.classList.remove('just');
+      var dot=c.querySelector('[data-dot]'); if(dot){var st=dot.getAttribute('data-state')||'partial'; dot.className='dot '+(state.stage>=2?st:'none');}
+      var fwd=c.querySelector('[data-fwd]'); if(fwd){ if(state.stage>=2){fwd.className='fwd live';fwd.textContent='→ triaged';} else {fwd.className='fwd inert';fwd.textContent='→ not yet triaged';}}
+    });
+    var total=0;
+    clusters.forEach(function(cl){
+      var vis=[].slice.call(cl.querySelectorAll('.cap')).filter(function(c){return !c.classList.contains('is-hidden');});
+      cl.classList.toggle('is-hidden', vis.length===0);
+      total+=vis.length;
+      var cnt=cl.querySelector('[data-clcnt]'); if(cnt) cnt.textContent = vis.length+(vis.length===1?' capture':' captures');
+      var badges=cl.querySelector('[data-badges]');
+      if(badges){ var srcs=SRC_ORDER.filter(function(s){return vis.some(function(c){return c.dataset.src===s;});});
+        badges.innerHTML=srcs.map(function(s){return '<span class="badge '+s+'">'+s+'</span>';}).join(''); }
+    });
+    // pipeline vs inbox chrome
+    var pipe=state.stage>=4;
+    document.querySelector('.phead .ttl').textContent = pipe ? 'Workbench · Pipeline' : 'Workbench · Inbox';
+    document.querySelector('.phead .ic').textContent = pipe ? '▦' : '▧';
+    document.getElementById('phcount').textContent = pipe ? '5 action-results' : total+' captures';
+    document.querySelector('[data-navinbox]').classList.toggle('sel', !pipe);
+    document.querySelector('[data-navpipe]').classList.toggle('sel', pipe);
+    document.getElementById('navcount').textContent=total;
+    // mix note
+    var active=SRC_ORDER.filter(function(s){return state.sources[s];});
+    var names={readwise:'Readwise',bluesky:'Bluesky',email:'Email',notes:'Notes'};
+    var repricing=clusters[1];
+    var rvis=[].slice.call(repricing.querySelectorAll('.cap')).filter(function(c){return !c.classList.contains('is-hidden');}).length;
+    mix.innerHTML='Sources: <b>'+active.map(function(s){return names[s];}).join(' + ')+'</b>'+
+      (pipe?' — working the action-results triage produced.':(rvis>1?' — “AI Is Repricing Software” now clusters <b>'+rvis+' captures</b> across them.':' — add a source to watch a cluster assemble.'));
+    if(justSrc){
+      allCaps.forEach(function(c){
+        if(c.classList.contains('is-hidden') || c.dataset.src!==justSrc) return;
+        var cl=c.closest('[data-cl]'); if(!cl) return;
+        var visInCl=[].slice.call(cl.querySelectorAll('.cap')).filter(function(x){return !x.classList.contains('is-hidden');});
+        if(visInCl.length>1) c.classList.add('just');
+      });
+      setTimeout(function(){allCaps.forEach(function(c){c.classList.remove('just');});},1200);
+    }
+  }
+
+  chips.forEach(function(c){ c.addEventListener('click',function(){
+    if(c.dataset.lock==='1') return; var s=c.dataset.src; var was=state.sources[s]; state.sources[s]=!was;
+    render(!was?s:null);
+  });});
+  stages.forEach(function(b){ b.addEventListener('click',function(){state.stage=+b.dataset.stage;render();});
+    b.addEventListener('keydown',function(e){var i=stages.indexOf(b),t=null;
+      if(e.key==='ArrowRight')t=stages[Math.min(stages.length-1,i+1)];
+      if(e.key==='ArrowLeft')t=stages[Math.max(0,i-1)];
+      if(t){e.preventDefault();t.focus();state.stage=+t.dataset.stage;render();}});
+  });
+  render();
+})();
+</script>
+</body>
+</html>
