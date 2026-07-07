@@ -6,15 +6,17 @@ version: 0.1.0
 
 Connects a Readwise account into Composer. Steve saves articles, PDFs, and videos to Readwise/Reader
 and highlights passages with notes; this plugin connects the account, syncs those highlights in, and
-lets Steve browse them grouped by source — ready to reference alongside everything else in the
-workspace.
+turns each one into a capture in the Workbench **Inbox** — ready to triage alongside everything else
+in the workspace.
 
 This is the first increment of a larger arc — the horizontal **Workbench** (see
-`docs/superpowers/specs/2026-07-06-workbench-concept.md`), which Readwise merely feeds: connect, sync,
-and browse only — everything past browsing (triage / AI / work / connect) is reserved for later
-Workbench increments. No new
+`docs/superpowers/specs/2026-07-06-workbench-concept.md`), which Readwise feeds: connect, sync, and
+**feed**. Browsing and triage now live in the sensemaking **Inbox** (see `plugin-sensemaking`);
+everything past the feed (triage / AI / work / connect) belongs to the horizontal Workbench, not to
+Readwise. No new
 ECHO types are introduced beyond the
-plugin's own `Readwise` (account) and `Highlight` (annotation) objects; everything else composes
+plugin's own `Readwise` (account) and `Highlight` (annotation) objects; the Inbox's `Capture`
+envelope is `plugin-sensemaking`'s. Everything else composes
 `Bookmark`, `Connection`, `AccessToken`, `Cursor`, and `SyncBinding` (all reused as-is from
 `@dxos/types`, `@dxos/echo`, `@dxos/plugin-bookmarks`, `@dxos/plugin-connector`).
 
@@ -85,9 +87,11 @@ op captureHighlights
   desc: |
     Idempotently captures a batch of Highlight as ECHO objects into one connected
     Readwise account: one Bookmark per distinct source document, one Highlight
-    object per annotation (referencing its Bookmark and the account). Re-running
-    with the same (or a superset of) highlights creates no duplicates; a
-    highlight whose note changed updates the existing object in place.
+    object per annotation (referencing its Bookmark and the account), and one
+    Capture envelope per highlight — the Workbench Inbox's feed — referencing the
+    Highlight as its source and that Highlight's Bookmark as its referent.
+    Re-running with the same (or a superset of) highlights creates no duplicates;
+    a highlight whose note changed updates the existing object in place.
   input:
     highlights: Highlight[]
   output: CaptureResult
@@ -127,9 +131,10 @@ component ReadwiseContainer
   desc: |
     Main article surface for a Readwise account. Unconnected, renders a
     "Connect Readwise" affordance instead of a blank pane. Connected, renders a
-    "Sync" action and the account's highlights grouped by source document,
-    most-recently-active source first. Auto-runs one sync immediately after the
-    account is first connected.
+    status card — the synced-highlight count, a "Sync" action, and a pointer that
+    the reading is in the Inbox — since browsing and triage now live in the
+    sensemaking Inbox. Auto-runs one sync immediately after the account is first
+    connected.
   props:
     subject: Readwise
     attendableId?: string
@@ -137,25 +142,20 @@ component ReadwiseContainer
     sync() → CaptureResult
   layout: |
     ┌─────────────────────────────────────┐
-    │                            [Sync]   │
-    ├─────────────────────────────────────┤
-    │ Source A · 2                        │
-    │  [highlight card]                   │
-    │  [highlight card]                   │
-    ├─────────────────────────────────────┤
-    │ Source B · 1                        │
-    │  [highlight card]                   │
+    │              Connected              │
+    │         N highlights synced         │
+    │                [Sync]               │
+    │      Your reading is in the Inbox.  │
     └─────────────────────────────────────┘
 ```
 
 ```mdl
 component HighlightCard
   desc: |
-    One highlight's card within the grouped browse view: the passage, the note
-    when present, and tags. Also renders an inert (reserved, non-functional)
-    processing-state indicator and an inert "where it's processed" affordance —
-    placeholders a later increment activates. Opens the highlight's detail view
-    when clicked or activated via keyboard.
+    One highlight's card, rendered flat within the sensemaking Inbox (via the
+    shared card surface): a source-tag with a link to the highlight's origin, the
+    passage, the note when present, and tags. Display-only — it presents the
+    highlight inline for triage and does not navigate.
   props:
     subject: Highlight
 ```
@@ -190,20 +190,18 @@ feat F-1: Create and Connect
 ```
 
 ```mdl
-feat F-2: Browse
+feat F-2: Feed the Workbench Inbox
 
   req F-2.1:
-    given: a connected Readwise account with synced highlights
-    when: the user views it
-    then: highlights appear grouped under their source document
-    and: the most-recently-active source is listed first
-    and: each card shows the passage, the note when present, and tags
-    and: each card renders an inert processing-state indicator and an inert "where it's processed" affordance
+    given: a connected Readwise account
+    when: its highlights sync in
+    then: each highlight becomes a capture in the space's Inbox
+    and: the capture references the highlight and the document it belongs to
 
   req F-2.2:
-    given: a highlight card
-    when: the user opens it
-    then: the full passage, the note, and a link to the source document are shown
+    given: a connected Readwise account
+    when: the user views the account itself (not the Inbox)
+    then: a status card shows the synced-highlight count and a pointer that the reading is in the Inbox
 ```
 
 ```mdl
@@ -214,7 +212,7 @@ feat F-3: Sync
     when: the user invokes the "Sync" action
     then: new and changed highlights are pulled in
     and: nothing already present is duplicated
-    and: a source that gains a highlight moves to the top of the browse view
+    and: a source that gains a highlight surfaces to the top of the Inbox
 
   req F-3.2:
     given: a Readwise account connecting for the first time
@@ -236,12 +234,14 @@ test T-1: Capture is idempotent
 ```
 
 ```mdl
-test T-2: Browse groups by source, most-recent first
-  desc: Automated — src/operations/browse-query.test.ts.
-  given: synced highlights spanning several source documents with different last-activity times
-  when: the browse view is computed
-  then: highlights are grouped by their source document
-  and: the groups are ordered by that source's most recent activity, newest first
+test T-2: Sync feeds the Inbox as captures
+  desc: Automated — src/operations/capture.test.ts.
+  given: synced highlights spanning several source documents
+  when: capture runs
+  then:
+    - one capture exists per highlight
+    - each capture references its highlight and the highlight's source document
+    - re-running creates no duplicate captures
 ```
 
 ```mdl
@@ -266,17 +266,16 @@ test T-4: Sync captures and advances the cursor, bounded by a default window on 
 ```
 
 ```mdl
-test T-5: Walking-skeleton acceptance — create, connect, browse, open
+test T-5: Walking-skeleton acceptance — create, connect, sync, feed the Inbox
   desc: Covered by the live manual acceptance run against a running Composer, not a unit test.
   given: a space with no Readwise account
-  when: the user creates one, connects it with a real token, and browses and opens its highlights
+  when: the user creates one and connects it with a real token
   then:
     - creating from "+ Add" opens the account
     - the unconnected account shows "Connect Readwise", not a blank pane
     - a valid token connects without OAuth and the first sync runs automatically
-    - highlights appear grouped by source, most-recently-active source first
     - re-running "Sync" pulls changes without duplicating anything
-    - opening a highlight shows its full passage, note, and a link to its source
+    - synced highlights become captures in the Inbox, where browsing and triage live (see plugin-sensemaking)
 ```
 
 ---
