@@ -39,6 +39,7 @@ export const translations = [
         'empty.message': 'Connect a Readwise account to see your highlights.',
         'open-origin.label': 'See in Readwise',
         'open-referent.label': 'Read the original',
+        'source-name.label': 'Readwise',
       },
     },
   },
