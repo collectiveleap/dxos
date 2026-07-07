@@ -74,98 +74,105 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
   const triageResults = results.filter(Result.instanceOf);
 
   return (
-    <div className='plb-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0'>
-      <Surface.Surface type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
-      {triageResults.length > 0 && (
-        <div className='mbs-2 rounded-lg border border-violet-300 dark:border-violet-500/40 bg-violet-50/40 dark:bg-violet-950/20 plb-2 pli-2.5'>
-          <p className='mbe-1.5 font-mono text-[10px] uppercase tracking-wide text-violet-600 dark:text-violet-300'>
-            {t('your-results.label')}
-          </p>
-          <div className='flex flex-col gap-1.5'>
-            {triageResults.map((result) => (
-              <div key={result.id} className='grid grid-cols-[17px_1fr_auto] gap-2 items-start text-xs'>
-                <span
-                  aria-hidden
-                  className={`is-4 bs-4 mbs-0.5 rounded grid place-items-center text-[9px] text-white ${
-                    result.kind === 'todo' ? 'bg-blue-600' : 'bg-purple-600'
-                  }`}
-                >
-                  {result.kind === 'todo' ? '✓' : '?'}
-                </span>
-                <span className='min-is-0'>
-                  {result.body}
-                  <span className='block text-[10px] text-description'>{t('result-trace.label')}</span>
-                </span>
-                <IconButton
-                  iconOnly
-                  variant='ghost'
-                  density='sm'
-                  icon='ph--x--regular'
-                  size={3}
-                  label={t('result-remove.label')}
-                  classNames='text-subdued'
-                  onClick={() => removeResult(result)}
-                />
-              </div>
-            ))}
+    <div className='plb-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0 grid grid-cols-[16px_1fr] gap-2.5 items-start'>
+      {/* Processing-state gutter dot, shared by the whole capture so the source card, results, and
+          controls align in one body column. Inert in Inc 1 — Inc 2 drives its fill/colour. */}
+      <div aria-hidden className='is-2.5 bs-2.5 mbs-1 rounded-full border border-separator' />
+      <div className='min-is-0'>
+        <Surface.Surface type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
+        {triageResults.length > 0 && (
+          <div className='mbs-2'>
+            <p className='mbe-1.5 font-mono text-[10px] uppercase tracking-wide text-violet-600 dark:text-violet-300'>
+              {t('your-results.label')}
+            </p>
+            <div className='flex flex-col gap-1.5'>
+              {triageResults.map((result) => (
+                <div key={result.id} className='grid grid-cols-[17px_1fr_auto] gap-2 items-start text-xs'>
+                  <span
+                    aria-hidden
+                    className={`is-4 bs-4 mbs-0.5 rounded grid place-items-center text-[9px] text-white ${
+                      result.kind === 'todo' ? 'bg-blue-600' : 'bg-purple-600'
+                    }`}
+                  >
+                    {result.kind === 'todo' ? '✓' : '?'}
+                  </span>
+                  <span className='min-is-0'>
+                    {result.body}
+                    <span className='block text-[10px] text-description'>{t('result-trace.label')}</span>
+                  </span>
+                  <IconButton
+                    iconOnly
+                    variant='ghost'
+                    density='sm'
+                    icon='ph--x--regular'
+                    size={3}
+                    label={t('result-remove.label')}
+                    classNames='text-subdued'
+                    onClick={() => removeResult(result)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-      <div className='flex items-center gap-2 flex-wrap mbs-1.5'>
-        {pendingKind ? (
-          <div className='flex items-center gap-2 flex-wrap'>
-            <Input.Root>
-              <Input.TextInput
-                autoFocus
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                placeholder={t('result-body.placeholder')}
-                classNames='is-64'
-              />
-            </Input.Root>
-            <Button density='sm' variant='primary' onClick={() => addResult(pendingKind)}>
-              {pendingKind === 'todo' ? t('result-todo.label') : t('result-question.label')}
-            </Button>
-            <Button
-              density='sm'
-              onClick={() => {
-                setBody('');
-                setPendingKind(undefined);
-              }}
-            >
-              {t('result-cancel.label')}
-            </Button>
-          </div>
-        ) : (
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <Button density='sm'>{`${t('result-add.label')} ▾`}</Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content>
-                <DropdownMenu.Viewport>
-                  <DropdownMenu.Item onClick={() => setPendingKind('todo')}>{t('result-todo.label')}</DropdownMenu.Item>
-                  <DropdownMenu.Item onClick={() => setPendingKind('question')}>
-                    {t('result-question.label')}
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                  {collections.length === 0 ? (
-                    <DropdownMenu.Item disabled>{t('no-projects.message')}</DropdownMenu.Item>
-                  ) : (
-                    collections.map((collection) => (
-                      <DropdownMenu.Item key={collection.id} onClick={() => connectTo(collection)}>
-                        {t('connect-to.label', {
-                          name: Entity.getLabel(collection) ?? t('uncategorized.label'),
-                        })}
-                      </DropdownMenu.Item>
-                    ))
-                  )}
-                </DropdownMenu.Viewport>
-                <DropdownMenu.Arrow />
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
         )}
+        <div className='flex items-center gap-2 flex-wrap mbs-1.5'>
+          {pendingKind ? (
+            <div className='flex items-center gap-2 flex-wrap'>
+              <Input.Root>
+                <Input.TextInput
+                  autoFocus
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  placeholder={t('result-body.placeholder')}
+                  classNames='is-64'
+                />
+              </Input.Root>
+              <Button density='sm' variant='primary' onClick={() => addResult(pendingKind)}>
+                {pendingKind === 'todo' ? t('result-todo.label') : t('result-question.label')}
+              </Button>
+              <Button
+                density='sm'
+                onClick={() => {
+                  setBody('');
+                  setPendingKind(undefined);
+                }}
+              >
+                {t('result-cancel.label')}
+              </Button>
+            </div>
+          ) : (
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button density='sm'>{`${t('result-add.label')} ▾`}</Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Viewport>
+                    <DropdownMenu.Item onClick={() => setPendingKind('todo')}>
+                      {t('result-todo.label')}
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onClick={() => setPendingKind('question')}>
+                      {t('result-question.label')}
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                    {collections.length === 0 ? (
+                      <DropdownMenu.Item disabled>{t('no-projects.message')}</DropdownMenu.Item>
+                    ) : (
+                      collections.map((collection) => (
+                        <DropdownMenu.Item key={collection.id} onClick={() => connectTo(collection)}>
+                          {t('connect-to.label', {
+                            name: Entity.getLabel(collection) ?? t('uncategorized.label'),
+                          })}
+                        </DropdownMenu.Item>
+                      ))
+                    )}
+                  </DropdownMenu.Viewport>
+                  <DropdownMenu.Arrow />
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -33,6 +33,8 @@ export const translations = [
         'result-trace.label': '↳ from this capture',
         'your-results.label': 'Your results',
         'captures-count.label': '{{count}} captures',
+        'cluster-captures.label': '{{count}} capture',
+        'cluster-captures.label_other': '{{count}} captures',
         'connect.label': 'Connect',
         'connect-to.label': 'Connect to {{name}}…',
         'open-original.label': '↗ Original',

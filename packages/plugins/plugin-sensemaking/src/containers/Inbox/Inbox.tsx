@@ -43,6 +43,15 @@ const HasUrl = Schema.Struct({ url: Schema.String });
 const getReferentUrl = (referent: Entity.Unknown): string | undefined =>
   Schema.is(HasUrl)(referent) ? referent.url : undefined;
 
+// A source's document title often carries the byline after a pipe (e.g. "The Great Reorg | Azeem
+// Azhar, Founder of Exponential View"). Split on the first pipe so the header can set the byline
+// apart from the title; when there is no pipe the whole label is the title.
+const splitByline = (label: string | undefined): { title: string; byline?: string } => {
+  const text = label ?? '';
+  const at = text.indexOf(' | ');
+  return at < 0 ? { title: text } : { title: text.slice(0, at), byline: text.slice(at + 3) };
+};
+
 export type InboxProps = {
   readonly space: Space;
 };
@@ -65,12 +74,14 @@ export const Inbox = ({ space }: InboxProps) => {
   return (
     <ScrollArea.Root classNames='dx-base-surface' style={warmSurfaces}>
       <ScrollArea.Viewport>
-        <div className='p-4 max-is-[60rem] mli-auto'>
+        <div className='p-4 max-is-[54rem] mli-auto'>
           <p className='mbe-3 font-mono text-xs uppercase tracking-wide text-subdued'>
             {t('captures-count.label', { count: captures.length })}
           </p>
           {clusters.map((cluster) => {
             const url = cluster.referent ? getReferentUrl(cluster.referent) : undefined;
+            const label = (cluster.referent ? Entity.getLabel(cluster.referent) : undefined) ?? t('uncategorized.label');
+            const { title, byline } = splitByline(label);
             return (
               <section
                 key={cluster.referent?.id ?? 'uncategorized'}
@@ -80,10 +91,11 @@ export const Inbox = ({ space }: InboxProps) => {
                   className='flex items-center gap-2 plb-2 pli-3 border-be border-separator flex-wrap'
                   style={{ background: 'light-dark(oklch(0.985 0.006 80), oklch(0.225 0.01 78))' }}
                 >
-                  <span className='font-serif font-semibold text-base-fg'>
-                    {cluster.referent ? Entity.getLabel(cluster.referent) : t('uncategorized.label')}
+                  <span className='font-serif font-semibold text-base-fg'>{title}</span>
+                  {byline && <span className='text-xs font-normal text-subdued'>{byline}</span>}
+                  <span className='font-mono text-xs text-subdued'>
+                    {t('cluster-captures.label', { count: cluster.captures.length })}
                   </span>
-                  <span className='font-mono text-xs text-subdued'>{cluster.captures.length}</span>
                   <span className='flex-1' />
                   {url && (
                     <a
@@ -97,7 +109,7 @@ export const Inbox = ({ space }: InboxProps) => {
                     </a>
                   )}
                 </header>
-                <div className='plb-2 pli-3'>
+                <div className='pbs-4 pbe-2 pli-3'>
                   {cluster.captures.map((capture) => (
                     <CaptureRow key={capture.id} capture={capture} space={space} />
                   ))}
