@@ -4,8 +4,6 @@
 
 import React from 'react';
 
-import { Surface } from '@dxos/app-framework/ui';
-import { AppSurface } from '@dxos/app-toolkit/ui';
 import { Entity, Filter } from '@dxos/echo';
 import { type Space, useQuery } from '@dxos/react-client/echo';
 import { Message, useTranslation } from '@dxos/react-ui';
@@ -13,6 +11,7 @@ import { Message, useTranslation } from '@dxos/react-ui';
 import { meta } from '#meta';
 import { Capture } from '#types';
 
+import { CaptureRow } from './CaptureRow';
 import { clusterByReferent } from '../../operations';
 
 export type InboxProps = {
@@ -43,12 +42,9 @@ export const Inbox = ({ space }: InboxProps) => {
               <span>{cluster.referent ? Entity.getLabel(cluster.referent) : t('uncategorized.label')}</span>
               <span className='font-mono text-xs text-subdued'>{cluster.captures.length}</span>
             </header>
-            {cluster.captures.map((capture) => {
-              const source = capture.source.target;
-              return source ? (
-                <Surface.Surface key={capture.id} type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
-              ) : null;
-            })}
+            {cluster.captures.map((capture) => (
+              <CaptureRow key={capture.id} capture={capture} space={space} />
+            ))}
           </section>
         ))}
       </div>
