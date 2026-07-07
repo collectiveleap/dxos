@@ -22,6 +22,8 @@ export const translations = [
       [meta.profile.key]: {
         'plugin.name': 'Sensemaking',
         'inbox.label': 'Inbox',
+        'uncategorized.label': 'Uncategorized',
+        'inbox-empty.message': 'No captures yet — sync a source to fill your Inbox.',
       },
     },
   },

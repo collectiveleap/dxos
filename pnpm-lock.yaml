@@ -14794,6 +14794,9 @@ importers:
       '@dxos/errors':
         specifier: workspace:*
         version: link:../../common/errors
+      '@dxos/plugin-attention':
+        specifier: workspace:*
+        version: link:../plugin-attention
       '@dxos/plugin-graph':
         specifier: workspace:*
         version: link:../plugin-graph
