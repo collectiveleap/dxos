@@ -7,10 +7,10 @@ import { AppPlugin } from '@dxos/app-toolkit';
 
 import { meta } from '#meta';
 import { translations } from '#translations';
-import { Capture } from '#types';
+import { Capture, Result } from '#types';
 
 export const SensemakingPlugin = Plugin.define(meta).pipe(
-  AppPlugin.addSchemaModule({ schema: [Capture.Capture] }),
+  AppPlugin.addSchemaModule({ schema: [Capture.Capture, Result.Result] }),
   AppPlugin.addTranslationsModule({ translations }),
   Plugin.make,
 );

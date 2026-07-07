@@ -3,3 +3,4 @@
 //
 
 export * as Capture from './Capture';
+export * as Result from './Result';

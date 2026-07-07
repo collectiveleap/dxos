@@ -6,7 +6,7 @@ import { Type } from '@dxos/echo';
 import { type Resource } from '@dxos/react-ui';
 
 import { meta } from '#meta';
-import { Capture } from '#types';
+import { Capture, Result } from '#types';
 
 export const translations = [
   {
@@ -14,6 +14,10 @@ export const translations = [
       [Type.getTypename(Capture.Capture)]: {
         'typename.label': 'Capture',
         'typename.label_other': 'Captures',
+      },
+      [Type.getTypename(Result.Result)]: {
+        'typename.label': 'Result',
+        'typename.label_other': 'Results',
       },
       [meta.profile.key]: {
         'plugin.name': 'Sensemaking',
