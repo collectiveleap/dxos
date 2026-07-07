@@ -9,9 +9,9 @@ import { Database, Obj, Ref } from '@dxos/echo';
 
 import { DatabaseNotFoundError } from '../errors';
 import { SensemakingOperation } from '../types';
-
 import { connect, createResult } from './triage';
 
+export * from './cluster';
 export * from './triage';
 
 /**
