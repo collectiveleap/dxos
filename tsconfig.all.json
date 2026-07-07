@@ -517,6 +517,9 @@
       "path": "packages/plugins/plugin-search/tsconfig.json"
     },
     {
+      "path": "packages/plugins/plugin-sensemaking/tsconfig.json"
+    },
+    {
       "path": "packages/plugins/plugin-sequencer/tsconfig.json"
     },
     {

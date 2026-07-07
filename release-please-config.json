@@ -890,6 +890,11 @@
         },
         {
           "type": "json",
+          "path": "packages/plugins/plugin-sensemaking/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/plugins/plugin-sequencer/package.json",
           "jsonpath": "$.version"
         },
