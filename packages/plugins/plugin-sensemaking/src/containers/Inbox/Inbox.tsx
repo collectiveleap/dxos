@@ -31,7 +31,8 @@ type WarmSurfaceVars = CSSProperties & {
 // follow via `light-dark`.
 const warmSurfaces: WarmSurfaceVars = {
   '--color-base-surface': 'light-dark(oklch(0.979 0.016 80), oklch(0.205 0.01 78))',
-  '--color-card-surface': 'light-dark(oklch(0.996 0.012 82), oklch(0.242 0.012 78))',
+  // The cluster reads as a WHITE card sitting on the warm cream ground (matches the mockup `.cluster`).
+  '--color-card-surface': 'light-dark(oklch(1 0 0), oklch(0.242 0.012 78))',
   '--color-separator': 'light-dark(oklch(0.9 0.018 80), oklch(0.32 0.012 78))',
   '--color-subdued-separator': 'light-dark(oklch(0.92 0.016 80), oklch(0.3 0.012 78))',
 };
@@ -65,6 +66,9 @@ export const Inbox = ({ space }: InboxProps) => {
     <ScrollArea.Root classNames='dx-base-surface' style={warmSurfaces}>
       <ScrollArea.Viewport>
         <div className='p-4 max-is-[60rem] mli-auto'>
+          <p className='mbe-3 font-mono text-xs uppercase tracking-wide text-subdued'>
+            {t('captures-count.label', { count: captures.length })}
+          </p>
           {clusters.map((cluster) => {
             const url = cluster.referent ? getReferentUrl(cluster.referent) : undefined;
             return (
@@ -72,7 +76,10 @@ export const Inbox = ({ space }: InboxProps) => {
                 key={cluster.referent?.id ?? 'uncategorized'}
                 className='dx-card-surface rounded-xl border border-separator overflow-hidden mbe-4'
               >
-                <header className='flex items-center gap-2 plb-2 pli-3 bg-base-surface border-be border-separator flex-wrap'>
+                <header
+                  className='flex items-center gap-2 plb-2 pli-3 border-be border-separator flex-wrap'
+                  style={{ background: 'light-dark(oklch(0.985 0.006 80), oklch(0.225 0.01 78))' }}
+                >
                   <span className='font-serif font-semibold text-base-fg'>
                     {cluster.referent ? Entity.getLabel(cluster.referent) : t('uncategorized.label')}
                   </span>
