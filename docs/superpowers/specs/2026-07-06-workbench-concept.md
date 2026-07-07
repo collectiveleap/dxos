@@ -5,6 +5,7 @@
 - **Relation to shipped work:** plugin-readwise **Increment 1** (connect → sync → browse) is shipped and proven live. This doc reframes the *later* increments (triage / AI / work / connect) from "Readwise features" into a **horizontal Composer capability** that Readwise merely feeds. Inc-1 is not thrown away — it turns out to be the first slice of this (see §8).
 - **Mockup (interactive, current model):** committed at [`2026-07-06-workbench-mockup.html`](./2026-07-06-workbench-mockup.html) (also live at https://claude.ai/code/artifact/a6dc2447-7b07-4303-9543-4aaf9ca67490 as a backup). This is the **sole** design reference for the later increments — verify implementation against this file, not a screenshot.
 - **Supersedes (conceptually):** the earlier Readwise-only roadmap's Inc-2..5 sketches (partitioned to git history). Those framed the triage/AI/work/connect value as Readwise-owned; the mechanism is now horizontal.
+- **Backlog:** queued changes and open design questions live in [`2026-07-07-workbench-backlog.md`](./2026-07-07-workbench-backlog.md) — notably the **Inbox-lifecycle** question (what leaves the Inbox), to settle with the Pipeline increment.
 
 ---
 
