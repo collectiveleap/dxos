@@ -73,12 +73,12 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
               {t('open-origin.label')}
             </a>
           )}
-          {/* Reserved (Inc 2): forward link to where the highlight is processed. Inert. */}
+          {/* Reserved (Inc 2): forward link to where the highlight is triaged. Inert. */}
           <span
             aria-hidden
             className='mis-auto rounded-full border border-dashed border-violet-400 px-2 py-0.5 text-[11px] text-violet-500 opacity-85'
           >
-            → not yet processed
+            → not yet triaged
           </span>
         </div>
       </div>

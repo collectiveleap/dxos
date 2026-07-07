@@ -8,10 +8,8 @@ import { Surface, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Filter, Obj, Ref } from '@dxos/echo';
 import { ConnectorAuth } from '@dxos/plugin-connector';
 import { useObject, useQuery } from '@dxos/react-client/echo';
-import { Icon, IconButton, Message, ScrollArea, useTranslation } from '@dxos/react-ui';
+import { IconButton, Message, useTranslation } from '@dxos/react-ui';
 
-import { HighlightCard } from '../HighlightCard';
-import { buildSourceGroups } from '../../operations/browse-query';
 import { meta } from '#meta';
 import { READWISE_CONNECTOR_ID } from '../../constants';
 import { useReadwiseSyncBinding } from '../../hooks';
@@ -30,10 +28,10 @@ type WarmSurfaceVars = CSSProperties & {
 // tokens (resolved at use-time) with warm values. `.dx-*-surface` classes and their derived hover/current
 // states read these via `var()`, so the whole subtree warms and both light/dark follow via `light-dark`.
 const warmSurfaces: WarmSurfaceVars = {
-  '--color-base-surface': 'light-dark(oklch(0.982 0.008 84), oklch(0.205 0.008 78))',
-  '--color-card-surface': 'light-dark(oklch(0.998 0.004 88), oklch(0.242 0.01 78))',
-  '--color-separator': 'light-dark(oklch(0.905 0.014 82), oklch(0.32 0.01 78))',
-  '--color-subdued-separator': 'light-dark(oklch(0.925 0.012 82), oklch(0.3 0.01 78))',
+  '--color-base-surface': 'light-dark(oklch(0.979 0.016 80), oklch(0.205 0.01 78))',
+  '--color-card-surface': 'light-dark(oklch(0.996 0.012 82), oklch(0.242 0.012 78))',
+  '--color-separator': 'light-dark(oklch(0.9 0.018 80), oklch(0.32 0.012 78))',
+  '--color-subdued-separator': 'light-dark(oklch(0.92 0.016 80), oklch(0.3 0.012 78))',
 };
 
 export type ReadwiseContainerProps = {
@@ -91,55 +89,26 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
     );
   }
 
-  const groups = buildSourceGroups(highlights);
+  // The reading + triage now live in the sensemaking Inbox; a connected account shows only its
+  // connect/sync/status affordances (highlights flow into the Inbox on sync).
   return (
-    <ScrollArea.Root classNames='dx-base-surface' style={warmSurfaces}>
-      <ScrollArea.Viewport>
-      <div className='p-4 max-is-[60rem] mli-auto'>
-        <div className='flex justify-end mbe-3'>
-          <IconButton
-            disabled={syncing}
-            variant='primary'
-            iconClassNames={syncing ? 'animate-spin' : undefined}
-            icon={syncing ? 'ph--spinner-gap--regular' : 'ph--arrows-clockwise--regular'}
-            label={syncing ? t('sync-syncing.label') : t('sync.label')}
-            onClick={sync}
-          />
-        </div>
-        {groups.length === 0 ? (
-          <div className='flex flex-col items-center gap-4 p-8'>
-            <Message.Root valence='warning'>
-              <Message.Title>{t('no-highlights.message')}</Message.Title>
-            </Message.Root>
-          </div>
-        ) : (
-          groups.map((group) => (
-            <section key={group.source.id} className='mbe-5'>
-              <header className='flex items-baseline gap-2 pbe-1.5 mbe-2.5 border-be border-separator'>
-                <span className='text-[13px] font-semibold text-base-fg'>{group.source.title || group.source.url}</span>
-                <span className='font-mono text-[11px] text-subdued'>{group.highlights.length}</span>
-                {group.source.url && (
-                  <a
-                    href={group.source.url}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='mis-auto flex items-center gap-1 text-[11px] text-description hover:text-primary-500'
-                  >
-                    <Icon icon='ph--arrow-square-out--regular' size={3} />
-                    {t('open-referent.label')}
-                  </a>
-                )}
-              </header>
-              <div className='pis-4'>
-                {group.highlights.map((highlight) => (
-                  <HighlightCard key={highlight.id} subject={highlight} />
-                ))}
-              </div>
-            </section>
-          ))
-        )}
+    <div
+      className='dx-base-surface bs-full flex flex-col items-center justify-center gap-4 p-8 text-center'
+      style={warmSurfaces}
+    >
+      <div className='flex flex-col items-center gap-1'>
+        <span className='text-sm font-medium text-base-fg'>{t('connected.label')}</span>
+        <span className='text-xs text-subdued'>{t('highlights-synced.label', { count: highlights.length })}</span>
       </div>
-      </ScrollArea.Viewport>
-    </ScrollArea.Root>
+      <IconButton
+        disabled={syncing}
+        variant='primary'
+        iconClassNames={syncing ? 'animate-spin' : undefined}
+        icon={syncing ? 'ph--spinner-gap--regular' : 'ph--arrows-clockwise--regular'}
+        label={syncing ? t('sync-syncing.label') : t('sync.label')}
+        onClick={sync}
+      />
+      <span className='text-xs text-description'>{t('open-inbox.label')}</span>
+    </div>
   );
 };
