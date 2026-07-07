@@ -84,10 +84,13 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
       <div className='min-is-0'>
         <Surface.Surface type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
         {triageResults.length > 0 && (
-          <div data-testid='inbox.results-block' className='mbs-2'>
+          <div
+            data-testid='inbox.results-block'
+            className='mbs-1.5 pbs-1.5 border-bs border-dashed border-subdued-separator'
+          >
             <p
               data-testid='inbox.results-label'
-              className='mbe-1.5 font-mono text-[10px] uppercase tracking-wide text-violet-600 dark:text-violet-300'
+              className='mbe-1 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#a8a29a] dark:text-neutral-500'
             >
               {t('your-results.label')}
             </p>
@@ -150,7 +153,9 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
           ) : (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button data-testid='inbox.add-result' density='sm'>{`${t('result-add.label')} ▾`}</Button>
+                <Button data-testid='inbox.add-result' density='sm' classNames='text-[11px]'>
+                {`${t('result-add.label')} ▾`}
+              </Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content>

@@ -93,15 +93,15 @@ export const Inbox = ({ space }: InboxProps) => {
                   className='flex items-center gap-2 plb-2 pli-3 border-be border-separator flex-wrap'
                   style={{ background: 'light-dark(oklch(0.985 0.006 80), oklch(0.225 0.01 78))' }}
                 >
-                  <span data-testid='inbox.cluster-title' className='font-serif font-semibold text-base-fg'>
+                  <span data-testid='inbox.cluster-title' className='font-serif text-[14px] font-semibold text-base-fg'>
                     {title}
                   </span>
                   {byline && (
-                    <span data-testid='inbox.cluster-byline' className='text-xs font-normal text-subdued'>
+                    <span data-testid='inbox.cluster-byline' className='text-[11.5px] font-normal text-subdued'>
                       {byline}
                     </span>
                   )}
-                  <span data-testid='inbox.cluster-count' className='font-mono text-xs text-subdued'>
+                  <span data-testid='inbox.cluster-count' className='font-mono text-[10.5px] text-subdued'>
                     {t('cluster-captures.label', { count: cluster.captures.length })}
                   </span>
                   <span className='flex-1' />
