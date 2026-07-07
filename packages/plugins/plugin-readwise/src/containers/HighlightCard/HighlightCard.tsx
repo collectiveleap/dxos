@@ -25,8 +25,8 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
 
   return (
     <div className='min-is-0'>
-      <div className='flex items-center gap-1.5 mbe-1.5 text-[11px] text-description'>
-        <span aria-hidden className='is-1.5 bs-1.5 rounded-full bg-amber-500' />
+      <div data-testid='inbox.srctag' className='flex items-center gap-1.5 mbe-1.5 text-[11px] text-description'>
+        <span aria-hidden data-testid='inbox.srctag-dot' className='is-1.5 bs-1.5 rounded-full bg-amber-500' />
         <span className='font-medium'>{t('source-name.label')}</span>
         <span aria-hidden className='text-subdued opacity-60'>
           <Icon icon='ph--flag--regular' size={3} />
@@ -48,11 +48,17 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
           </>
         )}
       </div>
-      <p className='font-serif text-[15px] leading-relaxed border-s-[3px] border-s-amber-300 ps-3 text-base-fg'>
+      <p
+        data-testid='inbox.passage'
+        className='font-serif text-[15px] leading-relaxed border-s-[3px] border-s-amber-300 ps-3 text-base-fg'
+      >
         {subject.text}
       </p>
       {subject.note && (
-        <p className='flex gap-1.5 mlb-2 rounded-md bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200'>
+        <p
+          data-testid='inbox.note'
+          className='flex gap-1.5 mlb-2 rounded-md bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200'
+        >
           <span aria-hidden className='opacity-70'>
             ✎
           </span>
