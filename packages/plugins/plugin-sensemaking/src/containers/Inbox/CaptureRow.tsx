@@ -76,11 +76,15 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
   return (
     <div
       data-testid='inbox.capture'
-      className='plb-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0 grid grid-cols-[16px_1fr] gap-2.5 items-start'
+      className='pbs-2 pbe-2 border-bs border-dashed border-separator first:border-bs-0 first:pbs-0 grid grid-cols-[16px_1fr] gap-2.5 items-start'
     >
       {/* Processing-state gutter dot, shared by the whole capture so the source card, results, and
           controls align in one body column. Inert in Inc 1 — Inc 2 drives its fill/colour. */}
-      <div aria-hidden data-testid='inbox.capture-dot' className='is-2.5 bs-2.5 mbs-1 rounded-full border border-separator' />
+      <div
+        aria-hidden
+        data-testid='inbox.capture-dot'
+        className='w-[11px] h-[11px] mbs-1 rounded-full border-[1.5px] border-separator'
+      />
       <div className='min-is-0'>
         <Surface.Surface type={AppSurface.CardContent} data={{ subject: source }} limit={1} />
         {triageResults.length > 0 && (
@@ -100,7 +104,7 @@ export const CaptureRow = ({ capture, space }: CaptureRowProps) => {
                   <span
                     aria-hidden
                     data-testid={result.kind === 'todo' ? 'inbox.result-icon-todo' : undefined}
-                    className={`is-4 bs-4 mbs-0.5 rounded grid place-items-center text-[9px] text-white ${
+                    className={`w-[15px] h-[15px] mbs-0.5 rounded-[5px] grid place-items-center text-[9px] text-white ${
                       result.kind === 'todo' ? 'bg-blue-600' : 'bg-purple-600'
                     }`}
                   >

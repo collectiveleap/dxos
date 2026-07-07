@@ -90,7 +90,7 @@ export const Inbox = ({ space }: InboxProps) => {
               >
                 <header
                   data-testid='inbox.cluster-header'
-                  className='flex items-center gap-2 plb-2 pli-3 border-be border-separator flex-wrap'
+                  className='flex items-center gap-2 pbs-2 pbe-2 ps-3 pe-3 border-be border-separator flex-wrap'
                   style={{ background: 'light-dark(oklch(0.985 0.006 80), oklch(0.225 0.01 78))' }}
                 >
                   <span data-testid='inbox.cluster-title' className='font-serif text-[14px] font-semibold text-base-fg'>
@@ -117,7 +117,7 @@ export const Inbox = ({ space }: InboxProps) => {
                     </a>
                   )}
                 </header>
-                <div className='pbs-4 pbe-2 pli-3'>
+                <div className='pbs-4 pbe-2 ps-3 pe-3'>
                   {cluster.captures.map((capture) => (
                     <CaptureRow key={capture.id} capture={capture} space={space} />
                   ))}
