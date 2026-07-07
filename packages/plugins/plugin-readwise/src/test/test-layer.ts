@@ -9,6 +9,7 @@ import { Database } from '@dxos/echo';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { EffectEx } from '@dxos/effect';
 import { Bookmark } from '@dxos/plugin-bookmarks';
+import { Capture } from '@dxos/plugin-sensemaking/types';
 
 import fixture from '../../test/fixtures/highlights.sample.json';
 import { ReadwiseApi, ReadwiseApiLayer, ReadwiseCredentials, Transport } from '../services';
@@ -43,7 +44,7 @@ export type TestLayerOptions = {
 export const TestLayer = async (options: TestLayerOptions = {}) => {
   const builder = await new EchoTestBuilder().open();
   const { db } = await builder.createDatabase({
-    types: [Bookmark.Bookmark, Readwise.Readwise, Highlight.Highlight],
+    types: [Bookmark.Bookmark, Readwise.Readwise, Highlight.Highlight, Capture.Capture],
   });
 
   const layer = Layer.mergeAll(

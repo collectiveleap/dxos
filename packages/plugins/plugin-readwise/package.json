@@ -106,6 +106,7 @@
     "@dxos/plugin-connector": "workspace:*",
     "@dxos/plugin-graph": "workspace:*",
     "@dxos/plugin-kanban": "workspace:*",
+    "@dxos/plugin-sensemaking": "workspace:*",
     "@dxos/plugin-space": "workspace:*",
     "@dxos/react-client": "workspace:*",
     "@dxos/react-ui": "workspace:*",

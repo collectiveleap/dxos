@@ -10,6 +10,7 @@ import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { EffectEx } from '@dxos/effect';
 import { Bookmark } from '@dxos/plugin-bookmarks';
 import { Connection, SyncBinding } from '@dxos/plugin-connector';
+import { Capture } from '@dxos/plugin-sensemaking/types';
 import { AccessToken, Cursor } from '@dxos/types';
 
 import { DEFAULT_SYNC_WINDOW_DAYS, READWISE_SOURCE } from '../constants';
@@ -33,6 +34,7 @@ const seedConnection = async (builder: EchoTestBuilder) => {
     Bookmark.Bookmark,
     Readwise.Readwise,
     Highlight.Highlight,
+    Capture.Capture,
   ]);
   const token = db.add(Obj.make(AccessToken.AccessToken, { source: READWISE_SOURCE, token: 'test-token' }));
   const connection = db.add(

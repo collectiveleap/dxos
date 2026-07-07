@@ -6,6 +6,7 @@ import { describe, test } from 'vitest';
 
 import { Filter, Obj, Query } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
+import { Capture } from '@dxos/plugin-sensemaking/types';
 
 import { CANONICAL_URL_SOURCE, READWISE_SOURCE } from '../constants';
 import { type Highlight, canonicalizeUrl } from '../services';
@@ -130,6 +131,42 @@ describe('captureHighlights', () => {
       const stored = await db.query(Query.select(Filter.type(HighlightType.Highlight))).run();
       expect(stored.length).toBe(1);
       expect(stored[0].origin).toBe('https://readwise.io/reader/highlight/rw-1');
+    } finally {
+      await close();
+    }
+  });
+
+  test('creates one Capture per highlight, refs Highlight + Bookmark, and is idempotent', async ({ expect }) => {
+    const { db, space, run, close } = await TestLayer();
+    try {
+      const container = db.add(Readwise.make({ name: 'Test' }));
+      const highlights = [
+        wire({ readwiseId: 'rw-1', sourceId: 'src-1' }),
+        wire({ readwiseId: 'rw-2', sourceId: 'src-1', text: 'second passage' }),
+        wire({ readwiseId: 'rw-3', sourceId: 'src-2', sourceTitle: 'Other', text: 'third' }),
+      ];
+
+      await run(captureHighlights({ db: space.db, container }, highlights));
+
+      const captures = await db.query(Query.select(Filter.type(Capture.Capture))).run();
+      expect(captures.length).toBe(3);
+      for (const capture of captures) {
+        expect(HighlightType.instanceOf(capture.source.target)).toBe(true);
+        expect(Bookmark.instanceOf(capture.referent?.target)).toBe(true);
+      }
+
+      const rw1 = captures.find(
+        (capture) => HighlightType.instanceOf(capture.source.target) && capture.source.target.readwiseId === 'rw-1',
+      );
+      const rw1Referent = rw1?.referent?.target;
+      expect(Bookmark.instanceOf(rw1Referent)).toBe(true);
+      if (Bookmark.instanceOf(rw1Referent)) {
+        expect(rw1Referent.title).toBe('An Article');
+      }
+
+      await run(captureHighlights({ db: space.db, container }, highlights));
+      const after = await db.query(Query.select(Filter.type(Capture.Capture))).run();
+      expect(after.length).toBe(3);
     } finally {
       await close();
     }

@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect';
 
 import { type Database, Filter, Obj, Query, Ref } from '@dxos/echo';
 import { Bookmark } from '@dxos/plugin-bookmarks';
+import { Capture } from '@dxos/plugin-sensemaking/types';
 
 import { CANONICAL_URL_SOURCE, READWISE_SOURCE } from '../constants';
 import { ReadwiseError } from '../errors';
@@ -84,7 +85,7 @@ const upsertHighlight = (
   container: Readwise.Readwise,
   bookmark: Bookmark.Bookmark,
   highlight: WireHighlight,
-): Effect.Effect<{ created: boolean; updated: boolean }, ReadwiseError> =>
+): Effect.Effect<{ highlight: Highlight.Highlight; created: boolean; updated: boolean }, ReadwiseError> =>
   Effect.gen(function* () {
     const existing = yield* findByForeignId<Highlight.Highlight>(db, Highlight.Highlight, highlight.readwiseId);
     if (existing) {
@@ -96,9 +97,9 @@ const upsertHighlight = (
           existing.origin = highlight.origin;
         });
       }
-      return { created: false, updated: changed };
+      return { highlight: existing, created: false, updated: changed };
     }
-    db.add(
+    const created = db.add(
       Highlight.make({
         [Obj.Meta]: { keys: [fkFor(highlight.readwiseId)] },
         text: highlight.text,
@@ -111,7 +112,35 @@ const upsertHighlight = (
         origin: highlight.origin,
       }),
     );
-    return { created: true, updated: false };
+    return { highlight: created, created: true, updated: false };
+  });
+
+/**
+ * Idempotently captures one sensemaking `Capture` per Highlight, deduped by the Highlight's Readwise
+ * foreign key (the schema filter distinguishes it from the Highlight sharing that key). The Capture's
+ * `source` refs the Highlight and its `referent` refs the source Bookmark, so the Inbox clusters by
+ * referent without knowing the source type.
+ */
+const upsertCapture = (
+  db: Database.Database,
+  highlightObj: Highlight.Highlight,
+  bookmark: Bookmark.Bookmark,
+  highlight: WireHighlight,
+): Effect.Effect<{ created: boolean }, ReadwiseError> =>
+  Effect.gen(function* () {
+    const existing = yield* findByForeignId<Capture.Capture>(db, Capture.Capture, highlight.readwiseId);
+    if (existing) {
+      return { created: false };
+    }
+    db.add(
+      Capture.make({
+        [Obj.Meta]: { keys: [fkFor(highlight.readwiseId)] },
+        source: Ref.make(highlightObj),
+        referent: Ref.make(bookmark),
+        flaggedAt: highlight.updated,
+      }),
+    );
+    return { created: true };
   });
 
 /**
@@ -147,6 +176,7 @@ export const captureHighlights = (
       if (highlightResult.updated) {
         updated++;
       }
+      yield* upsertCapture(db, highlightResult.highlight, bookmark, highlight);
     }
 
     return { created, updated };

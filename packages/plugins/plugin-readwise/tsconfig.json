@@ -101,6 +101,9 @@
       "path": "../plugin-kanban"
     },
     {
+      "path": "../plugin-sensemaking"
+    },
+    {
       "path": "../plugin-space"
     },
     {
