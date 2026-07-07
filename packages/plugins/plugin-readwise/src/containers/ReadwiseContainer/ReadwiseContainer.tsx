@@ -2,13 +2,13 @@
 // Copyright 2026 DXOS.org
 //
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { type CSSProperties, useEffect, useRef, useState } from 'react';
 
 import { Surface, useOperationInvoker } from '@dxos/app-framework/ui';
 import { Filter, Obj, Ref } from '@dxos/echo';
 import { ConnectorAuth } from '@dxos/plugin-connector';
 import { useObject, useQuery } from '@dxos/react-client/echo';
-import { Icon, IconButton, Message, useTranslation } from '@dxos/react-ui';
+import { Icon, IconButton, Message, ScrollArea, useTranslation } from '@dxos/react-ui';
 
 import { HighlightCard } from '../HighlightCard';
 import { buildSourceGroups } from '../../operations/browse-query';
@@ -16,6 +16,25 @@ import { meta } from '#meta';
 import { READWISE_CONNECTOR_ID } from '../../constants';
 import { useReadwiseSyncBinding } from '../../hooks';
 import { Highlight, type Readwise, ReadwiseOperation } from '../../types';
+
+// Extending CSSProperties so the custom-property entries satisfy the style prop type without a cast.
+type WarmSurfaceVars = CSSProperties & {
+  '--color-base-surface': string;
+  '--color-card-surface': string;
+  '--color-separator': string;
+  '--color-subdued-separator': string;
+};
+
+// The Readwise view is an amber-tinted "reading room". The neutral ramp's warmth knobs are inlined at
+// build time, so they can't be re-tinted per-subtree; instead override the semantic surface + separator
+// tokens (resolved at use-time) with warm values. `.dx-*-surface` classes and their derived hover/current
+// states read these via `var()`, so the whole subtree warms and both light/dark follow via `light-dark`.
+const warmSurfaces: WarmSurfaceVars = {
+  '--color-base-surface': 'light-dark(oklch(0.982 0.008 84), oklch(0.205 0.008 78))',
+  '--color-card-surface': 'light-dark(oklch(0.998 0.004 88), oklch(0.242 0.01 78))',
+  '--color-separator': 'light-dark(oklch(0.905 0.014 82), oklch(0.32 0.01 78))',
+  '--color-subdued-separator': 'light-dark(oklch(0.925 0.012 82), oklch(0.3 0.01 78))',
+};
 
 export type ReadwiseContainerProps = {
   readonly subject: Readwise.Readwise;
@@ -74,49 +93,53 @@ export const ReadwiseContainer = ({ subject }: ReadwiseContainerProps) => {
 
   const groups = buildSourceGroups(highlights);
   return (
-    <div className='p-3 max-is-[60rem] mli-auto'>
-      <div className='flex justify-end mbe-3'>
-        <IconButton
-          disabled={syncing}
-          variant='primary'
-          iconClassNames={syncing ? 'animate-spin' : undefined}
-          icon={syncing ? 'ph--spinner-gap--regular' : 'ph--arrows-clockwise--regular'}
-          label={syncing ? t('sync-syncing.label') : t('sync.label')}
-          onClick={sync}
-        />
-      </div>
-      {groups.length === 0 ? (
-        <div className='flex flex-col items-center gap-4 p-8'>
-          <Message.Root valence='warning'>
-            <Message.Title>{t('no-highlights.message')}</Message.Title>
-          </Message.Root>
+    <ScrollArea.Root classNames='dx-base-surface' style={warmSurfaces}>
+      <ScrollArea.Viewport>
+      <div className='p-4 max-is-[60rem] mli-auto'>
+        <div className='flex justify-end mbe-3'>
+          <IconButton
+            disabled={syncing}
+            variant='primary'
+            iconClassNames={syncing ? 'animate-spin' : undefined}
+            icon={syncing ? 'ph--spinner-gap--regular' : 'ph--arrows-clockwise--regular'}
+            label={syncing ? t('sync-syncing.label') : t('sync.label')}
+            onClick={sync}
+          />
         </div>
-      ) : (
-        groups.map((group) => (
-          <section key={group.source.id} className='mbe-4'>
-            <header className='flex items-center gap-2 pbe-1 mbe-2 border-be border-neutral-200 dark:border-neutral-700 text-sm font-medium'>
-              <span>{group.source.title || group.source.url}</span>
-              <span className='text-xs text-neutral-500'>· {group.highlights.length}</span>
-              {group.source.url && (
-                <a
-                  href={group.source.url}
-                  target='_blank'
-                  rel='noreferrer'
-                  className='mis-auto flex items-center gap-1 text-xs font-normal text-neutral-500 hover:text-primary-500 underline'
-                >
-                  <Icon icon='ph--arrow-square-out--regular' size={3} />
-                  {t('open-referent.label')}
-                </a>
-              )}
-            </header>
-            <div className='pis-4'>
-              {group.highlights.map((highlight) => (
-                <HighlightCard key={highlight.id} subject={highlight} />
-              ))}
-            </div>
-          </section>
-        ))
-      )}
-    </div>
+        {groups.length === 0 ? (
+          <div className='flex flex-col items-center gap-4 p-8'>
+            <Message.Root valence='warning'>
+              <Message.Title>{t('no-highlights.message')}</Message.Title>
+            </Message.Root>
+          </div>
+        ) : (
+          groups.map((group) => (
+            <section key={group.source.id} className='mbe-5'>
+              <header className='flex items-baseline gap-2 pbe-1.5 mbe-2.5 border-be border-separator'>
+                <span className='text-[13px] font-semibold text-base-fg'>{group.source.title || group.source.url}</span>
+                <span className='font-mono text-[11px] text-subdued'>{group.highlights.length}</span>
+                {group.source.url && (
+                  <a
+                    href={group.source.url}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='mis-auto flex items-center gap-1 text-[11px] text-description hover:text-primary-500'
+                  >
+                    <Icon icon='ph--arrow-square-out--regular' size={3} />
+                    {t('open-referent.label')}
+                  </a>
+                )}
+              </header>
+              <div className='pis-4'>
+                {group.highlights.map((highlight) => (
+                  <HighlightCard key={highlight.id} subject={highlight} />
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+      </ScrollArea.Viewport>
+    </ScrollArea.Root>
   );
 };
