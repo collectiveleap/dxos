@@ -25,8 +25,8 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
 
   return (
     <div className='min-is-0'>
-      <div data-testid='inbox.srctag' className='flex items-center gap-1.5 mbe-1.5 text-[11px] text-description'>
-        <span aria-hidden data-testid='inbox.srctag-dot' className='is-1.5 bs-1.5 rounded-full bg-[#eab308]' />
+      <div data-testid='inbox.srctag' className='flex items-center gap-1.5 mbe-1.5 text-[11px] text-subdued'>
+        <span aria-hidden data-testid='inbox.srctag-dot' className='w-[7px] h-[7px] rounded-full bg-[#eab308]' />
         <span className='font-medium'>{t('source-name.label')}</span>
         <span aria-hidden className='text-subdued opacity-60'>
           <Icon icon='ph--flag--regular' size={3} />
@@ -57,7 +57,7 @@ export const HighlightCard = ({ subject }: HighlightCardProps) => {
       {subject.note && (
         <p
           data-testid='inbox.note'
-          className='flex gap-1.5 mlb-2 rounded-md bg-[#fdf6e3] dark:bg-amber-950/50 px-2 py-1 text-xs text-[#7c5e00] dark:text-amber-200'
+          className='flex gap-1.5 mlb-2 rounded-[6px] bg-[#fdf6e3] dark:bg-amber-950/50 px-2 py-1 text-xs text-[#7c5e00] dark:text-amber-200'
         >
           <span aria-hidden className='opacity-70'>
             ✎
