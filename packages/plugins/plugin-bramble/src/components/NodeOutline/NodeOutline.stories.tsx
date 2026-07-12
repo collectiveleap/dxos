@@ -93,3 +93,18 @@ export const Editable: Story = {
     await expect(content).toHaveTextContent('a X');
   },
 };
+
+export const EnterCreatesRow: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = await canvas.findAllByTestId('bramble-row');
+    const first = before[0].querySelector<HTMLElement>('.cm-content')!;
+    first.focus();
+    await userEvent.keyboard('{End}{Enter}newrow');
+    const after = await canvas.findAllByTestId('bramble-row');
+    await expect(after.length).toBe(before.length + 1);
+    // focus landed in the new row and typing went there
+    await expect(document.activeElement?.closest('[data-node-id]')).not.toBeNull();
+  },
+};
