@@ -20,4 +20,11 @@ describe('BramblePlugin', () => {
     });
     expect(harness.manager.getActive()).toEqual(expect.arrayContaining([moduleId('schema')]));
   });
+
+  test('the ReactSurface module activates', async ({ expect }) => {
+    await using harness = await createComposerTestApp({
+      plugins: [ClientPlugin({}), BramblePlugin()],
+    });
+    expect(harness.manager.getActive()).toEqual(expect.arrayContaining([moduleId('ReactSurface')]));
+  });
 });

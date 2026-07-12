@@ -5,13 +5,14 @@
 import { Plugin } from '@dxos/app-framework';
 import { AppPlugin } from '@dxos/app-toolkit';
 
-import { CreateObject } from '#capabilities';
+import { CreateObject, ReactSurface } from '#capabilities';
 import { meta } from '#meta';
 import { translations } from '#translations';
 import { Edge, Node } from '#types';
 
 export const BramblePlugin = Plugin.define(meta).pipe(
   AppPlugin.addSchemaModule({ schema: [Node, Edge] }),
+  AppPlugin.addSurfaceModule({ activate: ReactSurface }),
   AppPlugin.addCreateObjectModule({ activate: CreateObject }),
   AppPlugin.addTranslationsModule({ translations }),
   Plugin.make,
