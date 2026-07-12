@@ -123,3 +123,16 @@ export const BackspaceMergesRow: Story = {
     await expect(after.length).toBe(before.length - 1);
   },
 };
+
+export const ArrowMovesBetweenRows: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const rows = await canvas.findAllByTestId('bramble-row');
+    const second = rows[1].querySelector<HTMLElement>('.cm-content')!;
+    second.focus();
+    await userEvent.keyboard('{Home}{ArrowUp}');
+    const focusedId = document.activeElement?.closest('[data-node-id]')?.getAttribute('data-node-id');
+    await expect(focusedId).toBe(rows[0].querySelector('[data-node-id]')?.getAttribute('data-node-id'));
+  },
+};

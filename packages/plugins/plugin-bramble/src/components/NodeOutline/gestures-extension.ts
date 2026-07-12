@@ -31,5 +31,27 @@ export const brambleGestures = (controller: OutlineController, nodeId: string): 
           return false; // normal backspace within the line
         },
       },
+      {
+        key: 'ArrowUp',
+        run: (view) => {
+          const { head } = view.state.selection.main;
+          if (view.state.doc.lineAt(head).number === 1) {
+            void controller.focusAdjacent(nodeId, -1);
+            return true;
+          }
+          return false;
+        },
+      },
+      {
+        key: 'ArrowDown',
+        run: (view) => {
+          const { head } = view.state.selection.main;
+          if (view.state.doc.lineAt(head).number === view.state.doc.lines) {
+            void controller.focusAdjacent(nodeId, 1);
+            return true;
+          }
+          return false;
+        },
+      },
     ]),
   );
