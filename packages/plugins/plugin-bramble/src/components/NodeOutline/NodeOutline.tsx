@@ -2,7 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 
 import { Filter, Obj, Query } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';

@@ -6,7 +6,6 @@ import { EditorSelection } from '@codemirror/state';
 import { type EditorView } from '@codemirror/view';
 import { createContext, useContext } from 'react';
 
-import { Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { createEdge, removeEdge } from '../../model/edges';

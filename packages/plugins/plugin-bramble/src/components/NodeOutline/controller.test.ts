@@ -3,7 +3,7 @@
 //
 
 import { afterEach, beforeEach, describe, test } from 'vitest';
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Query } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';

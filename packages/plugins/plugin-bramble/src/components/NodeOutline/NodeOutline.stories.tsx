@@ -4,7 +4,7 @@
 
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import React, { useMemo } from 'react';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { useSpaces } from '@dxos/react-client/echo';
 import { withClientProvider } from '@dxos/react-client/testing';
@@ -119,8 +119,10 @@ export const BackspaceMergesRow: Story = {
     const content = target.querySelector<HTMLElement>('.cm-content')!;
     content.focus();
     await userEvent.keyboard('{Home}{Backspace}');
-    const after = await canvas.findAllByTestId('bramble-row');
-    await expect(after.length).toBe(before.length - 1);
+    await waitFor(async () => {
+      const after = await canvas.findAllByTestId('bramble-row');
+      await expect(after.length).toBe(before.length - 1);
+    });
   },
 };
 

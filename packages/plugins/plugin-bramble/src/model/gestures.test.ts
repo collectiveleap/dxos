@@ -8,7 +8,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 import { createEdge } from './edges';
-import { splitPlan, mergePlan } from './gestures';
+import { mergePlan, splitPlan } from './gestures';
 import { outlineRows } from './outline';
 import { Edge, Node, makeNode } from '../types';
 
