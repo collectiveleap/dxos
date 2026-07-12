@@ -1,0 +1,41 @@
+{
+  "name": "@dxos/plugin-bramble",
+  "version": "0.10.0",
+  "homepage": "https://dxos.org",
+  "bugs": "https://github.com/dxos/dxos/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dxos/dxos"
+  },
+  "license": "FSL-1.1-Apache-2.0",
+  "author": "info@dxos.org",
+  "sideEffects": true,
+  "type": "module",
+  "imports": {
+    "#meta": "./src/meta.ts",
+    "#plugin": "./src/BramblePlugin.tsx",
+    "#types": "./src/types/index.ts",
+    "#capabilities": "./src/capabilities/index.ts",
+    "#translations": "./src/translations.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./plugin": "./src/plugin.ts",
+    "./translations": "./src/translations.ts"
+  },
+  "dependencies": {
+    "@dxos/app-framework": "workspace:*",
+    "@dxos/app-toolkit": "workspace:*",
+    "@dxos/compute": "workspace:*",
+    "@dxos/echo": "workspace:*",
+    "@dxos/echo-client": "workspace:*",
+    "@dxos/plugin-client": "workspace:*",
+    "@dxos/plugin-space": "workspace:*",
+    "@dxos/schema": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@dxos/plugin-testing": "workspace:*",
+    "vitest": "catalog:"
+  }
+}

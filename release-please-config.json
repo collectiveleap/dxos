@@ -630,6 +630,11 @@
         },
         {
           "type": "json",
+          "path": "packages/plugins/plugin-bramble/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/plugins/plugin-calls/package.json",
           "jsonpath": "$.version"
         },

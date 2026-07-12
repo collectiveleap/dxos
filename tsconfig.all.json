@@ -361,6 +361,9 @@
       "path": "packages/plugins/plugin-brain/tsconfig.json"
     },
     {
+      "path": "packages/plugins/plugin-bramble/tsconfig.json"
+    },
+    {
       "path": "packages/plugins/plugin-calls/tsconfig.json"
     },
     {
