@@ -108,3 +108,18 @@ export const EnterCreatesRow: Story = {
     await expect(document.activeElement?.closest('[data-node-id]')).not.toBeNull();
   },
 };
+
+export const BackspaceMergesRow: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = await canvas.findAllByTestId('bramble-row');
+    // focus the 2nd row (a leaf) and Backspace at its start
+    const target = before.find((el) => el.getAttribute('data-depth') === '0' && el !== before[0])!;
+    const content = target.querySelector<HTMLElement>('.cm-content')!;
+    content.focus();
+    await userEvent.keyboard('{Home}{Backspace}');
+    const after = await canvas.findAllByTestId('bramble-row');
+    await expect(after.length).toBe(before.length - 1);
+  },
+};

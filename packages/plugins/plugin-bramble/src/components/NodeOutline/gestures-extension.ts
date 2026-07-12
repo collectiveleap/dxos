@@ -20,5 +20,16 @@ export const brambleGestures = (controller: OutlineController, nodeId: string): 
           return true;
         },
       },
+      {
+        key: 'Backspace',
+        run: (view) => {
+          const { head, empty } = view.state.selection.main;
+          if (head === 0 && empty) {
+            void controller.mergeBackward(nodeId);
+            return true; // consumed — the merge handles it
+          }
+          return false; // normal backspace within the line
+        },
+      },
     ]),
   );
