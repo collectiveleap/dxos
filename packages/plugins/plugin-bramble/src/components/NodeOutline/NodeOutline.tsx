@@ -25,7 +25,7 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   return (
     <div data-testid='bramble-outline' role='tree'>
       <div data-testid='bramble-header'>
-        <RowEditor node={subject} />
+        <RowEditor node={subject} className='bramble-outline-header' />
       </div>
       {rows.map((row) => (
         <OutlineRow key={row.node.id} row={row} />

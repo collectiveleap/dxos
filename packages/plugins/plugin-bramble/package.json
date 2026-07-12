@@ -37,6 +37,7 @@
     "@dxos/react-ui-editor": "workspace:*",
     "@dxos/schema": "workspace:*",
     "@dxos/ui-editor": "workspace:*",
+    "@dxos/ui-theme": "workspace:*",
     "@dxos/util": "workspace:*",
     "effect": "catalog:"
   },

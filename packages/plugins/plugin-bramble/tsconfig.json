@@ -55,6 +55,9 @@
       "path": "../../ui/ui-editor"
     },
     {
+      "path": "../../ui/ui-theme"
+    },
+    {
       "path": "../plugin-client"
     },
     {

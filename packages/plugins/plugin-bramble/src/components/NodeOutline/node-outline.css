@@ -1,0 +1,58 @@
+/*
+ * Copyright 2026 DXOS.org
+ */
+
+/*
+ * Chrome styling for the NodeOutline surface, conforming to Tana's visual-spec
+ * (see implementations/tana/visual/tana-outline.json and
+ * implementations/dxos/visual/composer-outline.json in the bramble spec repo).
+ *
+ * `!important` is used on the CodeMirror text rules below because CodeMirror injects its
+ * own theme rules (`baseTheme`, `createFontTheme`) as StyleModule stylesheets at editor-mount
+ * time, at the same class-selector specificity as these rules; without `!important` the
+ * winner depends on injection order rather than on this stylesheet.
+ */
+
+/* Header title text (Tana visual-spec `node-title` scale). */
+.bramble-outline-header .cm-content {
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 29px !important;
+  line-height: 33.3615px !important;
+  font-weight: 550 !important;
+  color: oklch(0.282985 0.00269329 240) !important;
+}
+
+/* Row text (Tana visual-spec `node-name` scale). */
+.bramble-outline-row-name .cm-content {
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 15px !important;
+  line-height: 21px !important;
+  font-weight: 400 !important;
+  color: oklch(0.282985 0.00269329 240) !important;
+}
+
+/* Bullet: small filled disc marking each row. */
+.bramble-outline-bullet {
+  display: inline-block;
+  flex: none;
+  inline-size: 15px;
+  block-size: 15px;
+  border-radius: 9999px;
+  background-color: var(--color-neutral-700, currentColor);
+}
+
+/*
+ * Chevron: disclosure-triangle slot. The glyph itself is only rendered (in JSX) when
+ * `row.hasChildren`; this rule only carries the slot's box metrics/color so childless rows
+ * still reserve the same layout space.
+ */
+.bramble-outline-chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 3.75px 0px;
+  color: var(--color-neutral-500, currentColor);
+  font-size: 10px;
+  line-height: 1;
+}
