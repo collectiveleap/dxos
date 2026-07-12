@@ -9,7 +9,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
-import { Edge, makeEdge, Node, makeNode } from './index';
+import { Edge, Node, makeEdge, makeNode } from './index';
 
 describe('Bramble schema', () => {
   let builder: EchoTestBuilder;
