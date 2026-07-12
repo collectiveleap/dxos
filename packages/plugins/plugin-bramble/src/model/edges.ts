@@ -2,7 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
-import { Filter, Query } from '@dxos/echo';
+import { Filter, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { Edge, type Node, makeEdge } from '../types';
@@ -43,3 +43,58 @@ export const nextOrder = async (db: EchoDatabase, parent: Node): Promise<number>
 };
 
 export { makeEdge };
+
+/** True if adding a structural edge parent→child would create a cycle
+ *  (child is parent, or child is already an ancestor of parent). */
+export const wouldCreateCycle = async (db: EchoDatabase, parent: Node, child: Node): Promise<boolean> => {
+  if (parent.id === child.id) {
+    return true;
+  }
+  const seen = new Set<string>();
+  const stack: Node[] = [parent];
+  while (stack.length > 0) {
+    const n = stack.pop()!;
+    if (n.id === child.id) {
+      return true;
+    }
+    if (seen.has(n.id)) {
+      continue;
+    }
+    seen.add(n.id);
+    for (const e of await parentEdges(db, n)) {
+      stack.push(Relation.getSource(e));
+    }
+  }
+  return false;
+};
+
+/** Add a structural edge parent→child (appended by default), rejecting cycles. */
+export const createEdge = async (
+  db: EchoDatabase,
+  parent: Node,
+  child: Node,
+  order?: number,
+): Promise<Edge> => {
+  if (await wouldCreateCycle(db, parent, child)) {
+    throw new Error('Bramble: structural edge would create a cycle');
+  }
+  const edge = makeEdge({ source: parent, target: child, order: order ?? (await nextOrder(db, parent)) });
+  db.add(edge);
+  return edge;
+};
+
+export const removeEdge = (db: EchoDatabase, edge: Edge): void => {
+  db.remove(edge);
+};
+
+/** Move one occurrence (edge) to a new parent: remove the old edge, create a new one (cycle-checked). */
+export const reparentEdge = async (
+  db: EchoDatabase,
+  edge: Edge,
+  newParent: Node,
+  order?: number,
+): Promise<Edge> => {
+  const child = Relation.getTarget(edge);
+  removeEdge(db, edge);
+  return createEdge(db, newParent, child, order);
+};

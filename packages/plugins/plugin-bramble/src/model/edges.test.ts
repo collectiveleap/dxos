@@ -57,3 +57,52 @@ describe('traversal', () => {
     expect(parents.map((e) => Relation.getSource(e).id).sort()).toEqual([p1.id, p2.id].sort());
   });
 });
+
+import { createEdge, reparentEdge, wouldCreateCycle } from './edges';
+
+describe('mutation + acyclicity', () => {
+  let builder: EchoTestBuilder;
+  let db: EchoDatabase;
+
+  beforeEach(async () => {
+    builder = await new EchoTestBuilder().open();
+    ({ db } = await builder.createDatabase({ types: [Node, Edge, Text.Text] }));
+  });
+  afterEach(async () => {
+    await builder.close();
+  });
+
+  test('createEdge nests a child and appends its order', async ({ expect }) => {
+    const p = db.add(makeNode({}));
+    const a = db.add(makeNode({ text: 'a' }));
+    const b = db.add(makeNode({ text: 'b' }));
+    await createEdge(db, p, a);
+    const eb = await createEdge(db, p, b);
+    await db.flush();
+
+    expect(eb.order).toBe(1);
+    const kids = await childEdges(db, p);
+    expect(kids.map((e) => Relation.getTarget(e).id)).toEqual([a.id, b.id]);
+  });
+
+  test('createEdge rejects a cycle', async ({ expect }) => {
+    const a = db.add(makeNode({ text: 'a' }));
+    const b = db.add(makeNode({ text: 'b' }));
+    await createEdge(db, a, b); // a → b
+    await db.flush();
+    expect(await wouldCreateCycle(db, b, a)).toBe(true); // b → a would cycle
+    await expect(createEdge(db, b, a)).rejects.toThrow(/cycle/);
+  });
+
+  test('reparentEdge moves an occurrence to a new parent', async ({ expect }) => {
+    const p1 = db.add(makeNode({ text: 'p1' }));
+    const p2 = db.add(makeNode({ text: 'p2' }));
+    const c = db.add(makeNode({ text: 'c' }));
+    const e = await createEdge(db, p1, c);
+    await db.flush();
+    await reparentEdge(db, e, p2);
+    await db.flush();
+
+    expect((await parentEdges(db, c)).map((x) => Relation.getSource(x).id)).toEqual([p2.id]);
+  });
+});
