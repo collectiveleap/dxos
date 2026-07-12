@@ -15,7 +15,13 @@ const INDENT_PX = 24;
 
 export const OutlineRow = ({ row }: { row: OutlineRowModel }) => {
   return (
-    <div data-testid='bramble-row' data-depth={row.depth} role='treeitem' style={{ paddingInlineStart: row.depth * INDENT_PX }}>
+    <div
+      data-testid='bramble-row'
+      data-depth={row.depth}
+      role='treeitem'
+      className={mx('bramble-outline-row')}
+      style={{ paddingInlineStart: row.depth * INDENT_PX }}
+    >
       <span data-testid='bramble-chevron' aria-hidden={!row.hasChildren} className={mx('bramble-outline-chevron')}>
         {row.hasChildren ? '▸' : null}
       </span>

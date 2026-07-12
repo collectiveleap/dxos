@@ -25,13 +25,21 @@ export const outlineRows = (edges: Edge[], root: Node): OutlineRow[] => {
   }
 
   const rows: OutlineRow[] = [];
-  const walk = (parentId: string, depth: number) => {
+  // Guard the current ancestor path (not a global visited set): a Node may legitimately
+  // appear under several parents (multi-predecessor), so only a back-edge into its own
+  // ancestors is a cycle — skip that edge rather than recursing forever. Acyclicity is
+  // enforced at write time (createEdge), but the render layer must not trust that invariant
+  // for an edge set assembled some other way.
+  const walk = (parentId: string, depth: number, ancestors: Set<string>) => {
     for (const edge of bySource.get(parentId) ?? []) {
       const node = Relation.getTarget(edge) as Node;
+      if (ancestors.has(node.id)) {
+        continue;
+      }
       rows.push({ node, depth, edge, hasChildren: (bySource.get(node.id) ?? []).length > 0 });
-      walk(node.id, depth + 1);
+      walk(node.id, depth + 1, new Set(ancestors).add(node.id));
     }
   };
-  walk(root.id, 0);
+  walk(root.id, 0, new Set([root.id]));
   return rows;
 };

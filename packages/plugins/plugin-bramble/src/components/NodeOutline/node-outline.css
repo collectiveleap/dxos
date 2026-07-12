@@ -56,3 +56,16 @@
   font-size: 10px;
   line-height: 1;
 }
+
+/* Row: lay chevron · bullet · text inline on one line. */
+.bramble-outline-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The row's text editor fills the inline space next to the bullet. */
+.bramble-outline-row-name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
