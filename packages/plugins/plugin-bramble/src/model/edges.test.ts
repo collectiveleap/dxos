@@ -10,7 +10,7 @@ import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
 import { Edge, Node, makeEdge, makeNode } from '../types';
-import { childEdges, orderBetween, parentEdges } from './edges';
+import { childEdges, createEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
 
 describe('orderBetween', () => {
   test('midpoints and open ends', ({ expect }) => {
@@ -58,8 +58,6 @@ describe('traversal', () => {
   });
 });
 
-import { createEdge, reparentEdge, wouldCreateCycle } from './edges';
-
 describe('mutation + acyclicity', () => {
   let builder: EchoTestBuilder;
   let db: EchoDatabase;
@@ -104,5 +102,24 @@ describe('mutation + acyclicity', () => {
     await db.flush();
 
     expect((await parentEdges(db, c)).map((x) => Relation.getSource(x).id)).toEqual([p2.id]);
+  });
+
+  test('reparentEdge rejects reparenting under a descendant, leaving the original edge intact', async ({
+    expect,
+  }) => {
+    const a = db.add(makeNode({ text: 'a' }));
+    const b = db.add(makeNode({ text: 'b' }));
+    const c = db.add(makeNode({ text: 'c' }));
+    const ab = await createEdge(db, a, b); // a → b
+    await createEdge(db, b, c); // b → c
+    await db.flush();
+
+    // Reparenting a→b under c (a descendant of b) would create a cycle: reject atomically.
+    await expect(reparentEdge(db, ab, c)).rejects.toThrow(/cycle/);
+    await db.flush();
+
+    const parents = await parentEdges(db, b);
+    expect(parents.map((e) => Relation.getSource(e).id)).toEqual([a.id]);
+    expect(Relation.getTarget(parents[0]).id).toBe(b.id);
   });
 });

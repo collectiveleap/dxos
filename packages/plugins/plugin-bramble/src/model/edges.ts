@@ -95,6 +95,11 @@ export const reparentEdge = async (
   order?: number,
 ): Promise<Edge> => {
   const child = Relation.getTarget(edge);
+  // Cycle-check BEFORE removing, so a rejected reparent leaves the graph unchanged.
+  // (The old edge is inbound to `child`, so its presence does not affect this check.)
+  if (await wouldCreateCycle(db, newParent, child)) {
+    throw new Error('Bramble: structural edge would create a cycle');
+  }
   removeEdge(db, edge);
   return createEdge(db, newParent, child, order);
 };
