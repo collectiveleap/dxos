@@ -2538,6 +2538,9 @@ importers:
       '@dxos/plugin-brain':
         specifier: workspace:*
         version: link:../../plugins/plugin-brain
+      '@dxos/plugin-bramble':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-bramble
       '@dxos/plugin-calls':
         specifier: workspace:*
         version: link:../../plugins/plugin-calls
@@ -9146,6 +9149,9 @@ importers:
       '@dxos/schema':
         specifier: workspace:*
         version: link:../../sdk/schema
+      '@dxos/util':
+        specifier: workspace:*
+        version: link:../../common/util
       effect:
         specifier: 3.21.4
         version: 3.21.4

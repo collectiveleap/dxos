@@ -58,6 +58,7 @@
     "@dxos/plugin-board": "workspace:*",
     "@dxos/plugin-bookmarks": "workspace:*",
     "@dxos/plugin-brain": "workspace:*",
+    "@dxos/plugin-bramble": "workspace:*",
     "@dxos/plugin-calls": "workspace:*",
     "@dxos/plugin-chess": "workspace:*",
     "@dxos/plugin-chess-com": "workspace:*",

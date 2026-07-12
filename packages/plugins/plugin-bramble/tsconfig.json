@@ -19,6 +19,9 @@
   ],
   "references": [
     {
+      "path": "../../common/util"
+    },
+    {
       "path": "../../core/compute/compute"
     },
     {

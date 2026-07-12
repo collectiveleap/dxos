@@ -15,6 +15,7 @@ import { BlueskyPlugin } from '@dxos/plugin-bluesky/plugin';
 import { BoardPlugin } from '@dxos/plugin-board/plugin';
 import { BookmarksPlugin } from '@dxos/plugin-bookmarks/plugin';
 import { BrainPlugin } from '@dxos/plugin-brain/plugin';
+import { BramblePlugin } from '@dxos/plugin-bramble/plugin';
 import { CallsPlugin } from '@dxos/plugin-calls/plugin';
 import { ChessComPlugin } from '@dxos/plugin-chess-com/plugin';
 import { ChessPlugin } from '@dxos/plugin-chess/plugin';
@@ -141,6 +142,7 @@ export const getDefaults = ({ isDev, isLocal, isLabs }: PluginConfig): string[] 
     // Labs
     (isDev || isLabs) && [
       BookmarksPlugin.meta.profile.key,
+      BramblePlugin.meta.profile.key,
       CallsPlugin.meta.profile.key,
       MeetingPlugin.meta.profile.key,
       CodePlugin.meta.profile.key,
@@ -188,6 +190,7 @@ export const getPlugins = ({
     BoardPlugin(),
     BookmarksPlugin(),
     BrainPlugin(),
+    BramblePlugin(),
     CallsPlugin(),
     ChessPlugin(),
     ChessComPlugin(),
