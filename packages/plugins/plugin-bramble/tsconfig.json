@@ -31,6 +31,9 @@
       "path": "../../core/echo/echo-client"
     },
     {
+      "path": "../../core/echo/echo-doc"
+    },
+    {
       "path": "../../sdk/app-framework"
     },
     {
@@ -38,6 +41,15 @@
     },
     {
       "path": "../../sdk/schema"
+    },
+    {
+      "path": "../../ui/react-ui"
+    },
+    {
+      "path": "../../ui/react-ui-editor"
+    },
+    {
+      "path": "../../ui/ui-editor"
     },
     {
       "path": "../plugin-client"

@@ -73,5 +73,10 @@ export const Tree: Story = {
     await expect(rows[1]).toHaveAttribute('data-depth', '1');
     await expect(rows[2]).toHaveTextContent('b');
     await expect(rows[2]).toHaveAttribute('data-depth', '0');
+
+    // The row text renders through the editor (CodeMirror content), not a bare span.
+    const editors = await canvas.findAllByTestId('bramble-node-name');
+    await expect(editors[0].querySelector('.cm-content')).not.toBeNull();
+    await expect(editors[0]).toHaveTextContent('a');
   },
 };
