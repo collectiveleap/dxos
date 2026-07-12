@@ -1,0 +1,76 @@
+//
+// Copyright 2026 DXOS.org
+//
+
+import { afterEach, beforeEach, describe, test } from 'vitest';
+import { Filter, Query } from '@dxos/echo';
+import { type EchoDatabase } from '@dxos/echo-client';
+import { EchoTestBuilder } from '@dxos/echo-client/testing';
+import { Text } from '@dxos/schema';
+import { createEdge } from './edges';
+import { splitPlan, mergePlan } from './gestures';
+import { outlineRows } from './outline';
+import { Edge, Node, makeNode } from '../types';
+
+describe('gestures', () => {
+  let builder: EchoTestBuilder;
+  let db: EchoDatabase;
+  beforeEach(async () => {
+    builder = await new EchoTestBuilder().open();
+    ({ db } = await builder.createDatabase({ types: [Node, Edge, Text.Text] }));
+  });
+  afterEach(async () => { await builder.close(); });
+
+  const add = (t: string) => db.add(makeNode({ text: t }));
+  const rowsOf = async (root: Node) => outlineRows((await db.query(Query.select(Filter.type(Edge))).run()) as Edge[], root);
+
+  test('splitPlan on a childless node makes a next sibling with the tail text', async ({ expect }) => {
+    const root = add('root'); const a = add('alpha'); const b = add('bravo');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    const rows = await rowsOf(root);
+    const plan = splitPlan(rows, root, a.id, 2); // caret after "al"
+    expect(plan.keepText).toBe('al');
+    expect(plan.newText).toBe('pha');
+    expect(plan.parentId).toBe(root.id);        // sibling of a → same parent (root)
+    expect(plan.order).toBeGreaterThan(1);       // between a(1) and b(2)
+    expect(plan.order).toBeLessThan(2);
+  });
+
+  test('splitPlan on a node with children makes a first child', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const a1 = add('a1');
+    await createEdge(db, root, a, 1); await createEdge(db, a, a1, 5); await db.flush();
+    const rows = await rowsOf(root);
+    const plan = splitPlan(rows, root, a.id, 1);
+    expect(plan.parentId).toBe(a.id);            // first child of a
+    expect(plan.order).toBeLessThan(5);          // before a1(5)
+  });
+
+  test('splitPlan on the root (header) makes a first child of root', async ({ expect }) => {
+    const root = add('title');
+    await db.flush();
+    const rows = await rowsOf(root);
+    const plan = splitPlan(rows, root, root.id, 5);
+    expect(plan.parentId).toBe(root.id);
+    expect(plan.keepText).toBe('title');
+    expect(plan.newText).toBe('');
+  });
+
+  test('mergePlan merges a childless node into the row above', async ({ expect }) => {
+    const root = add('root'); const a = add('aa'); const b = add('bb');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    const rows = await rowsOf(root);
+    const plan = mergePlan(rows, root, b.id);
+    expect(plan).not.toBeNull();
+    expect(plan!.precedingId).toBe(a.id);
+    expect(plan!.nodeText).toBe('bb');
+    expect(plan!.mergeOffset).toBe(2); // caret lands after "aa"
+  });
+
+  test('mergePlan is a no-op for the first row (merges into root header) and for a node with children', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const a1 = add('a1');
+    await createEdge(db, root, a, 1); await createEdge(db, a, a1, 1); await db.flush();
+    const rows = await rowsOf(root);
+    expect(mergePlan(rows, root, a.id)).toBeNull();          // a has a child → deferred
+    expect(mergePlan(rows, root, a1.id)!.precedingId).toBe(a.id); // a1 merges into a
+  });
+});
