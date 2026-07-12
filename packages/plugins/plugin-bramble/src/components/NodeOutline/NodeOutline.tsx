@@ -2,22 +2,32 @@
 // Copyright 2026 DXOS.org
 //
 
-import React from 'react';
+import React, { useMemo } from 'react';
 
-import { useObject } from '@dxos/react-client/echo';
+import { Filter, Obj, Query } from '@dxos/echo';
+import { useObject, useQuery } from '@dxos/react-client/echo';
 
-import { type Node } from '../../types';
+import { OutlineRow } from './OutlineRow';
+import { outlineRows } from '../../model/outline';
+import { Edge, type Node } from '../../types';
 
 export type NodeOutlineProps = { subject: Node; role?: string };
 
 export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   const [root] = useObject(subject);
+  const db = Obj.getDatabase(subject);
+  const edges = useQuery(db, Query.select(Filter.type(Edge))) as Edge[];
+  const rows = useMemo(() => (root ? outlineRows(edges, root) : []), [edges, root]);
+
   if (!root) {
     return null;
   }
   return (
     <div data-testid='bramble-outline' role='tree'>
       <div data-testid='bramble-header'>{root.text?.target?.content ?? ''}</div>
+      {rows.map((row) => (
+        <OutlineRow key={row.node.id} row={row} />
+      ))}
     </div>
   );
 };

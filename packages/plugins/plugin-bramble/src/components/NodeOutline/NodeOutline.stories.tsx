@@ -59,3 +59,19 @@ export const Default: Story = {
     await expect(header).toHaveTextContent('Root');
   },
 };
+
+export const Tree: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const rows = await canvas.findAllByTestId('bramble-row');
+    // Root excluded; descendants are a, a1, b, depth-first.
+    await expect(rows).toHaveLength(3);
+    await expect(rows[0]).toHaveTextContent('a');
+    await expect(rows[0]).toHaveAttribute('data-depth', '0');
+    await expect(rows[1]).toHaveTextContent('a1');
+    await expect(rows[1]).toHaveAttribute('data-depth', '1');
+    await expect(rows[2]).toHaveTextContent('b');
+    await expect(rows[2]).toHaveAttribute('data-depth', '0');
+  },
+};
