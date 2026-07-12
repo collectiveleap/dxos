@@ -16,7 +16,7 @@ import './node-outline.css';
 
 export const RowEditor = ({
   node,
-  readOnly = true,
+  readOnly = false,
   testId,
   className,
 }: {

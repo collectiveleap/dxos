@@ -4,7 +4,7 @@
 
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import React, { useMemo } from 'react';
-import { expect, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 
 import { useSpaces } from '@dxos/react-client/echo';
 import { withClientProvider } from '@dxos/react-client/testing';
@@ -78,5 +78,18 @@ export const Tree: Story = {
     const editors = await canvas.findAllByTestId('bramble-node-name');
     await expect(editors[0].querySelector('.cm-content')).not.toBeNull();
     await expect(editors[0]).toHaveTextContent('a');
+  },
+};
+
+export const Editable: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const rows = await canvas.findAllByTestId('bramble-node-name');
+    const content = rows[0].querySelector<HTMLElement>('.cm-content')!;
+    content.focus();
+    // place caret at end and type
+    await userEvent.keyboard('{End} X');
+    await expect(content).toHaveTextContent('a X');
   },
 };
