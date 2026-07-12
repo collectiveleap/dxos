@@ -5,7 +5,7 @@
 import React, { useMemo } from 'react';
 
 import { Filter, Obj, Query } from '@dxos/echo';
-import { useObject, useQuery } from '@dxos/react-client/echo';
+import { useQuery } from '@dxos/react-client/echo';
 
 import { OutlineRow } from './OutlineRow';
 import { RowEditor } from './RowEditor';
@@ -15,18 +15,17 @@ import { Edge, type Node } from '../../types';
 export type NodeOutlineProps = { subject: Node; role?: string };
 
 export const NodeOutline = ({ subject }: NodeOutlineProps) => {
-  const [root] = useObject(subject);
+  // Use the live `subject` (a Node entity) for the view-model root and the header
+  // editor; reactivity comes from `useQuery` (rows) and RowEditor's own text binding,
+  // so the `useObject` snapshot (a `Snapshot<Node>`, not assignable to `Node`) isn't needed.
   const db = Obj.getDatabase(subject);
   const edges = useQuery(db, Query.select(Filter.type(Edge))) as Edge[];
-  const rows = useMemo(() => (root ? outlineRows(edges, root) : []), [edges, root]);
+  const rows = useMemo(() => outlineRows(edges, subject), [edges, subject]);
 
-  if (!root) {
-    return null;
-  }
   return (
     <div data-testid='bramble-outline' role='tree'>
       <div data-testid='bramble-header'>
-        <RowEditor node={root} />
+        <RowEditor node={subject} />
       </div>
       {rows.map((row) => (
         <OutlineRow key={row.node.id} row={row} />
