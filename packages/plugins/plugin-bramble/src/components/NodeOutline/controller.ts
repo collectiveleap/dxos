@@ -74,8 +74,8 @@ export class OutlineController {
     // trim the tail out of the source row's text (mounted editors update via their automerge binding)
     const sourceText = this.nodeOf(rows, nodeId).text?.target;
     if (sourceText) {
-      Obj.update(sourceText, (m) => {
-        m.content = plan.keepText;
+      Obj.update(sourceText, (sourceText) => {
+        sourceText.content = plan.keepText;
       });
     }
     this.focusRow(newNode.id, 'start');
@@ -90,8 +90,8 @@ export class OutlineController {
     // append this node's text to the preceding node's text (mounted editors update via their automerge binding)
     const precedingText = this.nodeOf(rows, plan.precedingId).text?.target;
     if (precedingText) {
-      Obj.update(precedingText, (m) => {
-        m.content = (precedingText.content ?? '') + plan.nodeText;
+      Obj.update(precedingText, (precedingText) => {
+        precedingText.content = (precedingText.content ?? '') + plan.nodeText;
       });
     }
     // remove this node's structural edge; remove the node itself only if this was its last inbound edge
