@@ -35,4 +35,11 @@ describe('Bramble schema', () => {
     expect(Relation.getSource(edge).id).toBe(parent.id);
     expect(Relation.getTarget(edge).id).toBe(child.id);
   });
+
+  test('makeNode always creates a Text so every Node is editable (incl. the create-menu path)', async ({ expect }) => {
+    const node = db.add(makeNode()); // no text — the Composer create-object path
+    await db.flush();
+    expect(node.text).toBeDefined();
+    expect(node.text!.target?.content).toBe('');
+  });
 });

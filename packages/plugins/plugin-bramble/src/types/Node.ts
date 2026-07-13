@@ -19,4 +19,7 @@ export class Node extends Type.makeObject<Node>(DXN.make('org.dxos.type.bramble.
 ) {}
 
 export const makeNode = ({ text }: { text?: string } = {}): Node =>
-  Obj.make(Node, { text: text != null ? Ref.make(Text.make({ content: text })) : undefined });
+  // Always create a Text (empty when unspecified) so every Node — including one created via
+  // Composer's create-object menu with no text — renders an editable row/header, not the
+  // read-only fallback RowEditor uses for a text-less node.
+  Obj.make(Node, { text: Ref.make(Text.make({ content: text ?? '' })) });
