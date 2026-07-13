@@ -33,7 +33,18 @@ const NodeOutlineStory = () => {
     void createEdge(db, r, b, 2);
     return r;
   }, [space]);
-  return root ? <NodeOutline subject={root} /> : null;
+  // Render on the theme's base surface. The shared `withLayout({ layout: 'fullscreen' })`
+  // decorator wraps stories in a hardcoded `bg-black`, illegible in light theme (the
+  // outline's text is theme-adaptive but its own background is transparent). In real
+  // Composer the outline sits on the themed deck surface; this reproduces that so both
+  // themes are legible here and in the visual gate. `--surface-bg` is the theme's
+  // light-dark() base surface (Tailwind `bg-*` utilities aren't compiled in this story
+  // context, so the var is set directly).
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
 };
 
 const meta = {
