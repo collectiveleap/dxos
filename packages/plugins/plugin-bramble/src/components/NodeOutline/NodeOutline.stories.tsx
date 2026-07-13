@@ -62,6 +62,34 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+// Perceptual lightness of a computed colour (oklch L directly; relative luminance for
+// rgb) — enough to detect a text/background pair with near-zero contrast, which is the
+// illegible-theme failure mode. Used by the `LegibleInBothThemes` gate below.
+const lightness = (color: string): number | null => {
+  const okl = color.match(/oklch\(\s*([0-9.]+)/i);
+  if (okl) {
+    return parseFloat(okl[1]);
+  }
+  const rgb = color.match(/rgba?\(([^)]+)\)/i);
+  if (rgb) {
+    const [r, g, b] = rgb[1].split(',').slice(0, 3).map((s) => parseFloat(s) / 255);
+    const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  }
+  return null;
+};
+
+// The first painted (non-transparent) background behind an element.
+const ambientBackground = (el: Element): string => {
+  for (let cur: Element | null = el; cur; cur = cur.parentElement) {
+    const bg = getComputedStyle(cur).backgroundColor;
+    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+      return bg;
+    }
+  }
+  return getComputedStyle(document.body).backgroundColor;
+};
+
 export const Default: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {
@@ -203,5 +231,42 @@ export const ArrowMovesBetweenRows: Story = {
     await userEvent.keyboard('{Home}{ArrowUp}');
     const focusedId = document.activeElement?.closest('[data-node-id]')?.getAttribute('data-node-id');
     await expect(focusedId).toBe(rows[0].querySelector('[data-node-id]')?.getAttribute('data-node-id'));
+  },
+};
+
+// PX-theme legibility gate. The visual-diff gate checks each region's text *colour* but
+// not its contrast against the ambient background — which let an illegible light theme
+// (theme-adaptive dark text on a hardcoded `bg-black` story wrapper) pass. This asserts
+// the outline text keeps a real contrast gap in BOTH themes: it toggles the root theme
+// class + color-scheme (which drive the `light-dark()` surface and text vars) and
+// re-measures. A dark-on-dark / light-on-light regression collapses the gap toward 0.
+export const LegibleInBothThemes: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = await canvas.findByTestId('bramble-header');
+    const text = header.querySelector<HTMLElement>('.cm-content')!;
+    const root = document.documentElement;
+    const orig = { cls: root.className, cs: root.style.colorScheme };
+    try {
+      for (const theme of ['light', 'dark'] as const) {
+        root.classList.remove('light', 'dark');
+        root.classList.add(theme);
+        root.style.colorScheme = theme;
+        void root.offsetHeight; // reflow so light-dark() re-resolves
+        const textL = lightness(getComputedStyle(text).color);
+        const bgL = lightness(ambientBackground(text));
+        await expect(textL, `${theme}: text lightness`).not.toBeNull();
+        await expect(bgL, `${theme}: background lightness`).not.toBeNull();
+        const gap = Math.abs((textL as number) - (bgL as number));
+        await expect(gap, `${theme} theme text/background contrast gap`).toBeGreaterThan(0.3);
+      }
+    } finally {
+      root.classList.remove('light', 'dark');
+      if (orig.cls) {
+        root.className = orig.cls;
+      }
+      root.style.colorScheme = orig.cs;
+    }
   },
 };
