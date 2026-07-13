@@ -101,10 +101,17 @@ export const reparentEdge = async (
     throw new Error('Bramble: structural edge would create a cycle');
   }
   const finalOrder = order ?? (await nextOrder(db, newParent));
-  // Remove + add in one synchronous tick so ECHO batches them into a single reactive
-  // update — the node must never have zero structural edges during a render, or its
-  // outline row unmounts/remounts (React duplicate-key warning, focus loss on
-  // indent/outdent, and a rapid second Tab silently no-ops during the gap).
+  // NOTE: this is a known source of a transient React duplicate-key warning. A relation's
+  // endpoints (Relation.Source / Relation.Target) are read-only after creation — ECHO throws
+  // an invariant violation if `Relation.update` tries to reassign them — so an in-place
+  // reparent is not available; remove-then-add is the only option. Despite both calls
+  // happening in the same synchronous tick, ECHO does NOT guarantee they land in a single
+  // reactive update: `useQuery` can observe the new edge before the old edge's removal has
+  // settled, giving `child` two structural parents for one render. `outlineRows` does not
+  // de-dup a multi-predecessor node, so it briefly emits two rows sharing `node.id`, which
+  // React reports as "Encountered two children with the same key". Fixing this properly
+  // requires either a de-dup pass in `outlineRows` or a real batched-transaction primitive
+  // in ECHO for relation reparenting — tracked as follow-up, not fixed by this function.
   removeEdge(db, edge);
   const newEdge = makeEdge({ source: newParent, target: child, order: finalOrder });
   db.add(newEdge);
