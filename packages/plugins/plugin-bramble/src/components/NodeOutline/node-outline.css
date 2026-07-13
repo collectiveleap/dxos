@@ -11,6 +11,13 @@
  * own theme rules (`baseTheme`, `createFontTheme`) as StyleModule stylesheets at editor-mount
  * time, at the same class-selector specificity as these rules; without `!important` the
  * winner depends on injection order rather than on this stylesheet.
+ *
+ * Text `color` is intentionally NOT set here (PX-theme): the ui-editor base theme already
+ * declares `.cm-content { color: unset }`, which inherits the ambient theme foreground
+ * (`--color-base-fg`, applied at `html` / `.sb-show-main` — see
+ * packages/ui/ui-theme/src/css/base/base.css) — light-dark and therefore theme-adaptive.
+ * An earlier version of this file forced Tana's LIGHT-mode ink
+ * (`oklch(0.282985 0.00269329 240)`) here, which made the outline illegible in dark mode.
  */
 
 /* Header title text (Tana visual-spec `node-title` scale). */
@@ -19,7 +26,6 @@
   font-size: 29px !important;
   line-height: 33.3615px !important;
   font-weight: 550 !important;
-  color: oklch(0.282985 0.00269329 240) !important;
 }
 
 /* Row text (Tana visual-spec `node-name` scale). */
@@ -28,40 +34,104 @@
   font-size: 15px !important;
   line-height: 21px !important;
   font-weight: 400 !important;
-  color: oklch(0.282985 0.00269329 240) !important;
 }
 
-/* Bullet: small filled disc marking each row. */
+/*
+ * Bullet: Tana renders a 15px hit-area (`--bulletDiameterOuter`) that is itself transparent,
+ * with the *visible* dot painted by `.bullet::after` at `--bulletDiameterInner` (5px) in
+ * `--bulletColor1` (oklch(0.606 0.0003 240), a mid-grey). We reproduce that split — the outer
+ * span is the 15px slot; the inner `bramble-outline-bullet-dot` span is the 5px painted dot —
+ * so the mark reads at Tana's size, not the slot's, and the dot is a real element (not a
+ * `::after`) so `harvest-styles.js` can select it directly for the visual-verification gate.
+ * (Earlier this element filled the whole 15px slot, giving a dot ~3× too large.)
+ *
+ * `margin-block-start` nudges the whole 15px slot down within the row (PX-nesting): the row
+ * now aligns all handles to `flex-start` (the TOP of the first text line, at depth changes),
+ * so a slot that's shorter than the 21px text line needs pushing down to keep the 5px dot's
+ * centre level with the first line's centre (21px line ⇒ centre at 10.5px; a 15px slot centres
+ * its dot at 7.5px from the slot's own top ⇒ 10.5 − 7.5 = 3px of push). The slot's own
+ * width/height stay 15px (matching PX-mark's hit-area) — only its position shifts.
+ */
 .bramble-outline-bullet {
-  display: inline-block;
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
   inline-size: 15px;
   block-size: 15px;
-  border-radius: 9999px;
-  background-color: var(--color-neutral-700, currentColor);
+  margin-block-start: 3px;
+}
+
+/*
+ * The dot's grey (`mark`, PX-theme) is Tana's own theme-stable value, not the app's `neutral-500`
+ * scale — DXOS's own `--color-neutral-500` resolves a visibly different grey (measured Δ15 per
+ * channel against Tana's harvest), so it's set literally here rather than through that token.
+ */
+.bramble-outline-bullet-dot {
+  display: block;
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+  background-color: oklch(0.606 0.0003 240);
 }
 
 /*
  * Chevron: disclosure-triangle slot. The glyph itself is only rendered (in JSX) when
- * `row.hasChildren`; this rule only carries the slot's box metrics/color so childless rows
- * still reserve the same layout space.
+ * `row.hasChildren`; this rule carries the slot's box metrics/color so childless rows still
+ * reserve the same layout space. Tana's chevron container is `font-size: 15px` (the glyph
+ * scales with it) — matching that; the earlier 10px rendered visibly too small.
+ *
+ * PX-state: at rest the chevron is invisible (`opacity: 0`) — Tana reveals the whole
+ * `bulletSide` (chevron + drag affordance) only on row hover. A childless row still reserves
+ * the slot (no glyph is rendered into it), so the opacity toggle is inert there.
  */
 .bramble-outline-chevron {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
+  inline-size: 15px;
   padding: 3.75px 0px;
   color: var(--color-neutral-500, currentColor);
-  font-size: 10px;
+  font-size: 15px;
   line-height: 1;
+  opacity: 0;
 }
 
-/* Row: lay chevron · bullet · text inline on one line. */
+.bramble-outline-row:hover .bramble-outline-chevron,
+.bramble-outline-row:focus-within .bramble-outline-chevron {
+  opacity: 1;
+}
+
+/*
+ * Row: lay chevron · bullet · text inline, gapped 7.5px (Tana's bullet↔text gap).
+ * `flex-start` (PX-nesting) seats every handle at the TOP of the first text line rather than
+ * the row's vertical centre — this matters once a Node's text wraps to multiple lines, and is
+ * what the bullet's `margin-block-start` nudge (above) is compensating for.
+ *
+ * PX-state: a subtle background on hover/focus-within (Tana:
+ * `.SharedComponents-module_editableWrapper:hover` / `:focus-within`), using the theme's own
+ * subtle-hover surface token so it's theme-adaptive and consistent with the rest of the app.
+ */
 .bramble-outline-row {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 7.5px;
+  border-radius: 0.25rem;
+}
+
+.bramble-outline-row:hover,
+.bramble-outline-row:focus-within {
+  background-color: var(--color-hover-surface-subtle);
+}
+
+/*
+ * Outline gutter: Tana's panel carries `padding-left: 24px`, so bullets are not flush against
+ * the panel edge. Reproduce the left gutter on the whole surface (header + rows share it).
+ */
+.bramble-outline {
+  padding-inline-start: 24px;
+  padding-block: 8px;
 }
 
 /* The row's text editor fills the inline space next to the bullet. */

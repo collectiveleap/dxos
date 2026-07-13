@@ -36,7 +36,7 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
 
   return (
     <OutlineControllerContext.Provider value={controllerRef.current ?? null}>
-      <div data-testid='bramble-outline' role='tree'>
+      <div data-testid='bramble-outline' role='tree' className='bramble-outline'>
         <div data-testid='bramble-header'>
           <RowEditor node={subject} className='bramble-outline-header' />
         </div>
