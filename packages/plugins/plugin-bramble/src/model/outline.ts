@@ -6,14 +6,17 @@ import { Relation } from '@dxos/echo';
 
 import { type Edge, type Node } from '../types';
 
-export type OutlineRow = { node: Node; depth: number; edge: Edge; hasChildren: boolean };
+export type OutlineRow = { node: Node; depth: number; edge: Edge; hasChildren: boolean; collapsed: boolean };
 
 /**
  * Pure view-model: given all Bramble structural edges and a view root, produce the
  * ordered, depth-annotated row list for the root's structural-successor subtree.
  * The root itself is excluded (it renders as the outline header).
+ *
+ * A node whose id is in `collapsed` still emits its own row (with `collapsed: true`),
+ * but its successor subtree is omitted from the result.
  */
-export const outlineRows = (edges: Edge[], root: Node): OutlineRow[] => {
+export const outlineRows = (edges: Edge[], root: Node, collapsed: ReadonlySet<string> = new Set()): OutlineRow[] => {
   const bySource = new Map<string, Edge[]>();
   for (const edge of edges) {
     const sourceId = Relation.getSource(edge).id;
@@ -36,8 +39,12 @@ export const outlineRows = (edges: Edge[], root: Node): OutlineRow[] => {
       if (ancestors.has(node.id)) {
         continue;
       }
-      rows.push({ node, depth, edge, hasChildren: (bySource.get(node.id) ?? []).length > 0 });
-      walk(node.id, depth + 1, new Set(ancestors).add(node.id));
+      const hasChildren = (bySource.get(node.id) ?? []).length > 0;
+      const isCollapsed = collapsed.has(node.id);
+      rows.push({ node, depth, edge, hasChildren, collapsed: isCollapsed });
+      if (!isCollapsed) {
+        walk(node.id, depth + 1, new Set(ancestors).add(node.id));
+      }
     }
   };
   walk(root.id, 0, new Set([root.id]));
