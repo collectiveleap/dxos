@@ -118,7 +118,10 @@ export class OutlineController {
       return;
     }
     const row = rows.find((r) => r.node.id === nodeId)!;
+    const oldView = this.views.get(nodeId);
+    const caret: FocusPos = oldView?.state.selection.main.head ?? 'end';
     await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+    this.refocusAfterReparent(nodeId, oldView, caret);
   }
 
   async outdent(nodeId: string) {
@@ -128,7 +131,30 @@ export class OutlineController {
       return;
     }
     const row = rows.find((r) => r.node.id === nodeId)!;
+    const oldView = this.views.get(nodeId);
+    const caret: FocusPos = oldView?.state.selection.main.head ?? 'end';
     await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+    this.refocusAfterReparent(nodeId, oldView, caret);
+  }
+
+  /**
+   * `reparentEdge` replaces the edge (endpoints are immutable), and rows are keyed by
+   * `edge.id` (see NodeOutline.tsx), so this row's `RowEditor`/`EditorView` remounts across
+   * an indent/outdent. `focusRow`'s normal fast path (place immediately if a view is already
+   * registered) is unsafe to call blindly here: React's key-driven remount is not guaranteed
+   * to have happened yet by the time `reparentEdge`'s promise resolves, so `focusRow` could
+   * place the caret on the OLD view a moment before it's torn down, leaving the new view
+   * unfocused. Instead: if a *different* view is already registered under `nodeId` (the
+   * remount already landed), place on it directly; otherwise queue `pendingFocus` so the
+   * next `register()` call — guaranteed to be the new mount — fulfills it.
+   */
+  private refocusAfterReparent(nodeId: string, oldView: EditorView | undefined, pos: FocusPos) {
+    const currentView = this.views.get(nodeId);
+    if (currentView && currentView !== oldView) {
+      this.place(currentView, pos);
+    } else {
+      this.pendingFocus = { nodeId, pos };
+    }
   }
 
   async reorder(nodeId: string, dir: -1 | 1) {

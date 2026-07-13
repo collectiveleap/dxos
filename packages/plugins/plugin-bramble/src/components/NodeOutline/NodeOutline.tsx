@@ -41,7 +41,7 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
           <RowEditor node={subject} className='bramble-outline-header' />
         </div>
         {rows.map((row) => (
-          <OutlineRow key={row.node.id} row={row} />
+          <OutlineRow key={row.edge.id} row={row} />
         ))}
       </div>
     </OutlineControllerContext.Provider>

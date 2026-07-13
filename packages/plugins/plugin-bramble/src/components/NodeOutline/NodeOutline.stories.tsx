@@ -145,8 +145,9 @@ export const IndentOutdent: Story = {
       const row = await findRow();
       await expect(row).toHaveAttribute('data-depth', '1'); // nested under its preceding sibling
     });
-    // Focus must survive the reparent — rows are node.id-keyed, so an atomic
-    // reparentEdge must not unmount/remount the row (no manual re-focus here).
+    // Focus must survive the reparent — rows are edge.id-keyed, so a reparent (which
+    // replaces the edge) remounts the row's editor; the controller re-places the caret
+    // explicitly (see `indent`/`outdent` in controller.ts) after the swap.
     await expect(document.activeElement?.closest('[data-node-id]')?.getAttribute('data-node-id')).toBe(nodeId);
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
