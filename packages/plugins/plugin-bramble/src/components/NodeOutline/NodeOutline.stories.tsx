@@ -145,13 +145,16 @@ export const IndentOutdent: Story = {
       const row = await findRow();
       await expect(row).toHaveAttribute('data-depth', '1'); // nested under its preceding sibling
     });
+    // Focus must survive the reparent — rows are node.id-keyed, so an atomic
+    // reparentEdge must not unmount/remount the row (no manual re-focus here).
+    await expect(document.activeElement?.closest('[data-node-id]')?.getAttribute('data-node-id')).toBe(nodeId);
 
-    (await findRow()).querySelector<HTMLElement>('.cm-content')!.focus();
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
     await waitFor(async () => {
       const row = await findRow();
       await expect(row).toHaveAttribute('data-depth', '0'); // lifted back to top level
     });
+    await expect(document.activeElement?.closest('[data-node-id]')?.getAttribute('data-node-id')).toBe(nodeId);
   },
 };
 

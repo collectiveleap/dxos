@@ -95,11 +95,18 @@ export const reparentEdge = async (
   order?: number,
 ): Promise<Edge> => {
   const child = Relation.getTarget(edge);
-  // Cycle-check BEFORE removing, so a rejected reparent leaves the graph unchanged.
+  // Cycle-check BEFORE mutating, so a rejected reparent leaves the graph unchanged.
   // (The old edge is inbound to `child`, so its presence does not affect this check.)
   if (await wouldCreateCycle(db, newParent, child)) {
     throw new Error('Bramble: structural edge would create a cycle');
   }
+  const finalOrder = order ?? (await nextOrder(db, newParent));
+  // Remove + add in one synchronous tick so ECHO batches them into a single reactive
+  // update — the node must never have zero structural edges during a render, or its
+  // outline row unmounts/remounts (React duplicate-key warning, focus loss on
+  // indent/outdent, and a rapid second Tab silently no-ops during the gap).
   removeEdge(db, edge);
-  return createEdge(db, newParent, child, order);
+  const newEdge = makeEdge({ source: newParent, target: child, order: finalOrder });
+  db.add(newEdge);
+  return newEdge;
 };
