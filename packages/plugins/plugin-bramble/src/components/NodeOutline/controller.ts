@@ -6,6 +6,7 @@ import { EditorSelection } from '@codemirror/state';
 import { type EditorView } from '@codemirror/view';
 import { createContext, useContext } from 'react';
 
+import { Obj } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { createEdge, removeEdge } from '../../model/edges';
@@ -70,10 +71,12 @@ export class OutlineController {
     const parent = this.nodeOf(rows, plan.parentId);
     const newNode = this.ctx.db.add(makeNode({ text: plan.newText }));
     await createEdge(this.ctx.db, parent, newNode, plan.order);
-    // trim the tail out of the source row's editor (keepText remains)
-    const view = this.views.get(nodeId);
-    if (view && caretOffset < view.state.doc.length) {
-      view.dispatch({ changes: { from: caretOffset, to: view.state.doc.length } });
+    // trim the tail out of the source row's text (mounted editors update via their automerge binding)
+    const sourceText = this.nodeOf(rows, nodeId).text?.target;
+    if (sourceText) {
+      Obj.update(sourceText, (m) => {
+        m.content = plan.keepText;
+      });
     }
     this.focusRow(newNode.id, 'start');
   }
@@ -84,10 +87,12 @@ export class OutlineController {
     if (!plan) {
       return;
     }
-    // append this node's text to the preceding editor (goes through its automerge binding)
-    const precedingView = this.views.get(plan.precedingId);
-    if (precedingView) {
-      precedingView.dispatch({ changes: { from: precedingView.state.doc.length, insert: plan.nodeText } });
+    // append this node's text to the preceding node's text (mounted editors update via their automerge binding)
+    const precedingText = this.nodeOf(rows, plan.precedingId).text?.target;
+    if (precedingText) {
+      Obj.update(precedingText, (m) => {
+        m.content = (precedingText.content ?? '') + plan.nodeText;
+      });
     }
     // remove this node's structural edge + the node
     const row = rows.find((r) => r.node.id === nodeId)!;

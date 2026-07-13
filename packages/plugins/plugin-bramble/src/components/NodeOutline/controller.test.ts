@@ -45,4 +45,24 @@ describe('OutlineController (substrate half)', () => {
     const rows = outlineRows(await allEdges(), root);
     expect(rows.map((r) => r.node.id)).toEqual([a.id]); // b gone
   });
+
+  test('createAfter leaves keepText in the source and puts the tail in the new node', async ({ expect }) => {
+    const root = add('root'); const a = add('alpha');
+    await createEdge(db, root, a, 1); await db.flush();
+    await make(root).createAfter(a.id, 2); // split "al|pha"
+    await db.flush();
+    const rows = outlineRows(await allEdges(), root);
+    const texts = rows.map((r) => r.node.text?.target?.content).sort();
+    expect(texts).toEqual(['al', 'pha']); // source trimmed to 'al', new node holds 'pha'
+  });
+
+  test('mergeBackward appends the removed row text to the preceding node', async ({ expect }) => {
+    const root = add('root'); const a = add('aa'); const b = add('bb');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    await make(root).mergeBackward(b.id);
+    await db.flush();
+    const rows = outlineRows(await allEdges(), root);
+    expect(rows.map((r) => r.node.id)).toEqual([a.id]);
+    expect(rows[0].node.text?.target?.content).toBe('aabb'); // b's text appended to a
+  });
 });
