@@ -8,7 +8,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 import { createEdge } from './edges';
-import { indentPlan, mergePlan, outdentPlan, splitPlan } from './gestures';
+import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from './gestures';
 import { outlineRows } from './outline';
 import { Edge, Node, makeNode } from '../types';
 
@@ -101,5 +101,21 @@ describe('gestures', () => {
     const root = add('root'); const a = add('a');
     await createEdge(db, root, a, 1); await db.flush();
     expect(outdentPlan(await rowsOf(root), root, a.id)).toBeNull();
+  });
+
+  test('reorderPlan up moves a row before its preceding sibling', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b'); const c = add('c');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await createEdge(db, root, c, 3); await db.flush();
+    const rows = await rowsOf(root);
+    const plan = reorderPlan(rows, root, c.id, -1); // c up → between a(1) and b(2)
+    expect(plan!.order).toBeGreaterThan(1);
+    expect(plan!.order).toBeLessThan(2);
+  });
+  test('reorderPlan is a no-op at the ends', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    const rows = await rowsOf(root);
+    expect(reorderPlan(rows, root, a.id, -1)).toBeNull(); // a is first
+    expect(reorderPlan(rows, root, b.id, 1)).toBeNull();  // b is last
   });
 });

@@ -2,7 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useReducer, useRef } from 'react';
 
 import { Filter, Obj, Query } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
@@ -22,13 +22,17 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // so the `useObject` snapshot (a `Snapshot<Node>`, not assignable to `Node`) isn't needed.
   const db = Obj.getDatabase(subject) as EchoDatabase | undefined;
   const edges = useQuery(db, Query.select(Filter.type(Edge))) as Edge[];
-  const rows = useMemo(() => outlineRows(edges, subject), [edges, subject]);
+  // `useQuery`'s reactivity is membership-only (add/remove) — it does not re-render on an
+  // in-place property mutation of an already-matching edge (e.g. `order`, for reorder). This
+  // tick lets `OutlineController` force a re-render after such a mutation via `notifyMutated`.
+  const [renderTick, forceRerender] = useReducer((c: number) => c + 1, 0);
+  const rows = useMemo(() => outlineRows(edges, subject), [edges, subject, renderTick]);
 
   const controllerRef = useRef<OutlineController | undefined>(undefined);
   if (!controllerRef.current && db) {
-    controllerRef.current = new OutlineController({ db, root: subject, getRows: () => rows });
+    controllerRef.current = new OutlineController({ db, root: subject, getRows: () => rows, notifyMutated: forceRerender });
   }
-  controllerRef.current?.setCtx({ db: db!, root: subject, getRows: () => rows });
+  controllerRef.current?.setCtx({ db: db!, root: subject, getRows: () => rows, notifyMutated: forceRerender });
 
   return (
     <OutlineControllerContext.Provider value={controllerRef.current ?? null}>

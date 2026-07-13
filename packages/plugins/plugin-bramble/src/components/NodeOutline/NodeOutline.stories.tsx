@@ -158,6 +158,29 @@ export const IndentOutdent: Story = {
   },
 };
 
+export const ReorderRows: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = await canvas.findAllByTestId('bramble-row');
+    // 2nd top-level row (b, depth 0, not the first row) — move it up past a.
+    const target = before.find((el) => el.getAttribute('data-depth') === '0' && el !== before[0])!;
+    const beforeIds = before.map((el) => el.querySelector('[data-node-id]')!.getAttribute('data-node-id'));
+
+    target.querySelector<HTMLElement>('.cm-content')!.focus();
+    // CodeMirror's `Mod-` resolves off `navigator.platform`: Meta on Mac, Ctrl elsewhere — and
+    // that varies by *where this suite runs* (a Mac dev machine vs. a Linux CI runner), so pick
+    // the modifier at runtime rather than hardcoding one.
+    const modKey = /Mac/.test(navigator.platform) ? 'Meta' : 'Control';
+    await userEvent.keyboard(`{${modKey}>}{Shift>}{ArrowUp}{/Shift}{/${modKey}}`);
+    await waitFor(async () => {
+      const after = await canvas.findAllByTestId('bramble-row');
+      const afterIds = after.map((el) => el.querySelector('[data-node-id]')!.getAttribute('data-node-id'));
+      await expect(afterIds).not.toEqual(beforeIds); // order changed
+    });
+  },
+};
+
 export const ArrowMovesBetweenRows: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {

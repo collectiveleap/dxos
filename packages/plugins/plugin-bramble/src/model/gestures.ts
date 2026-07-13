@@ -84,3 +84,24 @@ export const outdentPlan = (rows: OutlineRow[], root: Node, nodeId: string): Rep
   const pi = gpKids.findIndex((r) => r.node.id === parentId);
   return { newParentId: grandparentId, order: orderBetween(gpKids[pi]?.edge, gpKids[pi + 1]?.edge) };
 };
+
+/** Cmd-Shift-Up/Down. Moves the focused row up/down among its siblings by rewriting its edge's
+ *  order in place. No-op at either end (no neighbour to swap past in that direction). */
+export const reorderPlan = (rows: OutlineRow[], root: Node, nodeId: string, dir: -1 | 1): { order: number } | null => {
+  const row = rows.find((r) => r.node.id === nodeId);
+  if (!row) {
+    return null;
+  }
+  const parentId = Relation.getSource(row.edge).id;
+  const sibs = childRowsOf(rows, parentId);
+  const i = sibs.findIndex((r) => r.node.id === nodeId);
+  const j = i + dir;
+  if (j < 0 || j >= sibs.length) {
+    return null; // no neighbour
+  }
+  const order =
+    dir < 0
+      ? orderBetween(sibs[j - 1]?.edge, sibs[j].edge) // land before the preceding sibling
+      : orderBetween(sibs[j].edge, sibs[j + 1]?.edge); // land after the following sibling
+  return { order };
+};

@@ -89,4 +89,12 @@ describe('OutlineController (substrate half)', () => {
     const rows = outlineRows(await allEdges(), root);
     expect(rows.map((r) => [r.node.id, r.depth])).toEqual([[a.id, 0], [b.id, 1]]); // b nested under a
   });
+
+  test('reorder down swaps a row past its following sibling', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    await make(root).reorder(a.id, 1); await db.flush();
+    const rows = outlineRows(await allEdges(), root);
+    expect(rows.map((r) => r.node.id)).toEqual([b.id, a.id]); // a now after b
+  });
 });

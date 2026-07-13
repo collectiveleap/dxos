@@ -59,5 +59,15 @@ export const brambleGestures = (controller: OutlineController, nodeId: string): 
         run: () => { void controller.indent(nodeId); return true; },
         shift: () => { void controller.outdent(nodeId); return true; },
       },
+      {
+        key: 'Mod-Shift-ArrowUp',
+        preventDefault: true,
+        run: () => { void controller.reorder(nodeId, -1); return true; },
+      },
+      {
+        key: 'Mod-Shift-ArrowDown',
+        preventDefault: true,
+        run: () => { void controller.reorder(nodeId, 1); return true; },
+      },
     ]),
   );

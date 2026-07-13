@@ -6,11 +6,11 @@ import { EditorSelection } from '@codemirror/state';
 import { type EditorView } from '@codemirror/view';
 import { createContext, useContext } from 'react';
 
-import { Obj } from '@dxos/echo';
+import { Obj, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
-import { indentPlan, mergePlan, outdentPlan, splitPlan } from '../../model/gestures';
+import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
 import { Node, makeNode } from '../../types';
 
@@ -20,6 +20,12 @@ export type OutlineControllerCtx = {
   db: EchoDatabase;
   root: Node;
   getRows: () => OutlineRow[] | Promise<OutlineRow[]>;
+  /** Force a re-render after a mutation that `useQuery`'s membership-only reactivity won't
+   *  pick up on its own (an in-place property change on an already-matching object, e.g. an
+   *  edge's `order` — see `query-result.ts`: "Does not update when the object properties
+   *  change"). Structural gestures (indent/outdent/merge/split) add or remove edges, which
+   *  IS membership-visible, so they don't need this. */
+  notifyMutated?: () => void;
 };
 
 export class OutlineController {
@@ -123,6 +129,20 @@ export class OutlineController {
     }
     const row = rows.find((r) => r.node.id === nodeId)!;
     await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+  }
+
+  async reorder(nodeId: string, dir: -1 | 1) {
+    const rows = await this.ctx.getRows();
+    const plan = reorderPlan(rows, this.ctx.root, nodeId, dir);
+    if (!plan) {
+      return;
+    }
+    const row = rows.find((r) => r.node.id === nodeId)!;
+    const edge = row.edge;
+    Relation.update(edge, (edge) => {
+      edge.order = plan.order;
+    });
+    this.ctx.notifyMutated?.();
   }
 
   async focusAdjacent(nodeId: string, dir: -1 | 1) {
