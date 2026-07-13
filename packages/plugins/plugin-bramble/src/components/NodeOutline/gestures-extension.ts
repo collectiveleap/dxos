@@ -53,5 +53,11 @@ export const brambleGestures = (controller: OutlineController, nodeId: string): 
           return false;
         },
       },
+      {
+        key: 'Tab',
+        preventDefault: true,
+        run: () => { void controller.indent(nodeId); return true; },
+        shift: () => { void controller.outdent(nodeId); return true; },
+      },
     ]),
   );

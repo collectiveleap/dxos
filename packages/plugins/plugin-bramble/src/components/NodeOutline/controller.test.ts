@@ -81,4 +81,12 @@ describe('OutlineController (substrate half)', () => {
     const stillThere = (await db.query(Query.select(Filter.id(shared.id))).run()).length;
     expect(stillThere).toBe(1);
   });
+
+  test('indent moves a row under its preceding sibling', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    await make(root).indent(b.id); await db.flush();
+    const rows = outlineRows(await allEdges(), root);
+    expect(rows.map((r) => [r.node.id, r.depth])).toEqual([[a.id, 0], [b.id, 1]]); // b nested under a
+  });
 });

@@ -9,8 +9,8 @@ import { createContext, useContext } from 'react';
 import { Obj } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
-import { createEdge, parentEdges, removeEdge } from '../../model/edges';
-import { mergePlan, splitPlan } from '../../model/gestures';
+import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
+import { indentPlan, mergePlan, outdentPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
 import { Node, makeNode } from '../../types';
 
@@ -103,6 +103,26 @@ export class OutlineController {
       this.ctx.db.remove(row.node);
     }
     this.focusRow(plan.precedingId, plan.mergeOffset);
+  }
+
+  async indent(nodeId: string) {
+    const rows = await this.ctx.getRows();
+    const plan = indentPlan(rows, this.ctx.root, nodeId);
+    if (!plan) {
+      return;
+    }
+    const row = rows.find((r) => r.node.id === nodeId)!;
+    await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+  }
+
+  async outdent(nodeId: string) {
+    const rows = await this.ctx.getRows();
+    const plan = outdentPlan(rows, this.ctx.root, nodeId);
+    if (!plan) {
+      return;
+    }
+    const row = rows.find((r) => r.node.id === nodeId)!;
+    await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
   }
 
   async focusAdjacent(nodeId: string, dir: -1 | 1) {

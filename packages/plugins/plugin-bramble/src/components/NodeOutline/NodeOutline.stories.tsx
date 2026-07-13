@@ -126,6 +126,35 @@ export const BackspaceMergesRow: Story = {
   },
 };
 
+export const IndentOutdent: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = await canvas.findAllByTestId('bramble-row');
+    // 2nd top-level row (b, depth 0, not the first row)
+    const target = before.find((el) => el.getAttribute('data-depth') === '0' && el !== before[0])!;
+    const nodeId = target.querySelector('[data-node-id]')!.getAttribute('data-node-id')!;
+    const findRow = async () => {
+      const rows = await canvas.findAllByTestId('bramble-row');
+      return rows.find((el) => el.querySelector(`[data-node-id="${nodeId}"]`))!;
+    };
+
+    target.querySelector<HTMLElement>('.cm-content')!.focus();
+    await userEvent.keyboard('{Tab}');
+    await waitFor(async () => {
+      const row = await findRow();
+      await expect(row).toHaveAttribute('data-depth', '1'); // nested under its preceding sibling
+    });
+
+    (await findRow()).querySelector<HTMLElement>('.cm-content')!.focus();
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    await waitFor(async () => {
+      const row = await findRow();
+      await expect(row).toHaveAttribute('data-depth', '0'); // lifted back to top level
+    });
+  },
+};
+
 export const ArrowMovesBetweenRows: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {

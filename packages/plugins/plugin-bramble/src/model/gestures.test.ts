@@ -8,7 +8,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 import { createEdge } from './edges';
-import { mergePlan, splitPlan } from './gestures';
+import { indentPlan, mergePlan, outdentPlan, splitPlan } from './gestures';
 import { outlineRows } from './outline';
 import { Edge, Node, makeNode } from '../types';
 
@@ -72,5 +72,34 @@ describe('gestures', () => {
     const rows = await rowsOf(root);
     expect(mergePlan(rows, root, a.id)).toBeNull();          // a has a child → deferred
     expect(mergePlan(rows, root, a1.id)!.precedingId).toBe(a.id); // a1 merges into a
+  });
+
+  test('indentPlan nests a row under its preceding sibling (appended)', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 1); await createEdge(db, root, b, 2); await db.flush();
+    const rows = await rowsOf(root);
+    const plan = indentPlan(rows, root, b.id);
+    expect(plan).toEqual({ newParentId: a.id, order: 0 }); // a has no children → appended at 0
+  });
+
+  test('indentPlan is a no-op for a first child (no preceding sibling)', async ({ expect }) => {
+    const root = add('root'); const a = add('a');
+    await createEdge(db, root, a, 1); await db.flush();
+    expect(indentPlan(await rowsOf(root), root, a.id)).toBeNull();
+  });
+
+  test('outdentPlan lifts a nested row to be its parent’s following sibling', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const a1 = add('a1'); const b = add('b');
+    await createEdge(db, root, a, 1); await createEdge(db, a, a1, 1); await createEdge(db, root, b, 2); await db.flush();
+    const plan = outdentPlan(await rowsOf(root), root, a1.id);
+    expect(plan!.newParentId).toBe(root.id);   // grandparent
+    expect(plan!.order).toBeGreaterThan(1);      // after a(1), before b(2)
+    expect(plan!.order).toBeLessThan(2);
+  });
+
+  test('outdentPlan is a no-op at the top level', async ({ expect }) => {
+    const root = add('root'); const a = add('a');
+    await createEdge(db, root, a, 1); await db.flush();
+    expect(outdentPlan(await rowsOf(root), root, a.id)).toBeNull();
   });
 });

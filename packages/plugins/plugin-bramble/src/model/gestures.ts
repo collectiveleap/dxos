@@ -48,3 +48,39 @@ export const mergePlan = (rows: OutlineRow[], root: Node, nodeId: string): Merge
   const preceding = idx === 0 ? root : rows[idx - 1].node;
   return { precedingId: preceding.id, nodeText: contentOf(rows[idx].node), mergeOffset: contentOf(preceding).length };
 };
+
+export type ReparentPlan = { newParentId: string; order: number };
+
+/** Tab. Nests the focused row under its preceding sibling (appended as its last child). No-op if there is none. */
+export const indentPlan = (rows: OutlineRow[], root: Node, nodeId: string): ReparentPlan | null => {
+  const row = rows.find((r) => r.node.id === nodeId);
+  if (!row) {
+    return null;
+  }
+  const parentId = Relation.getSource(row.edge).id;
+  const sibs = childRowsOf(rows, parentId);
+  const i = sibs.findIndex((r) => r.node.id === nodeId);
+  if (i <= 0) {
+    return null; // no preceding sibling
+  }
+  const newParent = sibs[i - 1];
+  const kids = childRowsOf(rows, newParent.node.id);
+  return { newParentId: newParent.node.id, order: orderBetween(kids[kids.length - 1]?.edge, undefined) };
+};
+
+/** Shift-Tab. Lifts the focused row to become its parent's following sibling. No-op at the top level. */
+export const outdentPlan = (rows: OutlineRow[], root: Node, nodeId: string): ReparentPlan | null => {
+  const row = rows.find((r) => r.node.id === nodeId);
+  if (!row) {
+    return null;
+  }
+  const parentId = Relation.getSource(row.edge).id;
+  if (parentId === root.id) {
+    return null; // already top level
+  }
+  const parentRow = rows.find((r) => r.node.id === parentId)!;
+  const grandparentId = Relation.getSource(parentRow.edge).id;
+  const gpKids = childRowsOf(rows, grandparentId);
+  const pi = gpKids.findIndex((r) => r.node.id === parentId);
+  return { newParentId: grandparentId, order: orderBetween(gpKids[pi]?.edge, gpKids[pi + 1]?.edge) };
+};
