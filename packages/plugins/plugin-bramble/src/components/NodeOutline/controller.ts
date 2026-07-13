@@ -9,7 +9,7 @@ import { createContext, useContext } from 'react';
 import { Obj } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
-import { createEdge, removeEdge } from '../../model/edges';
+import { createEdge, parentEdges, removeEdge } from '../../model/edges';
 import { mergePlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
 import { Node, makeNode } from '../../types';
@@ -94,10 +94,14 @@ export class OutlineController {
         m.content = (precedingText.content ?? '') + plan.nodeText;
       });
     }
-    // remove this node's structural edge + the node
+    // remove this node's structural edge; remove the node itself only if this was its last inbound edge
+    // (a Node may have more than one structural parent — removing it globally would dangle the others)
     const row = rows.find((r) => r.node.id === nodeId)!;
+    const inbound = await parentEdges(this.ctx.db, row.node);
     removeEdge(this.ctx.db, row.edge);
-    this.ctx.db.remove(row.node);
+    if (inbound.length <= 1) {
+      this.ctx.db.remove(row.node);
+    }
     this.focusRow(plan.precedingId, plan.mergeOffset);
   }
 

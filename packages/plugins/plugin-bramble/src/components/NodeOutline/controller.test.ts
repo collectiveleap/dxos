@@ -65,4 +65,20 @@ describe('OutlineController (substrate half)', () => {
     expect(rows.map((r) => r.node.id)).toEqual([a.id]);
     expect(rows[0].node.text?.target?.content).toBe('aabb'); // b's text appended to a
   });
+
+  test('mergeBackward under one parent keeps a multi-predecessor node alive elsewhere', async ({ expect }) => {
+    const root = add('root'); const p = add('p'); const shared = add('shared');
+    // shared has TWO parents: root (order 2) and p (order 1); p is root's first child
+    await createEdge(db, root, p, 1);
+    await createEdge(db, p, shared, 1);
+    await createEdge(db, root, shared, 2); await db.flush();
+    // merge the root→shared occurrence (the last row) into the row above it
+    const rows0 = outlineRows(await allEdges(), root);
+    const rootShared = rows0.find((r) => r.node.id === shared.id && r.depth === 0)!;
+    await make(root).mergeBackward(rootShared.node.id);
+    await db.flush();
+    // `shared` still exists (still a child of p); only the root→shared edge is gone
+    const stillThere = (await db.query(Query.select(Filter.id(shared.id))).run()).length;
+    expect(stillThere).toBe(1);
+  });
 });
