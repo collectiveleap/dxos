@@ -12,6 +12,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
 import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
+import { EMPTY_VIEW_STATE, type ViewState, toggleCollapsed } from '../../model/view-state';
 import { Node, makeNode } from '../../types';
 
 export type FocusPos = 'start' | 'end' | number;
@@ -31,8 +32,18 @@ export type OutlineControllerCtx = {
 export class OutlineController {
   private readonly views = new Map<string, EditorView>();
   private pendingFocus: { nodeId: string; pos: FocusPos } | null = null;
+  private viewState: ViewState = EMPTY_VIEW_STATE;
 
   constructor(private readonly ctx: OutlineControllerCtx) {}
+
+  getViewState(): ViewState {
+    return this.viewState;
+  }
+
+  toggleCollapse(nodeId: string) {
+    this.viewState = toggleCollapsed(this.viewState, nodeId);
+    this.ctx.notifyMutated?.();
+  }
 
   /** Update the ctx (fresh root/getRows) on each shell render without recreating the instance. */
   setCtx(ctx: OutlineControllerCtx) {

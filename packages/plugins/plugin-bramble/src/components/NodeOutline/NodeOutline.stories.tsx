@@ -234,6 +234,30 @@ export const ArrowMovesBetweenRows: Story = {
   },
 };
 
+export const Collapse: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = await canvas.findAllByTestId('bramble-row');
+    await expect(before).toHaveLength(3); // a, a1, b
+    // Hover 'a' to reveal its chevron, then click it to collapse.
+    const aRow = before[0];
+    await userEvent.hover(aRow);
+    const chevron = within(aRow).getByTestId('bramble-chevron');
+    await userEvent.click(chevron);
+    await waitFor(async () => {
+      const after = await canvas.findAllByTestId('bramble-row');
+      await expect(after).toHaveLength(2); // a1 hidden; a and b remain
+    });
+    // Click again to expand.
+    await userEvent.hover(aRow);
+    await userEvent.click(within(await (async () => (await canvas.findAllByTestId('bramble-row'))[0])()).getByTestId('bramble-chevron'));
+    await waitFor(async () => {
+      await expect(await canvas.findAllByTestId('bramble-row')).toHaveLength(3);
+    });
+  },
+};
+
 // PX-theme legibility gate. The visual-diff gate checks each region's text *colour* but
 // not its contrast against the ambient background — which let an illegible light theme
 // (theme-adaptive dark text on a hardcoded `bg-black` story wrapper) pass. This asserts

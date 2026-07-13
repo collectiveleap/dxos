@@ -26,12 +26,13 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // in-place property mutation of an already-matching edge (e.g. `order`, for reorder). This
   // tick lets `OutlineController` force a re-render after such a mutation via `notifyMutated`.
   const [renderTick, forceRerender] = useReducer((c: number) => c + 1, 0);
-  const rows = useMemo(() => outlineRows(edges, subject), [edges, subject, renderTick]);
 
   const controllerRef = useRef<OutlineController | undefined>(undefined);
   if (!controllerRef.current && db) {
     controllerRef.current = new OutlineController({ db, root: subject, getRows: () => rows, notifyMutated: forceRerender });
   }
+  const collapsed = controllerRef.current?.getViewState().collapsed;
+  const rows = useMemo(() => outlineRows(edges, subject, collapsed), [edges, subject, renderTick, collapsed]);
   controllerRef.current?.setCtx({ db: db!, root: subject, getRows: () => rows, notifyMutated: forceRerender });
 
   return (
@@ -41,7 +42,11 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
           <RowEditor node={subject} className='bramble-outline-header' />
         </div>
         {rows.map((row) => (
-          <OutlineRow key={row.edge.id} row={row} />
+          <OutlineRow
+            key={row.edge.id}
+            row={row}
+            onToggleCollapse={(id) => controllerRef.current?.toggleCollapse(id)}
+          />
         ))}
       </div>
     </OutlineControllerContext.Provider>

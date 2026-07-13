@@ -13,7 +13,12 @@ import './node-outline.css';
 
 const INDENT_PX = 32;
 
-export const OutlineRow = ({ row }: { row: OutlineRowModel }) => {
+export type OutlineRowProps = {
+  row: OutlineRowModel;
+  onToggleCollapse: (nodeId: string) => void;
+};
+
+export const OutlineRow = ({ row, onToggleCollapse }: OutlineRowProps) => {
   return (
     <div
       data-testid='bramble-row'
@@ -22,8 +27,17 @@ export const OutlineRow = ({ row }: { row: OutlineRowModel }) => {
       className={mx('bramble-outline-row')}
       style={{ paddingInlineStart: row.depth * INDENT_PX }}
     >
-      <span data-testid='bramble-chevron' aria-hidden={!row.hasChildren} className={mx('bramble-outline-chevron')}>
-        {row.hasChildren ? '▸' : null}
+      <span
+        data-testid='bramble-chevron'
+        role='button'
+        aria-hidden={!row.hasChildren}
+        className={mx('bramble-outline-chevron')}
+        onClick={(e) => {
+          e.stopPropagation();
+          row.hasChildren && onToggleCollapse(row.node.id);
+        }}
+      >
+        {row.hasChildren ? (row.collapsed ? '▸' : '▾') : null}
       </span>
       <span data-testid='bramble-bullet' aria-hidden='true' className={mx('bramble-outline-bullet')}>
         <span data-testid='bramble-bullet-dot' className='bramble-outline-bullet-dot' />
