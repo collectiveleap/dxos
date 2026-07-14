@@ -10,7 +10,7 @@ import { Obj, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
-import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
+import { type DragInstruction, dragPlan, indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
 import {
   EMPTY_VIEW_STATE,
@@ -216,6 +216,30 @@ export class OutlineController {
       edge.order = plan.order;
     });
     this.ctx.notifyMutated?.();
+  }
+
+  /**
+   * Apply a bullet-drag drop. Same shape as the keyboard reshape path: compute a pure
+   * `dragPlan`, then apply it — a same-parent move rewrites `order` in place (cheap, no
+   * remount), a parent change goes through `reparentEdge` (cycle-checked; replaces the edge,
+   * so the row remounts under its new `edge.id` key). Pointer-driven, so — unlike the keyboard
+   * indent/outdent — it does not preserve or restore caret focus.
+   */
+  async applyDrag(sourceId: string, targetId: string, instruction: DragInstruction) {
+    const rows = await this.ctx.getRows();
+    const plan = dragPlan(rows, this.ctx.root, sourceId, targetId, instruction);
+    if (!plan) {
+      return;
+    }
+    const row = rows.find((r) => r.node.id === sourceId)!;
+    if (plan.kind === 'reorder') {
+      Relation.update(row.edge, (edge) => {
+        edge.order = plan.order;
+      });
+      this.ctx.notifyMutated?.();
+    } else {
+      await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+    }
   }
 
   async focusAdjacent(nodeId: string, dir: -1 | 1) {

@@ -3,12 +3,14 @@
 //
 
 import { afterEach, beforeEach, describe, test } from 'vitest';
-import { Filter, Query } from '@dxos/echo';
+
+import { Filter, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
+
 import { OutlineController } from './controller';
-import { createEdge } from '../../model/edges';
+import { childEdges, createEdge } from '../../model/edges';
 import { outlineRows } from '../../model/outline';
 import { Edge, Node, makeNode } from '../../types';
 
@@ -96,5 +98,60 @@ describe('OutlineController (substrate half)', () => {
     await make(root).reorder(a.id, 1); await db.flush();
     const rows = outlineRows(await allEdges(), root);
     expect(rows.map((r) => r.node.id)).toEqual([b.id, a.id]); // a now after b
+  });
+});
+
+describe('OutlineController.applyDrag', () => {
+  let builder: EchoTestBuilder;
+  let db: EchoDatabase;
+  beforeEach(async () => {
+    builder = await new EchoTestBuilder().open();
+    ({ db } = await builder.createDatabase({ types: [Node, Edge, Text.Text] }));
+  });
+  afterEach(async () => {
+    await builder.close();
+  });
+
+  const add = (t: string) => db.add(makeNode({ text: t }));
+  const controllerFor = (root: Node) =>
+    new OutlineController({
+      db,
+      root,
+      getRows: async () => outlineRows((await db.query(Query.select(Filter.type(Edge))).run()) as Edge[], root),
+      notifyMutated: () => {},
+    });
+  const childIds = async (parent: Node) =>
+    (await childEdges(db, parent)).map((e) => Relation.getTarget(e).id);
+
+  test('reorder-below rewrites order among siblings (same parent)', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 0); await createEdge(db, root, b, 1); await db.flush();
+    await controllerFor(root).applyDrag(a.id, b.id, 'reorder-below');
+    expect(await childIds(root)).toEqual([b.id, a.id]);
+  });
+
+  test('make-child moves the node under the target and off its old parent', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b');
+    await createEdge(db, root, a, 0); await createEdge(db, root, b, 1); await db.flush();
+    await controllerFor(root).applyDrag(b.id, a.id, 'make-child'); await db.flush();
+    expect(await childIds(root)).toEqual([a.id]);
+    expect(await childIds(a)).toEqual([b.id]);
+  });
+
+  test('reorder onto a row under a different parent reparents to that parent', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const b = add('b'); const a1 = add('a1');
+    await createEdge(db, root, a, 0); await createEdge(db, root, b, 1);
+    await createEdge(db, a, a1, 0); await db.flush();
+    await controllerFor(root).applyDrag(b.id, a1.id, 'reorder-below'); await db.flush();
+    expect(await childIds(root)).toEqual([a.id]);
+    expect(await childIds(a)).toEqual([a1.id, b.id]);
+  });
+
+  test('a cycle-creating drop is a no-op', async ({ expect }) => {
+    const root = add('root'); const a = add('a'); const a1 = add('a1');
+    await createEdge(db, root, a, 0); await createEdge(db, a, a1, 0); await db.flush();
+    await controllerFor(root).applyDrag(a.id, a1.id, 'make-child');
+    expect(await childIds(root)).toEqual([a.id]);
+    expect(await childIds(a)).toEqual([a1.id]);
   });
 });
