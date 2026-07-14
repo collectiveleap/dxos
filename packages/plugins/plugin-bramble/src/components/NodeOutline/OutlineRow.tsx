@@ -16,9 +16,10 @@ const INDENT_PX = 32;
 export type OutlineRowProps = {
   row: OutlineRowModel;
   onToggleCollapse: (nodeId: string) => void;
+  onZoom: (nodeId: string) => void;
 };
 
-export const OutlineRow = ({ row, onToggleCollapse }: OutlineRowProps) => {
+export const OutlineRow = ({ row, onToggleCollapse, onZoom }: OutlineRowProps) => {
   return (
     <div
       data-testid='bramble-row'
@@ -39,7 +40,15 @@ export const OutlineRow = ({ row, onToggleCollapse }: OutlineRowProps) => {
       >
         {row.hasChildren ? (row.collapsed ? '▸' : '▾') : null}
       </span>
-      <span data-testid='bramble-bullet' aria-hidden='true' className={mx('bramble-outline-bullet')}>
+      <span
+        data-testid='bramble-bullet'
+        role='button'
+        className={mx('bramble-outline-bullet')}
+        onClick={(e) => {
+          e.stopPropagation();
+          onZoom(row.node.id);
+        }}
+      >
         <span data-testid='bramble-bullet-dot' className='bramble-outline-bullet-dot' />
       </span>
       <RowEditor node={row.node} testId='bramble-node-name' className='bramble-outline-row-name' />

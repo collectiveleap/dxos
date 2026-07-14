@@ -258,6 +258,23 @@ export const Collapse: Story = {
   },
 };
 
+export const Zoom: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Zoom into 'a' (which has child a1) by clicking its bullet.
+    const aRow = (await canvas.findAllByTestId('bramble-row'))[0];
+    await userEvent.click(within(aRow).getByTestId('bramble-bullet'));
+    await waitFor(async () => {
+      // Header now shows 'a'; the outline shows only a's subtree (a1), not b.
+      await expect(await canvas.findByTestId('bramble-header')).toHaveTextContent('a');
+      const rows = await canvas.findAllByTestId('bramble-row');
+      await expect(rows).toHaveLength(1);
+      await expect(rows[0]).toHaveTextContent('a1');
+    });
+  },
+};
+
 // PX-theme legibility gate. The visual-diff gate checks each region's text *colour* but
 // not its contrast against the ambient background — which let an illegible light theme
 // (theme-adaptive dark text on a hardcoded `bg-black` story wrapper) pass. This asserts

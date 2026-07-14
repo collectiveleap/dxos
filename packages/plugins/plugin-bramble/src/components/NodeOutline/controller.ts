@@ -12,7 +12,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
 import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
-import { EMPTY_VIEW_STATE, type ViewState, toggleCollapsed } from '../../model/view-state';
+import { EMPTY_VIEW_STATE, type ViewState, toggleCollapsed, zoomTo as zoomToState } from '../../model/view-state';
 import { Node, makeNode } from '../../types';
 
 export type FocusPos = 'start' | 'end' | number;
@@ -42,6 +42,11 @@ export class OutlineController {
 
   toggleCollapse(nodeId: string) {
     this.viewState = toggleCollapsed(this.viewState, nodeId);
+    this.ctx.notifyMutated?.();
+  }
+
+  zoomTo(nodeId: string) {
+    this.viewState = zoomToState(this.viewState, nodeId);
     this.ctx.notifyMutated?.();
   }
 
