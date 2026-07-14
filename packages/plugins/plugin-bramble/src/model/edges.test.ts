@@ -4,13 +4,13 @@
 
 import { afterEach, beforeEach, describe, test } from 'vitest';
 
-import { Relation } from '@dxos/echo';
+import { Filter, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
 import { Edge, Node, makeEdge, makeLinkedEdge, makeNode } from '../types';
-import { childEdges, createEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
+import { childEdges, createEdge, createLinkedEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
 
 describe('orderBetween', () => {
   test('midpoints and open ends', ({ expect }) => {
@@ -136,5 +136,17 @@ describe('mutation + acyclicity', () => {
     const parents = await parentEdges(db, b);
     expect(parents.map((e) => Relation.getSource(e).id)).toEqual([a.id]);
     expect(Relation.getTarget(parents[0]).id).toBe(b.id);
+  });
+
+  test('createLinkedEdge adds a linked edge and admits cycles', async ({ expect }) => {
+    const a = db.add(makeNode({ text: 'a' }));
+    const b = db.add(makeNode({ text: 'b' }));
+    createLinkedEdge(db, a, b);
+    createLinkedEdge(db, b, a); // reciprocal — must be admitted (no cycle rejection)
+    await db.flush();
+    const outA = (await db.query(Query.select(Filter.id(a.id)).sourceOf(Edge)).run()).filter((e) => e.kind === 'linked');
+    const outB = (await db.query(Query.select(Filter.id(b.id)).sourceOf(Edge)).run()).filter((e) => e.kind === 'linked');
+    expect(outA).toHaveLength(1);
+    expect(outB).toHaveLength(1);
   });
 });

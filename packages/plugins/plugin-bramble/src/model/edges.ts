@@ -5,7 +5,7 @@
 import { Filter, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
-import { Edge, type Node, makeEdge } from '../types';
+import { Edge, type Node, makeEdge, makeLinkedEdge } from '../types';
 
 /** Numeric midpoint order between two sibling edges. NOTE: repeated inserts at the
  *  same slot can exhaust float precision; a string-rank scheme is a later refinement. */
@@ -79,6 +79,14 @@ export const createEdge = async (
     throw new Error('Bramble: structural edge would create a cycle');
   }
   const edge = makeEdge({ source: parent, target: child, order: order ?? (await nextOrder(db, parent)) });
+  db.add(edge);
+  return edge;
+};
+
+/** Add a linked edge (mention / cross-reference) source→target. Unlike structural edges,
+ *  linked edges may cycle (IP-3.may-cycle) and carry no order — so there is no cycle check. */
+export const createLinkedEdge = (db: EchoDatabase, source: Node, target: Node): Edge => {
+  const edge = makeLinkedEdge({ source, target });
   db.add(edge);
   return edge;
 };
