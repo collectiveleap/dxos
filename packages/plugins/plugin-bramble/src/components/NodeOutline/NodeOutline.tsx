@@ -32,6 +32,8 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // so the `useObject` snapshot (a `Snapshot<Node>`, not assignable to `Node`) isn't needed.
   const db = Obj.getDatabase(subject) as EchoDatabase | undefined;
   const edges = useQuery(db, Query.select(Filter.type(Edge))) as Edge[];
+  // The outline is the STRUCTURAL tree; linked edges (mentions) never nest or re-root it.
+  const structuralEdges = useMemo(() => edges.filter((e) => e.kind === 'structural'), [edges]);
   // `useQuery`'s reactivity is membership-only (add/remove) — it does not re-render on an
   // in-place property mutation of an already-matching edge (e.g. `order`, for reorder). This
   // tick lets `OutlineController` force a re-render after such a mutation via `notifyMutated`.
@@ -46,10 +48,10 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // Resolve the zoom-root Node from the structural EDGES, not from `rows` — `rows` is
   // computed *from* the root below, so deriving the root from `rows` would be circular.
   const zoomRootNode =
-    zoomRootId === subject.id ? subject : (edges.map((e) => Relation.getTarget(e) as Node).find((n) => n.id === zoomRootId) ?? subject);
+    zoomRootId === subject.id ? subject : (structuralEdges.map((e) => Relation.getTarget(e) as Node).find((n) => n.id === zoomRootId) ?? subject);
   const rows = useMemo(
-    () => outlineRows(edges, zoomRootNode, collapsed),
-    [edges, zoomRootNode, renderTick, collapsed, zoomRootId],
+    () => outlineRows(structuralEdges, zoomRootNode, collapsed),
+    [structuralEdges, zoomRootNode, renderTick, collapsed, zoomRootId],
   );
   controllerRef.current?.setCtx({ db: db!, root: subject, getRows: () => rows, notifyMutated: forceRerender });
 

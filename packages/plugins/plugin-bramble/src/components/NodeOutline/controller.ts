@@ -42,6 +42,11 @@ export class OutlineController {
 
   constructor(private readonly ctx: OutlineControllerCtx) {}
 
+  /** The database, for editor extensions that need query access (e.g. the mention picker/chip). */
+  get db(): EchoDatabase {
+    return this.ctx.db;
+  }
+
   getViewState(): ViewState {
     return this.viewState;
   }

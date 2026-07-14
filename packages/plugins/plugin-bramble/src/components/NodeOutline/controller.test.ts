@@ -27,6 +27,12 @@ describe('OutlineController (substrate half)', () => {
   const allEdges = async () => (await db.query(Query.select(Filter.type(Edge))).run()) as Edge[];
   const make = (root: Node) => new OutlineController({ db, root, getRows: async () => outlineRows(await allEdges(), root) });
 
+  test('exposes db (for editor extensions that need query access)', async ({ expect }) => {
+    const root = add('root');
+    await db.flush();
+    expect(make(root).db).toBe(db);
+  });
+
   test('createAfter adds a Node under the resolved parent with the tail text', async ({ expect }) => {
     const root = add('root'); const a = add('alpha');
     await createEdge(db, root, a, 1); await db.flush();
