@@ -60,7 +60,10 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   const syncExt = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
-        if (!update.docChanged || !db) {
+        // Only user edits remove edges — a programmatic change (remote sync, a future undo) that
+        // drops a marker must not silently delete the linked Edge.
+        const userEdit = update.transactions.some((tr) => tr.isUserEvent('input') || tr.isUserEvent('delete'));
+        if (!update.docChanged || !userEdit || !db) {
           return;
         }
         const edges = linkedEdgesRef.current;
@@ -83,8 +86,11 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
               mentionChips({ resolveLabel }),
             ]
           : [createBasicExtensions({ readOnly: true })]),
-        ...(controller && !readOnly ? [brambleGestures(controller, node.id)] : []),
+        // The `@`-picker's popover keymap and `brambleGestures` are both `Prec.highest`; ties break
+        // by array order, so the picker must come FIRST — its Enter/Arrow handlers gate on an open
+        // menu and fall through to the row gestures when closed.
         ...(canMention ? [mentionPickerExt, syncExt] : []),
+        ...(controller && !readOnly ? [brambleGestures(controller, node.id)] : []),
       ],
     }),
     [node.id, text, themeMode, readOnly, controller, resolveLabel, canMention, mentionPickerExt, syncExt],

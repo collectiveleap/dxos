@@ -152,9 +152,15 @@ export const Mention: Story = {
 };
 
 // Manual verification: focus a row, type `@`, pick a Node → a linked Edge is created and its
-// `{{ref:<edgeId>}}` marker (a chip) is inserted at the cursor. The popover isn't reliably driven by
-// the test runner, so there is no `play` (mirrors the `Drag` story). The default fixture (Root → a → a1,
-// b) supplies pickable target Nodes.
+// `{{ref:<edgeId>}}` marker (a chip) is inserted at the cursor. The popover does NOT open under the
+// runner's synthetic keyboard events (confirmed: typing `@` never activates it), so there is no `play`
+// (mirrors the `Drag` story). The default fixture (Root → a → a1, b) supplies pickable target Nodes.
+//
+// KEYBOARD note: the picker's popover keymap and `brambleGestures` are both `Prec.highest`, so the
+// picker MUST be registered before the gestures (RowEditor) — otherwise Enter/Arrow, while the menu is
+// open, fall through to the row gestures (new row / move rows) instead of confirming/navigating. The
+// closed-menu fall-through (Enter → new row when NO menu is open) stays covered by `EnterCreatesRow`
+// et al., which run on rows that now carry the picker extension first.
 export const MentionPicker: Story = {};
 
 export const Tree: Story = {
