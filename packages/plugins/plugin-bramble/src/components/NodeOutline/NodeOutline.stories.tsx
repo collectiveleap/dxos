@@ -6,13 +6,15 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import React, { useMemo } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
+import { Obj } from '@dxos/echo';
 import { useSpaces } from '@dxos/react-client/echo';
 import { withClientProvider } from '@dxos/react-client/testing';
 import { withLayout, withTheme } from '@dxos/react-ui/testing';
 import { Text } from '@dxos/schema';
 
 import { NodeOutline } from './NodeOutline';
-import { createEdge } from '../../model/edges';
+import { makeMarker } from './mention-extension';
+import { createEdge, createLinkedEdge } from '../../model/edges';
 import { translations } from '../../translations';
 import { Edge, Node, makeNode } from '../../types';
 
@@ -40,6 +42,36 @@ const NodeOutlineStory = () => {
   // themes are legible here and in the visual gate. `--surface-bg` is the theme's
   // light-dark() base surface (Tailwind `bg-*` utilities aren't compiled in this story
   // context, so the var is set directly).
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
+};
+
+// Seeds Root → Y, where Y's text is `begin {{ref:<edgeId>}} end` and a LINKED edge Y→X targets
+// X ("hello world"). Proves the marker token renders as a live atomic chip (I3a Task 2 de-risk).
+const MentionStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const x = db.add(makeNode({ text: 'hello world' }));
+    const y = db.add(makeNode({ text: 'begin  end' }));
+    void createEdge(db, r, y, 1); // structural: y under root
+    const linked = createLinkedEdge(db, y, x); // linked: y mentions x
+    const yText = y.text?.target;
+    if (yText) {
+      // marker references the edge id, not a URL
+      Obj.update(yText, (yText) => {
+        yText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    return r;
+  }, [space]);
   return root ? (
     <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
       <NodeOutline subject={root} />
@@ -96,6 +128,26 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     const header = await canvas.findByTestId('bramble-header');
     await expect(header).toHaveTextContent('Root');
+  },
+};
+
+export const Mention: Story = {
+  render: () => <MentionStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // The marker renders as an atomic `dx-anchor` chip showing the target's live title.
+    const chip = await waitFor(() => {
+      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      if (!el || el.textContent !== 'hello world') {
+        throw new Error('mention chip not resolved yet');
+      }
+      return el as HTMLElement;
+    });
+    await expect(chip).toHaveTextContent('hello world');
+    // The raw `{{ref:...}}` token is replaced by the chip — not shown as text.
+    const row = await canvas.findByTestId('bramble-row');
+    await expect(row).not.toHaveTextContent('{{ref:');
   },
 };
 
