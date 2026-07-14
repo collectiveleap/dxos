@@ -275,6 +275,38 @@ export const Zoom: Story = {
   },
 };
 
+export const ZoomOutAndKeyboard: Story = {
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // CodeMirror's `Mod-` resolves off `navigator.platform` (see `ReorderRows` above).
+    const modKey = /Mac/.test(navigator.platform) ? 'Meta' : 'Control';
+
+    const aRow = (await canvas.findAllByTestId('bramble-row'))[0];
+    aRow.querySelector<HTMLElement>('.cm-content')!.focus();
+    // Keyboard zoom-in on the focused row (a).
+    await userEvent.keyboard(`{${modKey}>}]{/${modKey}}`); // Mod-]
+    await waitFor(async () => {
+      await expect(await canvas.findByTestId('bramble-header')).toHaveTextContent('a');
+    });
+    // Escape zooms back out.
+    await userEvent.keyboard('{Escape}');
+    await waitFor(async () => {
+      await expect(await canvas.findByTestId('bramble-header')).toHaveTextContent('Root');
+      await expect(await canvas.findAllByTestId('bramble-row')).toHaveLength(3);
+    });
+    // Keyboard collapse on the focused row ('a' — re-query since the zoom round-trip
+    // unmounts/remounts it: it briefly became the header and is no longer the same
+    // React-reconciled row instance).
+    const aRowAgain = (await canvas.findAllByTestId('bramble-row'))[0];
+    aRowAgain.querySelector<HTMLElement>('.cm-content')!.focus();
+    await userEvent.keyboard(`{${modKey}>}.{/${modKey}}`); // Mod-.
+    await waitFor(async () => {
+      await expect(await canvas.findAllByTestId('bramble-row')).toHaveLength(2);
+    });
+  },
+};
+
 // PX-theme legibility gate. The visual-diff gate checks each region's text *colour* but
 // not its contrast against the ambient background — which let an illegible light theme
 // (theme-adaptive dark text on a hardcoded `bg-black` story wrapper) pass. This asserts

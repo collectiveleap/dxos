@@ -47,7 +47,17 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   return (
     <OutlineControllerContext.Provider value={controllerRef.current ?? null}>
       <div data-testid='bramble-outline' role='tree' className='bramble-outline'>
-        <div data-testid='bramble-header'>
+        <div data-testid='bramble-header' style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {zoomRootId !== subject.id && (
+            <span
+              data-testid='bramble-zoom-out'
+              role='button'
+              style={{ cursor: 'pointer' }}
+              onClick={() => controllerRef.current?.zoomOut()}
+            >
+              ↑
+            </span>
+          )}
           <RowEditor node={zoomRootNode} className='bramble-outline-header' />
         </div>
         {rows.map((row) => (

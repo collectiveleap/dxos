@@ -69,5 +69,23 @@ export const brambleGestures = (controller: OutlineController, nodeId: string): 
         preventDefault: true,
         run: () => { void controller.reorder(nodeId, 1); return true; },
       },
+      {
+        key: 'Mod-.',
+        run: () => { controller.toggleCollapse(nodeId); return true; },
+      },
+      {
+        key: 'Mod-]',
+        run: () => { controller.zoomTo(nodeId); return true; },
+      },
+      {
+        key: 'Escape',
+        run: () => {
+          if (!controller.isZoomed()) {
+            return false; // not zoomed — let Escape pass through for other editor uses
+          }
+          controller.zoomOut();
+          return true;
+        },
+      },
     ]),
   );

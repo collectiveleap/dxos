@@ -12,7 +12,13 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { createEdge, parentEdges, removeEdge, reparentEdge } from '../../model/edges';
 import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from '../../model/gestures';
 import { type OutlineRow } from '../../model/outline';
-import { EMPTY_VIEW_STATE, type ViewState, toggleCollapsed, zoomTo as zoomToState } from '../../model/view-state';
+import {
+  EMPTY_VIEW_STATE,
+  type ViewState,
+  toggleCollapsed,
+  zoomOut as zoomOutState,
+  zoomTo as zoomToState,
+} from '../../model/view-state';
 import { Node, makeNode } from '../../types';
 
 export type FocusPos = 'start' | 'end' | number;
@@ -48,6 +54,31 @@ export class OutlineController {
   zoomTo(nodeId: string) {
     this.viewState = zoomToState(this.viewState, nodeId);
     this.ctx.notifyMutated?.();
+    // The zoomed-to Node becomes the header, so its own row (if it had one) unmounts —
+    // dropping keyboard focus to nowhere, which would strand a keyboard-driven zoom (no
+    // focused view left to receive `Escape`/further gestures). Move focus to the header
+    // once the re-render has committed. Deferred via `requestAnimationFrame` rather than
+    // `pendingFocus`/`register()` (the mechanism `refocusAfterReparent` uses for
+    // indent/outdent's edge-keyed remount): the header's `RowEditor` re-registers under
+    // `nodeId` more than once for this one prop change (an intermediate view before the
+    // final one), so reacting to the *first* `register()` call would place focus on a
+    // transitional view that's immediately replaced. Checking `views.get(nodeId)` after a
+    // paint always finds whichever view is actually current.
+    requestAnimationFrame(() => {
+      const view = this.views.get(nodeId);
+      if (view) {
+        this.place(view, 'start');
+      }
+    });
+  }
+
+  zoomOut() {
+    this.viewState = zoomOutState(this.viewState);
+    this.ctx.notifyMutated?.();
+  }
+
+  isZoomed(): boolean {
+    return this.getViewState().zoomRootId !== null;
   }
 
   /** Update the ctx (fresh root/getRows) on each shell render without recreating the instance. */
