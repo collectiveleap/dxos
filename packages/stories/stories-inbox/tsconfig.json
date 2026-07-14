@@ -43,10 +43,19 @@
       "path": "../../core/compute/extractor"
     },
     {
+      "path": "../../core/compute/functions-runtime"
+    },
+    {
+      "path": "../../core/compute/pipeline-email"
+    },
+    {
       "path": "../../core/compute/pipeline-rdf"
     },
     {
       "path": "../../core/echo/echo"
+    },
+    {
+      "path": "../../core/echo/echo-client"
     },
     {
       "path": "../../core/echo/echo-react"
@@ -61,6 +70,9 @@
       "path": "../../plugins/plugin-connector"
     },
     {
+      "path": "../../plugins/plugin-debug"
+    },
+    {
       "path": "../../plugins/plugin-inbox"
     },
     {
@@ -68,6 +80,12 @@
     },
     {
       "path": "../../plugins/plugin-preview"
+    },
+    {
+      "path": "../../plugins/plugin-progress"
+    },
+    {
+      "path": "../../plugins/plugin-routine"
     },
     {
       "path": "../../plugins/plugin-space"

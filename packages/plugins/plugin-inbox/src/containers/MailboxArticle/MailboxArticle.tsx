@@ -5,14 +5,20 @@
 import { Atom } from '@effect-atom/atom-react';
 import React, { type Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useAtomCapability, useAtomCapabilityState, useOperationInvoker } from '@dxos/app-framework/ui';
-import { LayoutOperation } from '@dxos/app-toolkit';
-import { type AppSurface, useShowItem } from '@dxos/app-toolkit/ui';
-import { Aggregate, type Database, Filter, Obj, Order, Query, Tag } from '@dxos/echo';
+import {
+  useAtomCapability,
+  useAtomCapabilityState,
+  useOperationInvoker,
+  useOptionalCapability,
+} from '@dxos/app-framework/ui';
+import { AppCapabilities, LayoutOperation } from '@dxos/app-toolkit';
+import { type AppSurface, ProgressMeter, useProgress, useShowItem } from '@dxos/app-toolkit/ui';
+import { Aggregate, type Database, Ref as EchoRef, Filter, Obj, Order, Query, Tag } from '@dxos/echo';
 import { QueryBuilder } from '@dxos/echo-query';
 import { usePagination, useQuery, useResolveRef } from '@dxos/echo-react';
 import { invariant } from '@dxos/invariant';
 import { type EntityId } from '@dxos/keys';
+import { log } from '@dxos/log';
 import { AtomState, useAtomState } from '@dxos/react-hooks';
 import { ElevationProvider, IconButton, Panel, Toolbar, useTranslation } from '@dxos/react-ui';
 import { linkedSegment, useArticleKeyboardNavigation, useSelection } from '@dxos/react-ui-attention';
@@ -36,6 +42,8 @@ import { InboxOperation } from '#types';
 import { InboxCapabilities, Mailbox, Starred } from '#types';
 
 import { POPOVER_SAVE_FILTER } from '../../constants';
+import { createTopicsProgressKey } from '../../operations/analyze/analyze-topics';
+import { createSyncProgressKey } from '../../operations/google/gmail/sync';
 import { InitializeMailbox, InitializeMailboxAction } from './InitializeMailbox';
 
 /** Messages per page for the lazily-loaded message window. */
@@ -58,6 +66,15 @@ export const MailboxArticle = ({ subject: mailbox, filter: filterProp, attendabl
   const currentId = useSelection(id, 'single');
   const db = Obj.getDatabase(mailbox);
   const showItem = useShowItem();
+
+  // Mailbox-scoped operations register a monitor keyed by the mailbox URI (`#sync` for Gmail sync,
+  // `#topics` for topic analysis); subscribe to both and show whichever run is active in the statusbar.
+  const syncProgress = useProgress(createSyncProgressKey(mailbox));
+  const topicsProgress = useProgress(createTopicsProgressKey(mailbox));
+  const progress =
+    topicsProgress?.status === 'running' || topicsProgress?.status === 'error' ? topicsProgress : syncProgress;
+  // Registry (present when plugin-progress is loaded) lets the meter cancel a cancellable run.
+  const progressRegistry = useOptionalCapability(AppCapabilities.ProgressRegistry);
 
   const filterEditorRef = useRef<EditorController>(null);
   const filterSaveButtonRef = useRef<HTMLButtonElement>(null);
@@ -128,8 +145,15 @@ export const MailboxArticle = ({ subject: mailbox, filter: filterProp, attendabl
         result.push({ id: entry.threadId, messages: entry.items, total: entry.count });
       }
     }
-    return result;
-  }, [pagination.items]);
+    // Drop messages excluded by the mailbox's filters (e.g. "Ignore sender"); collapse now-empty groups.
+    return result.flatMap((item): MessageStackItem[] => {
+      if (isMessageGroup(item)) {
+        const messages = item.messages.filter((message) => !Mailbox.isFiltered(mailbox, message));
+        return messages.length > 0 ? [{ ...item, messages }] : [];
+      }
+      return Mailbox.isFiltered(mailbox, item) ? [] : [item];
+    });
+  }, [pagination.items, mailbox, mailbox.messageFilters]);
 
   // Flat message list backing keyboard navigation and message-id lookups in action handlers.
   const messages = useMemo(() => items.flatMap((item) => (isMessageGroup(item) ? item.messages : [item])), [items]);
@@ -189,6 +213,36 @@ export const MailboxArticle = ({ subject: mailbox, filter: filterProp, attendabl
           const message = messages.find((message) => message.id === action.messageId);
           if (message && db) {
             void Starred.toggleStarred(mailbox, message, db);
+          }
+          break;
+        }
+
+        case 'ignore-sender': {
+          const message = messages.find((message) => message.id === action.messageId);
+          const email = message?.sender?.email;
+          if (email && db) {
+            Mailbox.ignoreSender(mailbox, email);
+            void db.flush();
+          }
+          break;
+        }
+
+        case 'create-topic': {
+          const message = messages.find((message) => message.id === action.messageId);
+          if (message && db) {
+            void invokePromise(
+              InboxOperation.CreateTopicFromMessage,
+              { mailbox: EchoRef.make(mailbox), message },
+              { spaceId: db.spaceId },
+            )
+              .then((result) => {
+                const topicId = result?.data?.topicId;
+                if (topicId) {
+                  void showItem({ contextId: id, selectionId: topicId, companion: linkedSegment('topic') });
+                }
+              })
+              // Surface the failure instead of silently swallowing it (AI timeout / DB error).
+              .catch((err) => log.catch(err));
           }
           break;
         }
@@ -264,10 +318,21 @@ export const MailboxArticle = ({ subject: mailbox, filter: filterProp, attendabl
             tagsAtom={tagsAtom}
             starredAtom={starredAtom}
             pagination={feed ? pagination : undefined}
+            enableIgnoreSender
+            enableCreateTopic
             onAction={handleAction}
           />
         )}
       </Panel.Content>
+      {progress && (progress.status === 'running' || progress.status === 'error') && (
+        <Panel.Statusbar asChild>
+          <ProgressMeter
+            state={progress}
+            classNames='h-16 p-2 border-t border-separator'
+            onCancel={progressRegistry ? () => progressRegistry.cancel(progress.name) : undefined}
+          />
+        </Panel.Statusbar>
+      )}
     </Panel.Root>
   );
 };

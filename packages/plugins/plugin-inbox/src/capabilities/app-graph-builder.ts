@@ -18,15 +18,29 @@ import { Connection, ConnectorOperation, SyncBinding } from '@dxos/plugin-connec
 import { GraphBuilder, Node, NodeMatcher } from '@dxos/plugin-graph';
 import { SpaceOperation } from '@dxos/plugin-space';
 import { getLinkedVariant, isLinkedSegment, linkedSegment, selectionAspect } from '@dxos/react-ui-attention';
-import { Event, Message } from '@dxos/types';
+import { DraftMessage, Event, Message } from '@dxos/types';
 import { kebabize } from '@dxos/util';
 
 import { meta } from '#meta';
-import { InboxOperation } from '#types';
-import { Calendar, DraftMessage, Mailbox } from '#types';
+import { Calendar, InboxOperation, Mailbox } from '#types';
 
-import { MAILBOX_DRAFTS_NODE_DATA, MAILBOX_DRAFTS_TYPE, MAILBOXES_SECTION_TYPE } from '../constants';
-import { getCalendarsPath, getDraftsId, getMailboxesPath, getMailboxesSectionId } from '../paths';
+import {
+  MAILBOX_DRAFTS_NODE_DATA,
+  MAILBOX_DRAFTS_TYPE,
+  MAILBOX_SUBSCRIPTIONS_NODE_DATA,
+  MAILBOX_SUBSCRIPTIONS_TYPE,
+  MAILBOX_TOPICS_NODE_DATA,
+  MAILBOX_TOPICS_TYPE,
+  MAILBOXES_SECTION_TYPE,
+} from '../constants';
+import {
+  getCalendarsPath,
+  getDraftsId,
+  getMailboxesPath,
+  getMailboxesSectionId,
+  getSubscriptionsId,
+  getTopicsId,
+} from '../paths';
 
 const calendarTypename = Type.getTypename(Calendar.Calendar);
 
@@ -190,6 +204,28 @@ export default Capability.makeModule(
                     properties: {
                       label: ['drafts.label', { ns: meta.profile.key }],
                       icon: 'ph--pencil-simple--regular',
+                      iconHue: 'rose',
+                      mailbox,
+                    },
+                  }),
+                  Node.make({
+                    id: getTopicsId(),
+                    type: MAILBOX_TOPICS_TYPE,
+                    data: MAILBOX_TOPICS_NODE_DATA,
+                    properties: {
+                      label: ['topics.label', { ns: meta.profile.key }],
+                      icon: 'ph--stack--regular',
+                      iconHue: 'rose',
+                      mailbox,
+                    },
+                  }),
+                  Node.make({
+                    id: getSubscriptionsId(),
+                    type: MAILBOX_SUBSCRIPTIONS_TYPE,
+                    data: MAILBOX_SUBSCRIPTIONS_NODE_DATA,
+                    properties: {
+                      label: ['subscriptions.label', { ns: meta.profile.key }],
+                      icon: 'ph--envelope-simple--regular',
                       iconHue: 'rose',
                       mailbox,
                     },
@@ -562,6 +598,46 @@ export default Capability.makeModule(
               properties: {
                 label: ['sync-mailbox.label', { ns: meta.profile.key }],
                 icon: 'ph--arrows-clockwise--regular',
+                disposition: 'list-item',
+              },
+            },
+          ]);
+        },
+      }),
+
+      GraphBuilder.createExtension({
+        id: 'analyzeTopicsMailbox',
+        // Filter nodes store the parent mailbox as node.data; exclude them so the action only appears
+        // on the mailbox itself (peer of the `sync` action).
+        match: (node) =>
+          node.type === Type.getTypename(Mailbox.Mailbox) && Mailbox.instanceOf(node.data)
+            ? Option.some(node.data)
+            : Option.none(),
+        actions: (mailbox) => {
+          const db = Obj.getDatabase(mailbox);
+          if (!db) {
+            return Effect.succeed([]);
+          }
+          // Tags the mailbox's messages and clusters its threads into Topic objects. Available whenever
+          // the mailbox has a db (no connection required — it runs over already-synced messages).
+          return Effect.succeed([
+            {
+              id: 'analyze-topics',
+              data: () =>
+                Operation.invoke(
+                  InboxOperation.AnalyzeTopics,
+                  { mailbox: Ref.make(mailbox) },
+                  {
+                    spaceId: db.spaceId,
+                    notify: {
+                      success: ['analyze-topics-success.title', { ns: meta.profile.key }],
+                      error: ['analyze-topics-error.title', { ns: meta.profile.key }],
+                    },
+                  },
+                ),
+              properties: {
+                label: ['analyze-topics.label', { ns: meta.profile.key }],
+                icon: 'ph--stack--regular',
                 disposition: 'list-item',
               },
             },
