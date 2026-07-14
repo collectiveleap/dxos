@@ -9138,6 +9138,12 @@ importers:
 
   packages/plugins/plugin-bramble:
     dependencies:
+      '@atlaskit/pragmatic-drag-and-drop':
+        specifier: 'catalog:'
+        version: 1.7.7
+      '@atlaskit/pragmatic-drag-and-drop-hitbox':
+        specifier: 'catalog:'
+        version: 1.1.0
       '@codemirror/state':
         specifier: 'catalog:'
         version: 6.7.0
