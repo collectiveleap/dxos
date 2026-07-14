@@ -139,3 +139,21 @@
   flex: 1 1 auto;
   min-inline-size: 0;
 }
+
+/* A mention's inline secondary view: the target's outline, bounded + scrollable, ruled and indented
+   under the mention's row (above that row's own subtree). */
+.bramble-secondary {
+  margin-inline-start: var(--dx-spacingLarge, 24px);
+  margin-block: 4px;
+  max-block-size: 40vh;
+  overflow: auto;
+  border-inline-start: 2px solid var(--dx-subduedSeparator, #d0d0d0);
+  padding-inline-start: 8px;
+}
+
+.bramble-secondary-cycle {
+  color: var(--dx-subduedText, #888888);
+  font-style: italic;
+  overflow: visible;
+  max-block-size: none;
+}

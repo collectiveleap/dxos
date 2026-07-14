@@ -484,3 +484,112 @@ export const MentionLive: Story = {
     await expect(chip()).toHaveTextContent('hello worldy');
   },
 };
+
+// Seeds Root → Y (Y mentions X; X has a structural child X1). Option-clicking Y's chip expands X's
+// outline inline below the row — the target's own subtree (X and X1), live + edit-through (UP-5 inline).
+const MentionExpandStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const x = db.add(makeNode({ text: 'target X' }));
+    const x1 = db.add(makeNode({ text: 'child of X' }));
+    const y = db.add(makeNode({ text: 'begin  end' }));
+    void createEdge(db, r, y, 1); // Y is the only row under root
+    void createEdge(db, x, x1, 1); // X has a structural child
+    const linked = createLinkedEdge(db, y, x); // Y mentions X
+    const yText = y.text?.target;
+    if (yText) {
+      Obj.update(yText, (yText) => {
+        yText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
+};
+
+const altMouseDown = (el: Element) => el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, altKey: true }));
+
+export const MentionExpand: Story = {
+  render: () => <MentionExpandStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = await waitFor(() => {
+      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      if (!el || el.textContent !== 'target X') {
+        throw new Error('chip not resolved');
+      }
+      return el as HTMLElement;
+    });
+    // No secondary view before expansion.
+    await expect(canvasElement.querySelector('[data-testid="bramble-secondary"]')).toBeNull();
+    // Option-click expands: the target's outline (X and its child X1) renders inline.
+    altMouseDown(chip);
+    const secondary = await canvas.findByTestId('bramble-secondary');
+    await expect(secondary).toHaveTextContent('target X');
+    await expect(secondary).toHaveTextContent('child of X');
+    // Option-click again collapses.
+    altMouseDown(canvasElement.querySelector('dx-anchor[data-edge-id]')!);
+    await waitFor(() => {
+      if (canvasElement.querySelector('[data-testid="bramble-secondary"]')) {
+        throw new Error('secondary view still present');
+      }
+    });
+  },
+};
+
+// Seeds Root → A, where A mentions ROOT — an ancestor on the expansion path. Expanding it must show a
+// cycle stub, never recurse into the ancestor (IP-3.may-cycle).
+const MentionCycleStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const a = db.add(makeNode({ text: 'begin  end' }));
+    void createEdge(db, r, a, 1);
+    const linked = createLinkedEdge(db, a, r); // A mentions ROOT
+    const aText = a.text?.target;
+    if (aText) {
+      Obj.update(aText, (aText) => {
+        aText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
+};
+
+export const MentionExpandCycle: Story = {
+  render: () => <MentionCycleStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = await waitFor(() => {
+      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      if (!el || el.textContent !== 'Root') {
+        throw new Error('chip not resolved');
+      }
+      return el as HTMLElement;
+    });
+    // Expanding a mention of an ancestor-subject (Root) shows a cycle stub, not a nested outline.
+    altMouseDown(chip);
+    await canvas.findByTestId('bramble-secondary-cycle');
+    await expect(canvasElement.querySelector('[data-testid="bramble-secondary"]')).toBeNull();
+  },
+};

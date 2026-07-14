@@ -11,6 +11,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { useQuery } from '@dxos/react-client/echo';
 
 import { OutlineController, OutlineControllerContext } from './controller';
+import { ExpansionPathContext, useExpansionPath } from './ExpansionPath';
 import { OutlineRow } from './OutlineRow';
 import { RowEditor } from './RowEditor';
 import { outlineRows } from '../../model/outline';
@@ -26,6 +27,11 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // two Bramble outlines mounted on the same space) and double-applying a move against ids that
   // may not even resolve in this instance's db.
   const listId = useId();
+
+  // The inline-expansion nesting path: this outline's subject joins whatever ancestor secondary
+  // views already mount it, so a mention of an ancestor renders a cycle stub instead of recursing.
+  const parentPath = useExpansionPath();
+  const expansionPath = useMemo(() => new Set([...parentPath, subject.id]), [parentPath, subject.id]);
 
   // Use the live `subject` (a Node entity) for the view-model root and the header
   // editor; reactivity comes from `useQuery` (rows) and RowEditor's own text binding,
@@ -96,32 +102,34 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   }, [listId]);
 
   return (
-    <OutlineControllerContext.Provider value={controllerRef.current ?? null}>
-      <div data-testid='bramble-outline' role='tree' className='bramble-outline'>
-        <div data-testid='bramble-header' style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {zoomRootId !== subject.id && (
-            <span
-              data-testid='bramble-zoom-out'
-              role='button'
-              style={{ cursor: 'pointer' }}
-              onClick={() => controllerRef.current?.zoomOut()}
-            >
-              ↑
-            </span>
-          )}
-          <RowEditor node={zoomRootNode} className='bramble-outline-header' />
+    <ExpansionPathContext.Provider value={expansionPath}>
+      <OutlineControllerContext.Provider value={controllerRef.current ?? null}>
+        <div data-testid='bramble-outline' role='tree' className='bramble-outline'>
+          <div data-testid='bramble-header' style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {zoomRootId !== subject.id && (
+              <span
+                data-testid='bramble-zoom-out'
+                role='button'
+                style={{ cursor: 'pointer' }}
+                onClick={() => controllerRef.current?.zoomOut()}
+              >
+                ↑
+              </span>
+            )}
+            <RowEditor node={zoomRootNode} className='bramble-outline-header' />
+          </div>
+          {rows.map((row) => (
+            <OutlineRow
+              key={row.edge.id}
+              row={row}
+              mode={modeByEdge.get(row.edge.id) ?? 'standard'}
+              listId={listId}
+              onToggleCollapse={(id) => controllerRef.current?.toggleCollapse(id)}
+              onZoom={(id) => controllerRef.current?.zoomTo(id)}
+            />
+          ))}
         </div>
-        {rows.map((row) => (
-          <OutlineRow
-            key={row.edge.id}
-            row={row}
-            mode={modeByEdge.get(row.edge.id) ?? 'standard'}
-            listId={listId}
-            onToggleCollapse={(id) => controllerRef.current?.toggleCollapse(id)}
-            onZoom={(id) => controllerRef.current?.zoomTo(id)}
-          />
-        ))}
-      </div>
-    </OutlineControllerContext.Provider>
+      </OutlineControllerContext.Provider>
+    </ExpansionPathContext.Provider>
   );
 };
