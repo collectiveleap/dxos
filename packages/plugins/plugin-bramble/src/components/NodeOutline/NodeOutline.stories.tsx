@@ -3,7 +3,7 @@
 //
 
 import { type Meta, type StoryObj } from '@storybook/react-vite';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { Obj } from '@dxos/echo';
@@ -413,5 +413,74 @@ export const LegibleInBothThemes: Story = {
       }
       root.style.colorScheme = orig.cs;
     }
+  },
+};
+
+// Seeds Root → Y only (Y mentions X via a LINKED edge). X is NOT a structural child — it has no row,
+// so the outline has no reason to re-render when X changes. A button mutates X's text purely at the
+// substrate level (`Obj.update`, no editor), reproducing "X edited elsewhere / remotely". Y's chip must
+// still update live (IX-immediate) — the case a same-outline re-render would otherwise mask.
+const MentionLiveStory = () => {
+  const [space] = useSpaces();
+  const xRef = useRef<Node | undefined>(undefined);
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const x = db.add(makeNode({ text: 'hello world' }));
+    const y = db.add(makeNode({ text: 'begin  end' }));
+    void createEdge(db, r, y, 1); // only Y has a row; X is mention-only (no structural edge)
+    const linked = createLinkedEdge(db, y, x); // linked: Y mentions X
+    const yText = y.text?.target;
+    if (yText) {
+      Obj.update(yText, (yText) => {
+        yText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    xRef.current = x;
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <button
+        data-testid='edit-x'
+        onClick={() => {
+          const t = xRef.current?.text?.target;
+          if (t) {
+            Obj.update(t, (t) => {
+              t.content = 'hello worldy';
+            });
+          }
+        }}
+      >
+        edit X
+      </button>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
+};
+
+export const MentionLive: Story = {
+  render: () => <MentionLiveStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = () => canvasElement.querySelector('dx-anchor[data-edge-id]');
+    // The chip starts at X's title.
+    await waitFor(() => {
+      if (chip()?.textContent !== 'hello world') {
+        throw new Error('chip not at initial label yet');
+      }
+    });
+    // Mutate X at the substrate level (no editor, X not rendered); Y's chip must update WITHOUT a refresh.
+    await userEvent.click(await canvas.findByTestId('edit-x'));
+    await waitFor(() => {
+      if (chip()?.textContent !== 'hello worldy') {
+        throw new Error('chip did not update live');
+      }
+    });
+    await expect(chip()).toHaveTextContent('hello worldy');
   },
 };
