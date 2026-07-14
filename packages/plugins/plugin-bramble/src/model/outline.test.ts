@@ -11,7 +11,7 @@ import { Text } from '@dxos/schema';
 
 import { createEdge } from './edges';
 import { outlineRows } from './outline';
-import { Edge, Node, makeNode } from '../types';
+import { Edge, Node, makeEdge, makeNode } from '../types';
 
 describe('outlineRows', () => {
   let builder: EchoTestBuilder;
@@ -90,5 +90,49 @@ describe('outlineRows', () => {
     const rows = outlineRows(edges, root); // no collapsed arg
     expect(rows.map((r) => r.node.id)).toContain(a1.id);
     expect(rows.every((r) => r.collapsed === false)).toBe(true);
+  });
+
+  // Multi-location (co-locate) — a Node reached by more than one structural Edge. This is the
+  // edge-native capability Tana lacks (design.md §1 IP-2.multi-predecessor, §3 structural
+  // transclusion route), and the foundation the references slice's P-colocate / backlinks build on.
+  test('a co-located Node renders once under EACH of its structural parents', async ({ expect }) => {
+    const root = add('root');
+    const a = add('a');
+    const b = add('b');
+    const shared = add('shared');
+    await createEdge(db, root, a, 1);
+    await createEdge(db, root, b, 2);
+    await createEdge(db, a, shared, 1);
+    await createEdge(db, b, shared, 1); // second structural parent — the co-locate gesture's op
+    await db.flush();
+
+    const rows = outlineRows(await allEdges(), root);
+    // `shared` appears under BOTH parents, at depth 1 each, as two distinct rows.
+    const sharedRows = rows.filter((r) => r.node.id === shared.id);
+    expect(sharedRows).toHaveLength(2);
+    expect(sharedRows.every((r) => r.depth === 1)).toBe(true);
+    // Each occurrence is a DISTINCT structural edge → distinct row identity (the render key).
+    expect(new Set(sharedRows.map((r) => r.edge.id)).size).toBe(2);
+    // Full pre-order: a, shared(under a), b, shared(under b).
+    expect(rows.map((r) => r.node.id)).toEqual([a.id, shared.id, b.id, shared.id]);
+  });
+
+  test('a structural cycle in the edge set is broken by the ancestor-path guard (terminates)', async ({
+    expect,
+  }) => {
+    // Force a cycle directly with `makeEdge` (bypassing createEdge's write-time acyclicity guard)
+    // to exercise outlineRows' defensive ancestor-path guard for edge sets assembled some other way.
+    const root = add('root');
+    const a = add('a');
+    const b = add('b');
+    db.add(makeEdge({ source: root, target: a, order: 1 }));
+    db.add(makeEdge({ source: a, target: b, order: 1 }));
+    db.add(makeEdge({ source: b, target: a, order: 1 })); // back-edge: a is both b's child and its ancestor
+    await db.flush();
+
+    const rows = outlineRows(await allEdges(), root);
+    // Renders root→a→b and then SKIPS the b→a back-edge (a is already an ancestor of b) — no
+    // infinite recursion; each node appears once along the single acyclic path.
+    expect(rows.map((r) => r.node.id)).toEqual([a.id, b.id]);
   });
 });
