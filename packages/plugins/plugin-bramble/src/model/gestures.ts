@@ -105,3 +105,73 @@ export const reorderPlan = (rows: OutlineRow[], root: Node, nodeId: string, dir:
       : orderBetween(sibs[j].edge, sibs[j + 1]?.edge); // land after the following sibling
   return { order };
 };
+
+export type DragInstruction = 'reorder-above' | 'reorder-below' | 'make-child';
+
+/** Same-parent move rewrites `order` (reorder); a parent change replaces the edge (reparent). */
+export type DragPlan =
+  | { kind: 'reorder'; order: number }
+  | { kind: 'reparent'; newParentId: string; order: number };
+
+/**
+ * Pure planner for a bullet-drag drop. Mirrors the three concrete tree-item instructions
+ * (`@atlaskit/.../tree-item`, matching `react-ui-list`'s `Tree/testing.ts` reference):
+ *   - reorder-above → become the sibling immediately BEFORE the target (target's parent)
+ *   - reorder-below → become the sibling immediately AFTER the target  (target's parent)
+ *   - make-child    → become the target's LAST child
+ * Returns `{ kind: 'reorder' }` when the parent is unchanged (cheap `order` rewrite), else
+ * `{ kind: 'reparent' }`. Returns `null` for a no-op: dropping a node on itself, or into its
+ * own subtree (would create a cycle; `reparentEdge` also guards this at write time).
+ */
+export const dragPlan = (
+  rows: OutlineRow[],
+  root: Node,
+  sourceId: string,
+  targetId: string,
+  instruction: DragInstruction,
+): DragPlan | null => {
+  if (sourceId === targetId) {
+    return null;
+  }
+  const sIdx = rows.findIndex((r) => r.node.id === sourceId);
+  if (sIdx < 0) {
+    return null;
+  }
+  const source = rows[sIdx];
+  // `rows` is a pre-order DFS with `depth`, so the source's subtree is the contiguous run of
+  // rows after it whose depth is greater than the source's. A target inside that run is a
+  // descendant — dropping there would create a cycle.
+  for (let i = sIdx + 1; i < rows.length && rows[i].depth > source.depth; i++) {
+    if (rows[i].node.id === targetId) {
+      return null;
+    }
+  }
+  const sourceParentId = Relation.getSource(source.edge).id;
+
+  if (instruction === 'make-child') {
+    if (targetId !== root.id && !rows.some((r) => r.node.id === targetId)) {
+      return null;
+    }
+    const kids = childRowsOf(rows, targetId).filter((r) => r.node.id !== sourceId);
+    const order = orderBetween(kids[kids.length - 1]?.edge, undefined);
+    return targetId === sourceParentId
+      ? { kind: 'reorder', order }
+      : { kind: 'reparent', newParentId: targetId, order };
+  }
+
+  const targetRow = rows.find((r) => r.node.id === targetId);
+  if (!targetRow) {
+    return null;
+  }
+  const newParentId = Relation.getSource(targetRow.edge).id;
+  // Exclude the source so an adjacent same-parent move uses the correct neighbour edges.
+  const sibs = childRowsOf(rows, newParentId).filter((r) => r.node.id !== sourceId);
+  const ti = sibs.findIndex((r) => r.node.id === targetId);
+  const order =
+    instruction === 'reorder-above'
+      ? orderBetween(sibs[ti - 1]?.edge, targetRow.edge)
+      : orderBetween(targetRow.edge, sibs[ti + 1]?.edge);
+  return newParentId === sourceParentId
+    ? { kind: 'reorder', order }
+    : { kind: 'reparent', newParentId, order };
+};

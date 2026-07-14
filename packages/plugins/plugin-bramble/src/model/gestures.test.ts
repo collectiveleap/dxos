@@ -8,7 +8,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 import { createEdge } from './edges';
-import { indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from './gestures';
+import { dragPlan, indentPlan, mergePlan, outdentPlan, reorderPlan, splitPlan } from './gestures';
 import { outlineRows } from './outline';
 import { Edge, Node, makeNode } from '../types';
 
@@ -117,5 +117,87 @@ describe('gestures', () => {
     const rows = await rowsOf(root);
     expect(reorderPlan(rows, root, a.id, -1)).toBeNull(); // a is first
     expect(reorderPlan(rows, root, b.id, 1)).toBeNull();  // b is last
+  });
+
+  describe('dragPlan', () => {
+    test('reorder-below among siblings stays same-parent → reorder', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const b = add('b');
+      await createEdge(db, root, a, 0); await createEdge(db, root, b, 1); await db.flush();
+      const rows = await rowsOf(root);
+      const plan = dragPlan(rows, root, a.id, b.id, 'reorder-below');
+      expect(plan).toEqual({ kind: 'reorder', order: expect.any(Number) });
+      expect((plan as any).order).toBeGreaterThan(1); // after b(1)
+    });
+
+    test('reorder-above among siblings stays same-parent → reorder', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const b = add('b');
+      await createEdge(db, root, a, 0); await createEdge(db, root, b, 1); await db.flush();
+      const rows = await rowsOf(root);
+      const plan = dragPlan(rows, root, b.id, a.id, 'reorder-above');
+      expect(plan).toEqual({ kind: 'reorder', order: expect.any(Number) });
+      expect((plan as any).order).toBeLessThan(0); // before a(0)
+    });
+
+    test('reorder onto a row under a different parent → reparent to that parent', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const b = add('b'); const a1 = add('a1');
+      await createEdge(db, root, a, 0); await createEdge(db, root, b, 1);
+      await createEdge(db, a, a1, 0); await db.flush();
+      const rows = await rowsOf(root);
+      const plan = dragPlan(rows, root, b.id, a1.id, 'reorder-below');
+      expect(plan).toEqual({ kind: 'reparent', newParentId: a.id, order: expect.any(Number) });
+    });
+
+    test('make-child nests under the target as its last child', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const b = add('b');
+      await createEdge(db, root, a, 0); await createEdge(db, root, b, 1); await db.flush();
+      const rows = await rowsOf(root);
+      const plan = dragPlan(rows, root, b.id, a.id, 'make-child');
+      expect(plan).toEqual({ kind: 'reparent', newParentId: a.id, order: expect.any(Number) });
+    });
+
+    test('make-child onto own current parent → reorder to end (no parent change)', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const a1 = add('a1'); const a2 = add('a2');
+      await createEdge(db, root, a, 0);
+      await createEdge(db, a, a1, 0); await createEdge(db, a, a2, 1); await db.flush();
+      const rows = await rowsOf(root);
+      const plan = dragPlan(rows, root, a1.id, a.id, 'make-child');
+      expect(plan).toEqual({ kind: 'reorder', order: expect.any(Number) });
+      expect((plan as any).order).toBeGreaterThan(1); // after a2(1)
+    });
+
+    test('dropping a node onto itself is a no-op', async ({ expect }) => {
+      const root = add('root'); const a = add('a');
+      await createEdge(db, root, a, 0); await db.flush();
+      const rows = await rowsOf(root);
+      expect(dragPlan(rows, root, a.id, a.id, 'make-child')).toBeNull();
+    });
+
+    test('dropping a node into its own subtree is rejected (cycle guard)', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const a1 = add('a1');
+      await createEdge(db, root, a, 0); await createEdge(db, a, a1, 0); await db.flush();
+      const rows = await rowsOf(root);
+      expect(dragPlan(rows, root, a.id, a1.id, 'make-child')).toBeNull();
+      expect(dragPlan(rows, root, a.id, a1.id, 'reorder-below')).toBeNull();
+    });
+
+    test('make-child onto a nonexistent target is a no-op', async ({ expect }) => {
+      const root = add('root'); const a = add('a');
+      await createEdge(db, root, a, 0); await db.flush();
+      const rows = await rowsOf(root);
+      expect(dragPlan(rows, root, a.id, 'no-such-node-id', 'make-child')).toBeNull();
+    });
+
+    test('make-child onto own parent when source is already the last child → reorder past the true last other sibling', async ({ expect }) => {
+      const root = add('root'); const a = add('a'); const a1 = add('a1'); const a2 = add('a2');
+      await createEdge(db, root, a, 0);
+      await createEdge(db, a, a1, 0); await createEdge(db, a, a2, 1); await db.flush();
+      const rows = await rowsOf(root);
+      // a2 is already a's last child; make-child onto a orders it after a1 (the last OTHER sibling,
+      // order 0) → exactly 1. With the source unfiltered (the pre-fix bug) it would order off a2's
+      // own edge (order 1) → 2, so this exact bound is what pins the fix.
+      const plan = dragPlan(rows, root, a2.id, a.id, 'make-child');
+      expect(plan).toEqual({ kind: 'reorder', order: expect.any(Number) });
+      expect((plan as any).order).toBe(1);
+    });
   });
 });
