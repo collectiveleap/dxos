@@ -125,3 +125,16 @@ export const reparentEdge = async (
   db.add(newEdge);
   return newEdge;
 };
+
+/** A Node's backlinks: its incoming edges by reverse traversal, grouped by kind —
+ *  structural predecessors ("appears under") and linked referrers ("mentioned in").
+ *  Realizes UP-2.backlinks-view's grouped union over the one kind-typed Edge. */
+export const backlinks = async (db: EchoDatabase, node: Node): Promise<{ structural: Node[]; linked: Node[] }> => {
+  const inbound = await db.query(Query.select(Filter.id(node.id)).targetOf(Edge)).run();
+  const structural: Node[] = [];
+  const linked: Node[] = [];
+  for (const e of inbound) {
+    (e.kind === 'linked' ? linked : structural).push(Relation.getSource(e) as Node);
+  }
+  return { structural, linked };
+};

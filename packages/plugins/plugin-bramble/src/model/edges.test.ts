@@ -10,7 +10,7 @@ import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
 import { Edge, Node, makeEdge, makeLinkedEdge, makeNode } from '../types';
-import { childEdges, createEdge, createLinkedEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
+import { backlinks, childEdges, createEdge, createLinkedEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
 
 describe('orderBetween', () => {
   test('midpoints and open ends', ({ expect }) => {
@@ -148,5 +148,18 @@ describe('mutation + acyclicity', () => {
     const outB = (await db.query(Query.select(Filter.id(b.id)).sourceOf(Edge)).run()).filter((e) => e.kind === 'linked');
     expect(outA).toHaveLength(1);
     expect(outB).toHaveLength(1);
+  });
+
+  test('backlinks group inbound edges by kind (structural + linked)', async ({ expect }) => {
+    const t = db.add(makeNode({ text: 't' }));
+    const p = db.add(makeNode({ text: 'p' }));  // structural parent (co-located under p)
+    const a = db.add(makeNode({ text: 'a' }));  // linked referrer (a mentions t)
+    db.add(makeEdge({ source: p, target: t, order: 0 }));
+    createLinkedEdge(db, a, t);
+    await db.flush();
+
+    const bl = await backlinks(db, t);
+    expect(bl.structural.map((n) => n.id)).toEqual([p.id]);
+    expect(bl.linked.map((n) => n.id)).toEqual([a.id]);
   });
 });
