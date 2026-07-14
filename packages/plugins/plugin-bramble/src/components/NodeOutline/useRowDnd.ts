@@ -12,9 +12,8 @@ import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { type RefCallback, useCallback, useEffect, useRef, useState } from 'react';
 
+import { INDENT_PX } from './constants';
 import { type OutlineRow as OutlineRowModel } from '../../model/outline';
-
-const INDENT_PER_LEVEL = 32; // must equal OutlineRow's INDENT_PX
 
 /**
  * Registers a row's bullet as a Pragmatic-dnd drag handle and the row itself as a drop target
@@ -51,7 +50,7 @@ export const useRowDnd = ({ row, mode, listId }: { row: OutlineRowModel; mode: I
           attachInstruction(data, {
             input,
             element,
-            indentPerLevel: INDENT_PER_LEVEL,
+            indentPerLevel: INDENT_PX,
             currentLevel: level,
             mode,
             block: ['reparent'],

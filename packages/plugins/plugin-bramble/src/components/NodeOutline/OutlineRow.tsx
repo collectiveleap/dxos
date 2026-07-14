@@ -7,14 +7,13 @@ import React from 'react';
 
 import { mx } from '@dxos/ui-theme';
 
+import { INDENT_PX } from './constants';
 import { OutlineDropIndicator } from './OutlineDropIndicator';
 import { RowEditor } from './RowEditor';
 import { useRowDnd } from './useRowDnd';
 import { type OutlineRow as OutlineRowModel } from '../../model/outline';
 
 import './node-outline.css';
-
-export const INDENT_PX = 32;
 
 export type OutlineRowProps = {
   row: OutlineRowModel;
