@@ -4,7 +4,7 @@
 
 import { expect, test } from 'vitest';
 
-import { EMPTY_VIEW_STATE, resolveZoomRoot, toggleCollapsed, zoomOut, zoomTo } from './view-state';
+import { EMPTY_VIEW_STATE, resolveZoomRoot, toggleCollapsed, toggleExpandedMention, zoomOut, zoomTo } from './view-state';
 
 test('toggleCollapsed flips membership immutably', () => {
   const s1 = toggleCollapsed(EMPTY_VIEW_STATE, 'n1');
@@ -25,4 +25,15 @@ test('zoomTo sets root and un-collapses the target; zoomOut clears', () => {
 test('resolveZoomRoot falls back to the subject', () => {
   expect(resolveZoomRoot(null, 'subj')).toBe('subj');
   expect(resolveZoomRoot('n1', 'subj')).toBe('n1');
+});
+
+test('toggleExpandedMention adds then removes an edge id, independent of collapse/zoom', () => {
+  const s0 = EMPTY_VIEW_STATE;
+  expect([...s0.expandedMentions]).toEqual([]);
+  const s1 = toggleExpandedMention(s0, 'edge-1');
+  expect([...s1.expandedMentions]).toEqual(['edge-1']);
+  const s2 = toggleExpandedMention(s1, 'edge-1');
+  expect([...s2.expandedMentions]).toEqual([]);
+  expect(s1.collapsed).toBe(s0.collapsed);
+  expect(s1.zoomRootId).toBe(s0.zoomRootId);
 });

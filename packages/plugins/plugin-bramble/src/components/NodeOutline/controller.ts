@@ -16,6 +16,7 @@ import {
   EMPTY_VIEW_STATE,
   type ViewState,
   toggleCollapsed,
+  toggleExpandedMention,
   zoomOut as zoomOutState,
   zoomTo as zoomToState,
 } from '../../model/view-state';
@@ -53,6 +54,12 @@ export class OutlineController {
 
   toggleCollapse(nodeId: string) {
     this.viewState = toggleCollapsed(this.viewState, nodeId);
+    this.ctx.notifyMutated?.();
+  }
+
+  /** Toggle the inline secondary view for a mention (keyed by its linked-edge id). */
+  toggleMention(edgeId: string) {
+    this.viewState = toggleExpandedMention(this.viewState, edgeId);
     this.ctx.notifyMutated?.();
   }
 
