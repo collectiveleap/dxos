@@ -258,6 +258,14 @@ export const Collapse: Story = {
   },
 };
 
+// Manual-only: pointer drag is not reliably synthesizable in the test runner, so this story
+// has no `play` function. Renders the same multi-row fixture (a → a1, b) as `Collapse`/`Zoom`
+// so a human can drag a bullet in the Storybook UI to reorder or nest rows.
+export const Drag: Story = {
+  name: 'Drag (manual: drag a bullet to reorder / nest)',
+  tags: ['test'],
+};
+
 export const Zoom: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {
