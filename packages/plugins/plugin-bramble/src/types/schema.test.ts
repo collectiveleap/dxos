@@ -9,7 +9,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
-import { Edge, Node, makeEdge, makeNode } from './index';
+import { Edge, Node, makeEdge, makeLinkedEdge, makeNode } from './index';
 
 describe('Bramble schema', () => {
   let builder: EchoTestBuilder;
@@ -41,5 +41,23 @@ describe('Bramble schema', () => {
     await db.flush();
     expect(node.text).toBeDefined();
     expect(node.text!.target?.content).toBe('');
+  });
+
+  test('a structural edge carries kind=structural and an order', async ({ expect }) => {
+    const p = db.add(makeNode({ text: 'p' }));
+    const c = db.add(makeNode({ text: 'c' }));
+    const e = db.add(makeEdge({ source: p, target: c, order: 0 }));
+    await db.flush();
+    expect(e.kind).toBe('structural');
+    expect(e.order).toBe(0);
+  });
+
+  test('a linked edge carries kind=linked and no order', async ({ expect }) => {
+    const a = db.add(makeNode({ text: 'a' }));
+    const t = db.add(makeNode({ text: 't' }));
+    const e = db.add(makeLinkedEdge({ source: a, target: t }));
+    await db.flush();
+    expect(e.kind).toBe('linked');
+    expect(e.order).toBeUndefined();
   });
 });

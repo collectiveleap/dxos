@@ -3,4 +3,4 @@
 //
 
 export { Node, makeNode } from './Node';
-export { Edge, makeEdge } from './Edge';
+export { Edge, EdgeKind, makeEdge, makeLinkedEdge } from './Edge';
