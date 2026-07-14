@@ -4,7 +4,7 @@
 
 import { describe, test } from 'vitest';
 
-import { makeMarker, markerEdgeIds } from './mention-extension';
+import { makeMarker, markerEdgeIds, staleEdgeIds } from './mention-extension';
 
 describe('mention marker helpers', () => {
   test('makeMarker + markerEdgeIds round-trip', ({ expect }) => {
@@ -15,5 +15,11 @@ describe('mention marker helpers', () => {
 
   test('markerEdgeIds returns [] when none', ({ expect }) => {
     expect(markerEdgeIds('plain text')).toEqual([]);
+  });
+
+  test('staleEdgeIds finds edges whose marker was deleted', ({ expect }) => {
+    expect(staleEdgeIds(`begin ${makeMarker('e1')} end`, ['e1', 'e2'])).toEqual(['e2']);
+    expect(staleEdgeIds(`${makeMarker('e1')} ${makeMarker('e2')}`, ['e1', 'e2'])).toEqual([]);
+    expect(staleEdgeIds('all markers gone', ['e1', 'e2'])).toEqual(['e1', 'e2']);
   });
 });

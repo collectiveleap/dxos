@@ -2,6 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
+import { EditorView } from '@codemirror/view';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { Filter, Query, Relation } from '@dxos/echo';
@@ -14,8 +15,9 @@ import { mx } from '@dxos/ui-theme';
 
 import { useOutlineController } from './controller';
 import { brambleGestures } from './gestures-extension';
-import { mentionChips, refreshChips } from './mention-extension';
+import { mentionChips, refreshChips, staleEdgeIds } from './mention-extension';
 import { useMentionPicker } from './useMentionPicker';
+import { removeEdge } from '../../model/edges';
 import { Edge, type Node } from '../../types';
 
 import './node-outline.css';
@@ -48,8 +50,25 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   const resolveLabel = useCallback((edgeId: string) => labelMapRef.current.get(edgeId) ?? '…', []);
 
   // The `@`-picker (editable rows only): on select it creates a linked Edge + inserts a marker.
-  const canMention = !!text && !readOnly && !!controller?.db;
-  const { extension: mentionPickerExt, groupsRef, menuProps } = useMentionPicker({ db: controller?.db, sourceNode: node });
+  const db = controller?.db;
+  const canMention = !!text && !readOnly && !!db;
+  const { extension: mentionPickerExt, groupsRef, menuProps } = useMentionPicker({ db, sourceNode: node });
+
+  // Keep edges ↔ markers in sync: when the user deletes a mention's marker, remove its linked Edge.
+  const linkedEdgesRef = useRef(linkedEdges);
+  linkedEdgesRef.current = linkedEdges;
+  const syncExt = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (!update.docChanged || !db) {
+          return;
+        }
+        const edges = linkedEdgesRef.current;
+        const stale = new Set(staleEdgeIds(update.state.doc.toString(), edges.map((e) => e.id)));
+        edges.filter((e) => stale.has(e.id)).forEach((e) => removeEdge(db, e));
+      }),
+    [db],
+  );
 
   const { parentRef, view } = useTextEditor(
     () => ({
@@ -65,10 +84,10 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
             ]
           : [createBasicExtensions({ readOnly: true })]),
         ...(controller && !readOnly ? [brambleGestures(controller, node.id)] : []),
-        ...(canMention ? [mentionPickerExt] : []),
+        ...(canMention ? [mentionPickerExt, syncExt] : []),
       ],
     }),
-    [node.id, text, themeMode, readOnly, controller, resolveLabel, canMention, mentionPickerExt],
+    [node.id, text, themeMode, readOnly, controller, resolveLabel, canMention, mentionPickerExt, syncExt],
   );
   useEffect(() => (view && controller ? controller.register(node.id, view) : undefined), [view, controller, node.id]);
   useEffect(() => {

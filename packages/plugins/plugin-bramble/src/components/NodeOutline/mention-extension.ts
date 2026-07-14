@@ -18,6 +18,13 @@ export const MARKER_RE = /\{\{ref:([0-9A-Za-z]+)\}\}/g;
 export const makeMarker = (edgeId: string): string => `{{ref:${edgeId}}}`;
 export const markerEdgeIds = (text: string): string[] => [...text.matchAll(MARKER_RE)].map((m) => m[1]);
 
+/** The linked-edge ids whose marker is no longer present in `currentText` — their edges should be
+ *  removed (the user deleted the mention). Keeps edges ↔ markers in sync. */
+export const staleEdgeIds = (currentText: string, linkedEdgeIds: string[]): string[] => {
+  const present = new Set(markerEdgeIds(currentText));
+  return linkedEdgeIds.filter((id) => !present.has(id));
+};
+
 /** The rendered reference chip. `label` is the target's current title, resolved by the caller. */
 class ChipWidget extends WidgetType {
   constructor(
