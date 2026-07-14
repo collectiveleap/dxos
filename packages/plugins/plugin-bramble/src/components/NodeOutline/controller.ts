@@ -238,7 +238,13 @@ export class OutlineController {
       });
       this.ctx.notifyMutated?.();
     } else {
-      await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+      try {
+        await reparentEdge(this.ctx.db, row.edge, this.nodeOf(rows, plan.newParentId), plan.order);
+      } catch {
+        // `reparentEdge` rejects a cycle at write time (a multi-location drop whose cycle path
+        // differs from the visible subtree `dragPlan` guards against). The graph is left
+        // unchanged, so treat the rejected drop as a no-op rather than a floating rejection.
+      }
     }
   }
 
