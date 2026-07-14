@@ -151,6 +151,12 @@ export const Mention: Story = {
   },
 };
 
+// Manual verification: focus a row, type `@`, pick a Node → a linked Edge is created and its
+// `{{ref:<edgeId>}}` marker (a chip) is inserted at the cursor. The popover isn't reliably driven by
+// the test runner, so there is no `play` (mirrors the `Drag` story). The default fixture (Root → a → a1,
+// b) supplies pickable target Nodes.
+export const MentionPicker: Story = {};
+
 export const Tree: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {

@@ -8,13 +8,14 @@ import { Filter, Query, Relation } from '@dxos/echo';
 import { Doc } from '@dxos/echo-doc';
 import { useQuery } from '@dxos/react-client/echo';
 import { useThemeContext } from '@dxos/react-ui';
-import { useTextEditor } from '@dxos/react-ui-editor';
+import { EditorMenuProvider, useTextEditor } from '@dxos/react-ui-editor';
 import { createBasicExtensions, createDataExtensions, createThemeExtensions } from '@dxos/ui-editor';
 import { mx } from '@dxos/ui-theme';
 
 import { useOutlineController } from './controller';
 import { brambleGestures } from './gestures-extension';
 import { mentionChips, refreshChips } from './mention-extension';
+import { useMentionPicker } from './useMentionPicker';
 import { Edge, type Node } from '../../types';
 
 import './node-outline.css';
@@ -46,6 +47,10 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   labelMapRef.current = labelMap;
   const resolveLabel = useCallback((edgeId: string) => labelMapRef.current.get(edgeId) ?? '…', []);
 
+  // The `@`-picker (editable rows only): on select it creates a linked Edge + inserts a marker.
+  const canMention = !!text && !readOnly && !!controller?.db;
+  const { extension: mentionPickerExt, groupsRef, menuProps } = useMentionPicker({ db: controller?.db, sourceNode: node });
+
   const { parentRef, view } = useTextEditor(
     () => ({
       id: node.id,
@@ -60,9 +65,10 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
             ]
           : [createBasicExtensions({ readOnly: true })]),
         ...(controller && !readOnly ? [brambleGestures(controller, node.id)] : []),
+        ...(canMention ? [mentionPickerExt] : []),
       ],
     }),
-    [node.id, text, themeMode, readOnly, controller, resolveLabel],
+    [node.id, text, themeMode, readOnly, controller, resolveLabel, canMention, mentionPickerExt],
   );
   useEffect(() => (view && controller ? controller.register(node.id, view) : undefined), [view, controller, node.id]);
   useEffect(() => {
@@ -71,5 +77,12 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   // The caller owns the test id: rows tag `bramble-node-name`; the header leaves the
   // inner editor untagged (its `bramble-header` wrapper is the region target) so the two
   // never collide in findAllByTestId or in the visual-region selectors.
-  return <div data-testid={testId} data-node-id={node.id} className={mx(className)} ref={parentRef} />;
+  const editorDiv = <div data-testid={testId} data-node-id={node.id} className={mx(className)} ref={parentRef} />;
+  return canMention ? (
+    <EditorMenuProvider getView={() => view} groups={groupsRef.current} {...menuProps}>
+      {editorDiv}
+    </EditorMenuProvider>
+  ) : (
+    editorDiv
+  );
 };
