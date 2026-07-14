@@ -11,7 +11,7 @@ import { Text } from '@dxos/schema';
 
 import { createEdge } from './edges';
 import { outlineRows } from './outline';
-import { Edge, Node, makeEdge, makeNode } from '../types';
+import { Edge, Node, makeEdge, makeLinkedEdge, makeNode } from '../types';
 
 describe('outlineRows', () => {
   let builder: EchoTestBuilder;
@@ -134,5 +134,18 @@ describe('outlineRows', () => {
     // Renders root→a→b and then SKIPS the b→a back-edge (a is already an ancestor of b) — no
     // infinite recursion; each node appears once along the single acyclic path.
     expect(rows.map((r) => r.node.id)).toEqual([a.id, b.id]);
+  });
+
+  test('a linked edge is not rendered as an outline row (structural only)', async ({ expect }) => {
+    const root = add('root');
+    const a = add('a');
+    const t = add('t');
+    await createEdge(db, root, a, 0); // structural: a under root
+    db.add(makeLinkedEdge({ source: a, target: t })); // linked: a mentions t
+    await db.flush();
+
+    const rows = outlineRows(await allEdges(), root);
+    // Only the structural child renders; the linked target is not a row.
+    expect(rows.map((r) => r.node.id)).toEqual([a.id]);
   });
 });

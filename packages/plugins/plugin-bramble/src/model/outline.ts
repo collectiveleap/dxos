@@ -17,14 +17,15 @@ export type OutlineRow = { node: Node; depth: number; edge: Edge; hasChildren: b
  * but its successor subtree is omitted from the result.
  */
 export const outlineRows = (edges: Edge[], root: Node, collapsed: ReadonlySet<string> = new Set()): OutlineRow[] => {
+  const structural = edges.filter((e) => e.kind === 'structural');
   const bySource = new Map<string, Edge[]>();
-  for (const edge of edges) {
+  for (const edge of structural) {
     const sourceId = Relation.getSource(edge).id;
     const list = bySource.get(sourceId) ?? (bySource.set(sourceId, []), bySource.get(sourceId)!);
     list.push(edge);
   }
   for (const list of bySource.values()) {
-    list.sort((a, b) => a.order - b.order);
+    list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
   const rows: OutlineRow[] = [];
