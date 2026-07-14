@@ -15,7 +15,7 @@ import { mx } from '@dxos/ui-theme';
 
 import { useOutlineController } from './controller';
 import { brambleGestures } from './gestures-extension';
-import { mentionChips, refreshChips, staleEdgeIds } from './mention-extension';
+import { mentionChips, mentionClicks, refreshChips, staleEdgeIds } from './mention-extension';
 import { useMentionPicker } from './useMentionPicker';
 import { removeEdge } from '../../model/edges';
 import { Edge, type Node } from '../../types';
@@ -84,6 +84,7 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
               createBasicExtensions({ readOnly }),
               createThemeExtensions({ themeMode }),
               mentionChips({ resolveLabel }),
+              mentionClicks({ onExpand: (edgeId) => controller?.toggleMention(edgeId) }),
             ]
           : [createBasicExtensions({ readOnly: true })]),
         // The `@`-picker's popover keymap and `brambleGestures` are both `Prec.highest`; ties break
