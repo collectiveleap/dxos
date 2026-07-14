@@ -27,13 +27,13 @@ export const orderBetween = (before?: Edge, after?: Edge): number => {
 /** Structural child edges of a Node (sourceOf), ordered by `order`. */
 export const childEdges = async (db: EchoDatabase, node: Node): Promise<Edge[]> => {
   const edges = await db.query(Query.select(Filter.id(node.id)).sourceOf(Edge)).run();
-  return [...edges].sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+  return [...edges].filter((e) => e.kind === 'structural').sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
 };
 
 /** Structural parent edges of a Node (targetOf) — its predecessors; multi-predecessor. */
 export const parentEdges = async (db: EchoDatabase, node: Node): Promise<Edge[]> => {
   const edges = await db.query(Query.select(Filter.id(node.id)).targetOf(Edge)).run();
-  return [...edges];
+  return [...edges].filter((e) => e.kind === 'structural');
 };
 
 /** Order for appending a new child after all existing siblings. */

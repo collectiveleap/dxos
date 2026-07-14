@@ -9,7 +9,7 @@ import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
 
-import { Edge, Node, makeEdge, makeNode } from '../types';
+import { Edge, Node, makeEdge, makeLinkedEdge, makeNode } from '../types';
 import { childEdges, createEdge, orderBetween, parentEdges, reparentEdge, wouldCreateCycle } from './edges';
 
 describe('orderBetween', () => {
@@ -55,6 +55,21 @@ describe('traversal', () => {
 
     const parents = await parentEdges(db, c);
     expect(parents.map((e) => Relation.getSource(e).id).sort()).toEqual([p1.id, p2.id].sort());
+  });
+
+  test('childEdges and parentEdges ignore linked edges (structural only)', async ({ expect }) => {
+    const p = db.add(makeNode({ text: 'p' }));
+    const c = db.add(makeNode({ text: 'c' }));
+    db.add(makeEdge({ source: p, target: c, order: 0 }));   // structural p→c
+    db.add(makeLinkedEdge({ source: p, target: c }));         // linked p→c (a mention)
+    await db.flush();
+
+    const kids = await childEdges(db, p);
+    expect(kids).toHaveLength(1);
+    expect(kids[0].kind).toBe('structural');
+    const parents = await parentEdges(db, c);
+    expect(parents).toHaveLength(1);
+    expect(parents[0].kind).toBe('structural');
   });
 });
 
