@@ -115,9 +115,16 @@
  */
 .bramble-outline-row {
   display: flex;
+  flex-direction: column;
+  border-radius: 0.25rem;
+}
+
+/* The bullet + text on one horizontal line. The row itself is a column so a mention's inline
+   expansion (.bramble-secondary) stacks BELOW this line rather than beside the editor. */
+.bramble-outline-row-line {
+  display: flex;
   align-items: flex-start;
   gap: 7.5px;
-  border-radius: 0.25rem;
 }
 
 .bramble-outline-row:hover,

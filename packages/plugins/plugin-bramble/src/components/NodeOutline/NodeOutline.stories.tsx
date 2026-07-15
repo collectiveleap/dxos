@@ -536,6 +536,9 @@ export const MentionExpand: Story = {
     const embHeader = secondary.querySelector<HTMLElement>('.bramble-outline-header .cm-content');
     await expect(embHeader).not.toBeNull();
     await expect(parseFloat(getComputedStyle(embHeader!).fontSize)).toBeLessThan(20);
+    // BR-6: the expansion renders BELOW the mention's row line (its own line), not beside it to the right.
+    const rowLine = secondary.closest('[data-testid="bramble-row"]')!.querySelector('.bramble-outline-row-line')!;
+    await expect(secondary.getBoundingClientRect().top).toBeGreaterThanOrEqual(rowLine.getBoundingClientRect().bottom - 1);
     // Option-click again collapses.
     altMouseDown(canvasElement.querySelector('[data-edge-id]')!);
     await waitFor(() => {

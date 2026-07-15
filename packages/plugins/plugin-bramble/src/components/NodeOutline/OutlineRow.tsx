@@ -36,31 +36,35 @@ export const OutlineRow = ({ row, mode, listId, onToggleCollapse, onZoom }: Outl
       className={mx('bramble-outline-row')}
       style={{ position: 'relative', paddingInlineStart: row.depth * INDENT_PX }}
     >
-      <span
-        data-testid='bramble-chevron'
-        role='button'
-        aria-hidden={!row.hasChildren}
-        className={mx('bramble-outline-chevron')}
-        onClick={(e) => {
-          e.stopPropagation();
-          row.hasChildren && onToggleCollapse(row.node.id);
-        }}
-      >
-        {row.hasChildren ? (row.collapsed ? '▸' : '▾') : null}
-      </span>
-      <span
-        ref={handleRef}
-        data-testid='bramble-bullet'
-        role='button'
-        className={mx('bramble-outline-bullet')}
-        onClick={(e) => {
-          e.stopPropagation();
-          onZoom(row.node.id);
-        }}
-      >
-        <span data-testid='bramble-bullet-dot' className='bramble-outline-bullet-dot' />
-      </span>
-      <RowEditor node={row.node} testId='bramble-node-name' className='bramble-outline-row-name' />
+      {/* The bullet/text sit on one horizontal line; a mention's inline expansion renders BELOW it
+          (own line, indented) — not as a flex sibling of the editor, which pushed it off to the right. */}
+      <div className='bramble-outline-row-line'>
+        <span
+          data-testid='bramble-chevron'
+          role='button'
+          aria-hidden={!row.hasChildren}
+          className={mx('bramble-outline-chevron')}
+          onClick={(e) => {
+            e.stopPropagation();
+            row.hasChildren && onToggleCollapse(row.node.id);
+          }}
+        >
+          {row.hasChildren ? (row.collapsed ? '▸' : '▾') : null}
+        </span>
+        <span
+          ref={handleRef}
+          data-testid='bramble-bullet'
+          role='button'
+          className={mx('bramble-outline-bullet')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onZoom(row.node.id);
+          }}
+        >
+          <span data-testid='bramble-bullet-dot' className='bramble-outline-bullet-dot' />
+        </span>
+        <RowEditor node={row.node} testId='bramble-node-name' className='bramble-outline-row-name' />
+      </div>
       <MentionExpansions node={row.node} />
       {instruction && <OutlineDropIndicator instruction={instruction} />}
     </div>
