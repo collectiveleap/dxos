@@ -158,6 +158,14 @@
   max-block-size: none;
 }
 
+/* Inside an inline secondary view (embed), the target's outline is COMPACT — its header is the mentioned
+   node's own line, NOT a page-scale title. Tame the 29px header so the embed reads as an inline expansion
+   rather than a large panel (BR-6). Higher specificity + !important to beat the base header rule. */
+.bramble-secondary .bramble-outline-header .cm-content {
+  font-size: 17px !important;
+  font-weight: 500 !important;
+}
+
 /* The backlinks companion (UP-2): grouped, distinguished, bounded. */
 .bramble-backlinks {
   padding: 8px;

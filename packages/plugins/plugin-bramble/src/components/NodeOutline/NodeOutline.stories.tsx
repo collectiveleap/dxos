@@ -539,6 +539,10 @@ export const MentionExpand: Story = {
     const secondary = await canvas.findByTestId('bramble-secondary');
     await expect(secondary).toHaveTextContent('target X');
     await expect(secondary).toHaveTextContent('child of X');
+    // BR-6: the embedded outline is COMPACT — its header is not the 29px page-title scale.
+    const embHeader = secondary.querySelector<HTMLElement>('.bramble-outline-header .cm-content');
+    await expect(embHeader).not.toBeNull();
+    await expect(parseFloat(getComputedStyle(embHeader!).fontSize)).toBeLessThan(20);
     // Option-click again collapses.
     altMouseDown(canvasElement.querySelector('[data-edge-id]')!);
     await waitFor(() => {
