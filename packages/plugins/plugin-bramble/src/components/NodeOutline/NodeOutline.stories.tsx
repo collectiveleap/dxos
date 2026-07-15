@@ -542,6 +542,11 @@ export const MentionExpand: Story = {
     await expect(secCS.borderTopLeftRadius).toBe('7.5px');
     await expect(secCS.paddingLeft).toBe('24px');
     await expect(parseFloat(secCS.borderTopWidth)).toBeLessThanOrEqual(1);
+    // The box's left edge aligns with the bullet column (not the chevron gutter).
+    const secBullet = secondary.closest('[data-testid="bramble-row"]')!.querySelector('.bramble-outline-bullet')!;
+    await expect(Math.abs(secondary.getBoundingClientRect().left - secBullet.getBoundingClientRect().left)).toBeLessThan(6);
+    // PX-theme: a faint elevated card, not transparent — so it stays distinguished on Composer's grey deck.
+    await expect(secCS.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     const embHeader = secondary.querySelector<HTMLElement>('.bramble-outline-header .cm-content');
     await expect(embHeader).not.toBeNull();
     await expect(getComputedStyle(embHeader!).fontSize).toBe('15px');

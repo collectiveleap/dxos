@@ -157,11 +157,19 @@
    safety cap (Tana grows unbounded, scrolling in the outer pane). */
 .bramble-secondary {
   margin-block: 5px 0;
+  /* Align the box's left edge with the bullet column (chevron slot + gap), so it lines up under the
+     outline like Tana's box aligns with its row — not floating out in the chevron gutter. */
+  margin-inline-start: 22px;
   max-block-size: 40vh;
   overflow: auto;
   border: 1px solid var(--dx-subduedSeparator, #d0d0d0);
   border-radius: 7.5px;
   padding-inline-start: 24px;
+  /* Faint elevated card. Tana's box is transparent + a faint border, which reads only because Tana's
+     page is WHITE; Composer's deck is grey, so transparent vanishes. Elevate the deck surface a touch
+     (theme-relative, derived from --surface-bg) so the box stays DISTINGUISHED on any theme — PX-embed
+     "distinguished" realized against the actual surface (PX-theme), verified by contrast not by Tana's hex. */
+  background: oklch(from var(--surface-bg) calc(l + 0.045) c h);
 }
 
 .bramble-secondary-cycle {
