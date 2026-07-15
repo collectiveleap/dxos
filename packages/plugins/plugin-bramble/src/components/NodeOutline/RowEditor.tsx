@@ -16,6 +16,7 @@ import { mx } from '@dxos/ui-theme';
 import { useOutlineController } from './controller';
 import { brambleGestures } from './gestures-extension';
 import { mentionChips, mentionClicks, refreshChips, staleEdgeIds } from './mention-extension';
+import { useOpenBeside } from './OpenBeside';
 import { useMentionPicker } from './useMentionPicker';
 import { removeEdge } from '../../model/edges';
 import { Edge, type Node } from '../../types';
@@ -57,6 +58,12 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   // Keep edges ↔ markers in sync: when the user deletes a mention's marker, remove its linked Edge.
   const linkedEdgesRef = useRef(linkedEdges);
   linkedEdgesRef.current = linkedEdges;
+
+  // Shift-click a chip → open its target alongside (UP-5.open-beside). The handler comes from the
+  // plugin's Surface (null outside it); refs keep the editor extension stable.
+  const openBeside = useOpenBeside();
+  const openBesideRef = useRef(openBeside);
+  openBesideRef.current = openBeside;
   const syncExt = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
@@ -84,7 +91,15 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
               createBasicExtensions({ readOnly }),
               createThemeExtensions({ themeMode }),
               mentionChips({ resolveLabel }),
-              mentionClicks({ onExpand: (edgeId) => controller?.toggleMention(edgeId) }),
+              mentionClicks({
+                onExpand: (edgeId) => controller?.toggleMention(edgeId),
+                onOpenBeside: (edgeId) => {
+                  const edge = linkedEdgesRef.current.find((e) => e.id === edgeId);
+                  if (edge) {
+                    openBesideRef.current?.(Relation.getTarget(edge) as Node);
+                  }
+                },
+              }),
             ]
           : [createBasicExtensions({ readOnly: true })]),
         // The `@`-picker's popover keymap and `brambleGestures` are both `Prec.highest`; ties break

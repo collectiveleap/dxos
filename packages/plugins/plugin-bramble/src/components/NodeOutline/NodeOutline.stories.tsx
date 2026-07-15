@@ -3,7 +3,7 @@
 //
 
 import { type Meta, type StoryObj } from '@storybook/react-vite';
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { Obj } from '@dxos/echo';
@@ -14,6 +14,7 @@ import { Text } from '@dxos/schema';
 
 import { NodeOutline } from './NodeOutline';
 import { makeMarker } from './mention-extension';
+import { OpenBesideContext } from './OpenBeside';
 import { createEdge, createLinkedEdge } from '../../model/edges';
 import { translations } from '../../translations';
 import { Edge, Node, makeNode } from '../../types';
@@ -591,5 +592,63 @@ export const MentionExpandCycle: Story = {
     altMouseDown(chip);
     await canvas.findByTestId('bramble-secondary-cycle');
     await expect(canvasElement.querySelector('[data-testid="bramble-secondary"]')).toBeNull();
+  },
+};
+
+const shiftMouseDown = (el: Element) => el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, shiftKey: true }));
+
+// Root → Y (Y mentions X). Shift-clicking Y's chip calls the OpenBeside handler with X — the in-plugin
+// half of open-beside (UP-5). The handler is a spy that records the opened Node's title.
+const OpenBesideStory = () => {
+  const [space] = useSpaces();
+  const [opened, setOpened] = useState<string>('');
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const x = db.add(makeNode({ text: 'target X' }));
+    const y = db.add(makeNode({ text: 'begin  end' }));
+    void createEdge(db, r, y, 1);
+    const linked = createLinkedEdge(db, y, x);
+    const yText = y.text?.target;
+    if (yText) {
+      Obj.update(yText, (yText) => {
+        yText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    return r;
+  }, [space]);
+  return root ? (
+    <OpenBesideContext.Provider value={(target) => setOpened(target.text?.target?.content ?? '')}>
+      <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+        <div data-testid='opened-beside'>{opened}</div>
+        <NodeOutline subject={root} />
+      </div>
+    </OpenBesideContext.Provider>
+  ) : null;
+};
+
+export const OpenBeside: Story = {
+  render: () => <OpenBesideStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = await waitFor(() => {
+      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      if (!el || el.textContent !== 'target X') {
+        throw new Error('chip not resolved');
+      }
+      return el as HTMLElement;
+    });
+    await expect(canvas.getByTestId('opened-beside')).toHaveTextContent('');
+    shiftMouseDown(chip);
+    await waitFor(() => {
+      if (canvas.getByTestId('opened-beside').textContent !== 'target X') {
+        throw new Error('open-beside handler not called with the target');
+      }
+    });
+    await expect(canvas.getByTestId('opened-beside')).toHaveTextContent('target X');
   },
 };

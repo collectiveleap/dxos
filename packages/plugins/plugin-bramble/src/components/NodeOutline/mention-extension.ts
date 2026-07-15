@@ -30,15 +30,29 @@ export const staleEdgeIds = (currentText: string, linkedEdgeIds: string[]): stri
  * `click`) so the chip's atomic selection doesn't swallow it; consumes the event so the editor
  * doesn't also move the cursor. (Shift-click → open-beside is a separate slice.)
  */
-export const mentionClicks = ({ onExpand }: { onExpand: (edgeId: string) => void }): Extension =>
+export const mentionClicks = ({
+  onExpand,
+  onOpenBeside,
+}: {
+  onExpand: (edgeId: string) => void;
+  onOpenBeside?: (edgeId: string) => void;
+}): Extension =>
   EditorView.domEventHandlers({
     mousedown: (event) => {
       const anchor = (event.target as HTMLElement | null)?.closest?.('dx-anchor[data-edge-id]') as
         | HTMLElement
         | undefined;
       const edgeId = anchor?.dataset.edgeId;
-      if (edgeId && event.altKey) {
+      if (!edgeId) {
+        return false;
+      }
+      if (event.altKey) {
         onExpand(edgeId);
+        event.preventDefault();
+        return true;
+      }
+      if (event.shiftKey && onOpenBeside) {
+        onOpenBeside(edgeId);
         event.preventDefault();
         return true;
       }
