@@ -751,3 +751,36 @@ export const Backlinks: Story = {
     });
   },
 };
+
+// Regression: a linked edge survives after its source Node is deleted (db.remove has no relation
+// cascade), so Relation.getSource throws. The panel must SKIP the dangling edge, not crash.
+const BacklinksDanglingStory = () => {
+  const [space] = useSpaces();
+  const t = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const target = db.add(makeNode({ text: 'the target T' }));
+    const a = db.add(makeNode({ text: 'mentioner A' }));
+    createLinkedEdge(db, a, target); // A mentions T
+    db.remove(a); // A deleted; the A→T edge now dangles (unresolvable source)
+    return target;
+  }, [space]);
+  return t ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <BacklinksPanel subject={t} />
+    </div>
+  ) : null;
+};
+
+export const BacklinksDangling: Story = {
+  render: () => <BacklinksDanglingStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // The dangling edge is skipped — the panel renders (no crash) and shows no backlinks.
+    await canvas.findByTestId('bramble-backlinks-empty');
+    await expect(canvasElement.querySelector('[data-testid="bramble-backlinks-linked"]')).toBeNull();
+  },
+};

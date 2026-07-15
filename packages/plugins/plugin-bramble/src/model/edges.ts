@@ -134,7 +134,29 @@ export const backlinks = async (db: EchoDatabase, node: Node): Promise<{ structu
   const structural: Node[] = [];
   const linked: Node[] = [];
   for (const e of inbound) {
-    (e.kind === 'linked' ? linked : structural).push(Relation.getSource(e) as Node);
+    const source = tryGetSource(e);
+    if (source) {
+      (e.kind === 'linked' ? linked : structural).push(source);
+    }
   }
   return { structural, linked };
+};
+
+// `Relation.getTarget`/`getSource` THROW (not return undefined) when an endpoint can't be resolved —
+// e.g. a linked edge survives after its target/source Node was deleted. Render paths that must tolerate
+// such a dangling edge use these to skip it instead of crashing.
+export const tryGetTarget = (edge: Edge): Node | undefined => {
+  try {
+    return Relation.getTarget(edge) as Node;
+  } catch {
+    return undefined;
+  }
+};
+
+export const tryGetSource = (edge: Edge): Node | undefined => {
+  try {
+    return Relation.getSource(edge) as Node;
+  } catch {
+    return undefined;
+  }
 };

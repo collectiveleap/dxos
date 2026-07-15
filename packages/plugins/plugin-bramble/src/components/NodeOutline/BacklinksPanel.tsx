@@ -4,21 +4,23 @@
 
 import React from 'react';
 
-import { Filter, Obj, Query, Relation } from '@dxos/echo';
+import { Filter, Obj, Query } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 import { useQuery } from '@dxos/react-client/echo';
 
 import { useOpenBeside } from './OpenBeside';
+import { tryGetSource } from '../../model/edges';
 import { Edge, type Node } from '../../types';
 
 import './node-outline.css';
 
 const labelOf = (n: Node): string => n.text?.target?.content || '(untitled)';
 
+// A dangling edge (source Node deleted) is skipped rather than crashing the panel.
 const sourcesOfKind = (edges: Edge[], kind: 'structural' | 'linked'): Node[] =>
   edges
     .filter((e) => e.kind === kind)
-    .map((e) => Relation.getSource(e) as Node | undefined)
+    .map((e) => tryGetSource(e))
     .filter((n): n is Node => !!n);
 
 /**

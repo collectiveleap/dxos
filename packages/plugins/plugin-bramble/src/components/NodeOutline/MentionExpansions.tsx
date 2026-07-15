@@ -4,12 +4,13 @@
 
 import React from 'react';
 
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Query } from '@dxos/echo';
 import { useQuery } from '@dxos/react-client/echo';
 
 import { useOutlineController } from './controller';
 import { useExpansionPath } from './ExpansionPath';
 import { NodeOutline } from './NodeOutline';
+import { tryGetTarget } from '../../model/edges';
 import { Edge, type Node } from '../../types';
 
 /**
@@ -26,7 +27,7 @@ export const MentionExpansions = ({ node }: { node: Node }) => {
   const expanded = controller?.getViewState().expandedMentions ?? new Set<string>();
   const expandedTargets = linkedEdges
     .filter((e) => expanded.has(e.id))
-    .map((e) => ({ edgeId: e.id, target: Relation.getTarget(e) as Node | undefined }))
+    .map((e) => ({ edgeId: e.id, target: tryGetTarget(e) }))
     .filter((x): x is { edgeId: string; target: Node } => !!x.target);
 
   return (

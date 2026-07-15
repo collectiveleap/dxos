@@ -5,7 +5,7 @@
 import { EditorView } from '@codemirror/view';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Query } from '@dxos/echo';
 import { Doc } from '@dxos/echo-doc';
 import { useQuery } from '@dxos/react-client/echo';
 import { useThemeContext } from '@dxos/react-ui';
@@ -18,7 +18,7 @@ import { brambleGestures } from './gestures-extension';
 import { mentionChips, mentionClicks, refreshChips, staleEdgeIds } from './mention-extension';
 import { useOpenBeside } from './OpenBeside';
 import { useMentionPicker } from './useMentionPicker';
-import { removeEdge } from '../../model/edges';
+import { removeEdge, tryGetTarget } from '../../model/edges';
 import { Edge, type Node } from '../../types';
 
 import './node-outline.css';
@@ -43,7 +43,7 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
     (e) => e.kind === 'linked',
   );
   const labelMap = useMemo(
-    () => new Map(linkedEdges.map((e) => [e.id, (Relation.getTarget(e) as Node).text?.target?.content ?? '…'])),
+    () => new Map(linkedEdges.map((e) => [e.id, tryGetTarget(e)?.text?.target?.content ?? '…'])),
     [linkedEdges],
   );
   const labelMapRef = useRef(labelMap);
@@ -95,7 +95,7 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
                 onExpand: (edgeId) => controller?.toggleMention(edgeId),
                 onOpenBeside: (edgeId) => {
                   const edge = linkedEdgesRef.current.find((e) => e.id === edgeId);
-                  const target = edge && (Relation.getTarget(edge) as Node | undefined);
+                  const target = edge && tryGetTarget(edge);
                   if (target) {
                     openBesideRef.current?.(target);
                   }
