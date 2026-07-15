@@ -3,7 +3,7 @@
 //
 
 import { type Meta, type StoryObj } from '@storybook/react-vite';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { Obj } from '@dxos/echo';
@@ -422,9 +422,10 @@ export const LegibleInBothThemes: Story = {
 // so the outline has no reason to re-render when X changes. A button mutates X's text purely at the
 // substrate level (`Obj.update`, no editor), reproducing "X edited elsewhere / remotely". Y's chip must
 // still update live (IX-immediate) — the case a same-outline re-render would otherwise mask.
+// Root → { X, Y }: X ("hello world") is an EDITABLE row and Y ("begin <chip> end") mentions X. Editing X
+// through its own row editor must update Y's chip live — the real per-keystroke path.
 const MentionLiveStory = () => {
   const [space] = useSpaces();
-  const xRef = useRef<Node | undefined>(undefined);
   const root = useMemo(() => {
     if (!space) {
       return undefined;
@@ -433,32 +434,19 @@ const MentionLiveStory = () => {
     const r = db.add(makeNode({ text: 'Root' }));
     const x = db.add(makeNode({ text: 'hello world' }));
     const y = db.add(makeNode({ text: 'begin  end' }));
-    void createEdge(db, r, y, 1); // only Y has a row; X is mention-only (no structural edge)
-    const linked = createLinkedEdge(db, y, x); // linked: Y mentions X
+    void createEdge(db, r, x, 1); // X is its own editable row...
+    void createEdge(db, r, y, 2); // ...and Y (below it) mentions X
+    const linked = createLinkedEdge(db, y, x);
     const yText = y.text?.target;
     if (yText) {
       Obj.update(yText, (yText) => {
         yText.content = `begin ${makeMarker(linked.id)} end`;
       });
     }
-    xRef.current = x;
     return r;
   }, [space]);
   return root ? (
     <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
-      <button
-        data-testid='edit-x'
-        onClick={() => {
-          const t = xRef.current?.text?.target;
-          if (t) {
-            Obj.update(t, (t) => {
-              t.content = 'hello worldy';
-            });
-          }
-        }}
-      >
-        edit X
-      </button>
       <NodeOutline subject={root} />
     </div>
   ) : null;
@@ -476,11 +464,16 @@ export const MentionLive: Story = {
         throw new Error('chip not at initial label yet');
       }
     });
-    // Mutate X at the substrate level (no editor, X not rendered); Y's chip must update WITHOUT a refresh.
-    await userEvent.click(await canvas.findByTestId('edit-x'));
+    // Edit X through its OWN row editor — the real per-keystroke path (NOT a programmatic Obj.update, which
+    // gave a false pass in I3c and let BR-4 through). X is the first body row; type at its end.
+    const rows = await canvas.findAllByTestId('bramble-node-name');
+    const xEditor = rows[0].querySelector<HTMLElement>('.cm-content')!;
+    xEditor.focus();
+    await userEvent.keyboard('{End}y');
+    // Y's chip must reflect the edit live — no manual refresh, no Enter (BR-4 / IX-immediate).
     await waitFor(() => {
       if (chip()?.textContent !== 'hello worldy') {
-        throw new Error('chip did not update live');
+        throw new Error('chip did not update live on a per-keystroke editor edit');
       }
     });
     await expect(chip()).toHaveTextContent('hello worldy');

@@ -36,19 +36,28 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
   const controller = useOutlineController();
   const text = node.text?.target;
 
-  // The node's outgoing LINKED edges (mentions). Their targets' titles are the chip labels; a
-  // stable `resolveLabel` (reading a ref) keeps the editor from re-initializing as they change,
-  // and `refreshChips` rebuilds the decorations when the map does.
+  // The node's outgoing LINKED edges (mentions). Each chip's label is its target's title, read LIVE at
+  // decoration-build time (so a `refreshChips` reflects the target's current content). A stable
+  // `resolveLabel` (reading a ref) keeps the editor from re-initializing as the set changes.
   const linkedEdges = (useQuery(controller?.db, Query.select(Filter.id(node.id)).sourceOf(Edge)) as Edge[]).filter(
     (e) => e.kind === 'linked',
   );
-  const labelMap = useMemo(
-    () => new Map(linkedEdges.map((e) => [e.id, tryGetTarget(e)?.text?.target?.content ?? '…'])),
-    [linkedEdges],
+  const targetMap = useMemo(() => {
+    const map = new Map<string, Node>();
+    for (const edge of linkedEdges) {
+      const target = tryGetTarget(edge);
+      if (target) {
+        map.set(edge.id, target);
+      }
+    }
+    return map;
+  }, [linkedEdges]);
+  const targetMapRef = useRef(targetMap);
+  targetMapRef.current = targetMap;
+  const resolveLabel = useCallback(
+    (edgeId: string) => targetMapRef.current.get(edgeId)?.text?.target?.content ?? '…',
+    [],
   );
-  const labelMapRef = useRef(labelMap);
-  labelMapRef.current = labelMap;
-  const resolveLabel = useCallback((edgeId: string) => labelMapRef.current.get(edgeId) ?? '…', []);
 
   // The `@`-picker (editable rows only): on select it creates a linked Edge + inserts a marker.
   const db = controller?.db;
@@ -113,9 +122,35 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
     [node.id, text, themeMode, readOnly, controller, resolveLabel, canMention, mentionPickerExt, syncExt],
   );
   useEffect(() => (view && controller ? controller.register(node.id, view) : undefined), [view, controller, node.id]);
+  // Rebuild the chips when the mention SET changes (a mention added/removed → new/gone chip).
   useEffect(() => {
     view?.dispatch({ effects: refreshChips.of(null) });
-  }, [view, labelMap]);
+  }, [view, targetMap]);
+
+  // Live labels (IX-immediate / BR-4): a mentioned target's text can change per keystroke with NO change
+  // to this row's edge set, and `useQuery` won't re-render for that. Subscribe to each target's live text
+  // via the same automerge accessor-`change` signal the editor itself uses (fires per keystroke), and
+  // rebuild the chips on change. Re-subscribes only when the mention set changes.
+  const linkedEdgeKey = linkedEdges.map((e) => e.id).join(',');
+  useEffect(() => {
+    if (!view) {
+      return;
+    }
+    const cleanups = linkedEdges
+      .map((edge) => {
+        const targetText = tryGetTarget(edge)?.text?.target;
+        if (!targetText) {
+          return undefined;
+        }
+        const accessor = Doc.createAccessor(targetText, ['content']);
+        const onChange = () => view.dispatch({ effects: refreshChips.of(null) });
+        accessor.handle.addListener('change', onChange);
+        return () => accessor.handle.removeListener('change', onChange);
+      })
+      .filter((cleanup): cleanup is () => void => !!cleanup);
+    return () => cleanups.forEach((cleanup) => cleanup());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- linkedEdgeKey captures the mention set; linkedEdges' identity churns each render
+  }, [view, linkedEdgeKey]);
   // The caller owns the test id: rows tag `bramble-node-name`; the header leaves the
   // inner editor untagged (its `bramble-header` wrapper is the region target) so the two
   // never collide in findAllByTestId or in the visual-region selectors.
