@@ -533,12 +533,18 @@ export const MentionExpand: Story = {
     await expect(secondary).toHaveTextContent('target X');
     await expect(secondary).toHaveTextContent('child of X');
     // BR-6: the embedded outline is COMPACT — its header is not the 29px page-title scale.
-    const embHeader = secondary.querySelector<HTMLElement>('.bramble-outline-header .cm-content');
-    await expect(embHeader).not.toBeNull();
-    await expect(parseFloat(getComputedStyle(embHeader!).fontSize)).toBeLessThan(20);
     // BR-6: the expansion renders BELOW the mention's row line (its own line), not beside it to the right.
     const rowLine = secondary.closest('[data-testid="bramble-row"]')!.querySelector('.bramble-outline-row-line')!;
     await expect(secondary.getBoundingClientRect().top).toBeGreaterThanOrEqual(rowLine.getBoundingClientRect().bottom - 1);
+    // PX-embed: match Tana's captured values (implementations/tana/visual-spec.md) — a 1px rounded border box,
+    // 7.5px corners, 24px content inset, content at normal 15px row scale (no title emphasis).
+    const secCS = getComputedStyle(secondary);
+    await expect(secCS.borderTopLeftRadius).toBe('7.5px');
+    await expect(secCS.paddingLeft).toBe('24px');
+    await expect(parseFloat(secCS.borderTopWidth)).toBeLessThanOrEqual(1);
+    const embHeader = secondary.querySelector<HTMLElement>('.bramble-outline-header .cm-content');
+    await expect(embHeader).not.toBeNull();
+    await expect(getComputedStyle(embHeader!).fontSize).toBe('15px');
     // Option-click again collapses.
     altMouseDown(canvasElement.querySelector('[data-edge-id]')!);
     await waitFor(() => {

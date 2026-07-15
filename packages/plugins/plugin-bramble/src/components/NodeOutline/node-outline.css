@@ -127,9 +127,12 @@
   gap: 7.5px;
 }
 
-.bramble-outline-row:hover,
-.bramble-outline-row:focus-within {
+/* Highlight the row LINE only (not the whole column) so a mention's inline expansion sits on the
+   clean surface — like Tana, where the bordered box shows against the page, not a hover fill. */
+.bramble-outline-row-line:hover,
+.bramble-outline-row-line:focus-within {
   background-color: var(--color-hover-surface-subtle);
+  border-radius: 0.25rem;
 }
 
 /*
@@ -149,13 +152,16 @@
 
 /* A mention's inline secondary view: the target's outline, bounded + scrollable, ruled and indented
    under the mention's row (above that row's own subtree). */
+/* Matches Tana's inline-expansion (PX-embed, tana/visual-spec.md): a full 1px bordered box, 7.5px
+   corners, transparent, aligned with the row with a 24px inner content inset. `max-block-size` is a
+   safety cap (Tana grows unbounded, scrolling in the outer pane). */
 .bramble-secondary {
-  margin-inline-start: var(--dx-spacingLarge, 24px);
-  margin-block: 4px;
+  margin-block: 5px 0;
   max-block-size: 40vh;
   overflow: auto;
-  border-inline-start: 2px solid var(--dx-subduedSeparator, #d0d0d0);
-  padding-inline-start: 8px;
+  border: 1px solid var(--dx-subduedSeparator, #d0d0d0);
+  border-radius: 7.5px;
+  padding-inline-start: 24px;
 }
 
 .bramble-secondary-cycle {
@@ -168,9 +174,10 @@
 /* Inside an inline secondary view (embed), the target's outline is COMPACT — its header is the mentioned
    node's own line, NOT a page-scale title. Tame the 29px header so the embed reads as an inline expansion
    rather than a large panel (BR-6). Higher specificity + !important to beat the base header rule. */
+/* Tana shows the expanded Node's own line at NORMAL row scale (15px/400), not as a title (PX-embed). */
 .bramble-secondary .bramble-outline-header .cm-content {
-  font-size: 17px !important;
-  font-weight: 500 !important;
+  font-size: 15px !important;
+  font-weight: 400 !important;
 }
 
 /* The backlinks companion (UP-2): grouped, distinguished, bounded. */
