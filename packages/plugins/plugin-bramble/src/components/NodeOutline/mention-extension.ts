@@ -39,7 +39,7 @@ export const mentionClicks = ({
 }): Extension =>
   EditorView.domEventHandlers({
     mousedown: (event) => {
-      const anchor = (event.target as HTMLElement | null)?.closest?.('dx-anchor[data-edge-id]') as
+      const anchor = (event.target as HTMLElement | null)?.closest?.('[data-edge-id]') as
         | HTMLElement
         | undefined;
       const edgeId = anchor?.dataset.edgeId;
@@ -74,8 +74,13 @@ class ChipWidget extends WidgetType {
   }
 
   override toDOM() {
-    const el = document.createElement('dx-anchor');
+    // A plain span with the tag-anchor VISUAL — deliberately NOT a `<dx-anchor>`, whose custom element
+    // auto-dispatches `DxAnchorActivate` on every click (→ plugin-preview popover), which conflicts with
+    // bramble's own option/shift-click semantics and fired an empty-`dxn` popover (BR-5). Bramble owns the
+    // chip's click behavior via `mentionClicks`.
+    const el = document.createElement('span');
     el.classList.add('dx-tag--anchor');
+    el.setAttribute('role', 'button');
     el.textContent = this._label;
     el.setAttribute('data-edge-id', this._edgeId);
     return el;

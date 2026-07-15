@@ -138,9 +138,9 @@ export const Mention: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // The marker renders as an atomic `dx-anchor` chip showing the target's live title.
+    // The marker renders as an atomic chip showing the target's live title.
     const chip = await waitFor(() => {
-      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      const el = canvasElement.querySelector('[data-edge-id]');
       if (!el || el.textContent !== 'hello world') {
         throw new Error('mention chip not resolved yet');
       }
@@ -469,7 +469,7 @@ export const MentionLive: Story = {
   tags: ['test'],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const chip = () => canvasElement.querySelector('dx-anchor[data-edge-id]');
+    const chip = () => canvasElement.querySelector('[data-edge-id]');
     // The chip starts at X's title.
     await waitFor(() => {
       if (chip()?.textContent !== 'hello world') {
@@ -526,7 +526,7 @@ export const MentionExpand: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = await waitFor(() => {
-      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      const el = canvasElement.querySelector('[data-edge-id]');
       if (!el || el.textContent !== 'target X') {
         throw new Error('chip not resolved');
       }
@@ -540,7 +540,7 @@ export const MentionExpand: Story = {
     await expect(secondary).toHaveTextContent('target X');
     await expect(secondary).toHaveTextContent('child of X');
     // Option-click again collapses.
-    altMouseDown(canvasElement.querySelector('dx-anchor[data-edge-id]')!);
+    altMouseDown(canvasElement.querySelector('[data-edge-id]')!);
     await waitFor(() => {
       if (canvasElement.querySelector('[data-testid="bramble-secondary"]')) {
         throw new Error('secondary view still present');
@@ -583,7 +583,7 @@ export const MentionExpandCycle: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = await waitFor(() => {
-      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      const el = canvasElement.querySelector('[data-edge-id]');
       if (!el || el.textContent !== 'Root') {
         throw new Error('chip not resolved');
       }
@@ -637,7 +637,7 @@ export const OpenBeside: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = await waitFor(() => {
-      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      const el = canvasElement.querySelector('[data-edge-id]');
       if (!el || el.textContent !== 'target X') {
         throw new Error('chip not resolved');
       }
@@ -687,7 +687,7 @@ export const HeaderMentionExpand: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = await waitFor(() => {
-      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      const el = canvasElement.querySelector('[data-edge-id]');
       if (!el || el.textContent !== 'target X') {
         throw new Error('chip not resolved');
       }
