@@ -95,8 +95,9 @@ export const RowEditor = ({ node, readOnly = false, testId, className }: RowEdit
                 onExpand: (edgeId) => controller?.toggleMention(edgeId),
                 onOpenBeside: (edgeId) => {
                   const edge = linkedEdgesRef.current.find((e) => e.id === edgeId);
-                  if (edge) {
-                    openBesideRef.current?.(Relation.getTarget(edge) as Node);
+                  const target = edge && (Relation.getTarget(edge) as Node | undefined);
+                  if (target) {
+                    openBesideRef.current?.(target);
                   }
                 },
               }),

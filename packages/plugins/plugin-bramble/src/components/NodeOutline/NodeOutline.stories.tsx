@@ -652,3 +652,49 @@ export const OpenBeside: Story = {
     await expect(canvas.getByTestId('opened-beside')).toHaveTextContent('target X');
   },
 };
+
+// The mention lives in the HEADER (the zoom-root's own text), which renders via RowEditor directly, not
+// an OutlineRow. Option-clicking it must still expand — the header renders its own MentionExpansions.
+const HeaderMentionStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'begin  end' }));
+    const x = db.add(makeNode({ text: 'target X' }));
+    const linked = createLinkedEdge(db, r, x); // ROOT (the header) mentions X
+    const rText = r.text?.target;
+    if (rText) {
+      Obj.update(rText, (rText) => {
+        rText.content = `begin ${makeMarker(linked.id)} end`;
+      });
+    }
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} />
+    </div>
+  ) : null;
+};
+
+export const HeaderMentionExpand: Story = {
+  render: () => <HeaderMentionStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = await waitFor(() => {
+      const el = canvasElement.querySelector('dx-anchor[data-edge-id]');
+      if (!el || el.textContent !== 'target X') {
+        throw new Error('chip not resolved');
+      }
+      return el as HTMLElement;
+    });
+    await expect(canvasElement.querySelector('[data-testid="bramble-secondary"]')).toBeNull();
+    altMouseDown(chip);
+    const secondary = await canvas.findByTestId('bramble-secondary');
+    await expect(secondary).toHaveTextContent('target X');
+  },
+};

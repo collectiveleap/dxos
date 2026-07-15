@@ -12,6 +12,7 @@ import { useQuery } from '@dxos/react-client/echo';
 
 import { OutlineController, OutlineControllerContext } from './controller';
 import { ExpansionPathContext, useExpansionPath } from './ExpansionPath';
+import { MentionExpansions } from './MentionExpansions';
 import { OutlineRow } from './OutlineRow';
 import { RowEditor } from './RowEditor';
 import { outlineRows } from '../../model/outline';
@@ -118,6 +119,7 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
             )}
             <RowEditor node={zoomRootNode} className='bramble-outline-header' />
           </div>
+          <MentionExpansions node={zoomRootNode} />
           {rows.map((row) => (
             <OutlineRow
               key={row.edge.id}
