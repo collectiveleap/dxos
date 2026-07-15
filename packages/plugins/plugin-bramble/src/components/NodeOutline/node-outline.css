@@ -157,3 +157,31 @@
   overflow: visible;
   max-block-size: none;
 }
+
+/* The backlinks companion (UP-2): grouped, distinguished, bounded. */
+.bramble-backlinks {
+  padding: 8px;
+  font-size: 0.9em;
+}
+
+.bramble-backlinks-heading {
+  font-weight: 600;
+  color: var(--dx-subduedText, #888888);
+  margin-block: 8px 2px;
+}
+
+.bramble-backlinks-entry {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.bramble-backlinks-entry:hover {
+  background: var(--dx-hoverSurface, rgba(0, 0, 0, 0.06));
+}
+
+.bramble-backlinks-empty {
+  color: var(--dx-subduedText, #888888);
+  font-style: italic;
+  padding: 8px;
+}

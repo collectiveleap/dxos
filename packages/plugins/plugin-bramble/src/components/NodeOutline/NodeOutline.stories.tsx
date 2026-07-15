@@ -12,6 +12,7 @@ import { withClientProvider } from '@dxos/react-client/testing';
 import { withLayout, withTheme } from '@dxos/react-ui/testing';
 import { Text } from '@dxos/schema';
 
+import { BacklinksPanel } from './BacklinksPanel';
 import { NodeOutline } from './NodeOutline';
 import { makeMarker } from './mention-extension';
 import { OpenBesideContext } from './OpenBeside';
@@ -696,5 +697,57 @@ export const HeaderMentionExpand: Story = {
     altMouseDown(chip);
     const secondary = await canvas.findByTestId('bramble-secondary');
     await expect(secondary).toHaveTextContent('target X');
+  },
+};
+
+// A Node T with an inbound STRUCTURAL edge (P is T's parent — "appears under") and an inbound LINKED
+// edge (A mentions T — "mentioned in"). The panel shows both, grouped + distinguished (UP-2). Clicking
+// an entry opens it beside (reuses the I3b-2 handler).
+const BacklinksStory = () => {
+  const [space] = useSpaces();
+  const [opened, setOpened] = useState<string>('');
+  const t = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const target = db.add(makeNode({ text: 'the target T' }));
+    const p = db.add(makeNode({ text: 'parent P' }));
+    const a = db.add(makeNode({ text: 'mentioner A' }));
+    void createEdge(db, p, target, 1); // structural: T appears under P
+    createLinkedEdge(db, a, target); // linked: A mentions T
+    return target;
+  }, [space]);
+  return t ? (
+    <OpenBesideContext.Provider value={(node) => setOpened(node.text?.target?.content ?? '')}>
+      <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+        <div data-testid='opened-beside'>{opened}</div>
+        <BacklinksPanel subject={t} />
+      </div>
+    </OpenBesideContext.Provider>
+  ) : null;
+};
+
+export const Backlinks: Story = {
+  render: () => <BacklinksStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Structural group shows P under "Appears under"; linked group shows A under "Mentioned in".
+    const structural = await canvas.findByTestId('bramble-backlinks-structural');
+    await expect(structural).toHaveTextContent('Appears under');
+    await expect(structural).toHaveTextContent('parent P');
+    const linked = await canvas.findByTestId('bramble-backlinks-linked');
+    await expect(linked).toHaveTextContent('Mentioned in');
+    await expect(linked).toHaveTextContent('mentioner A');
+    // The two kinds are distinguished (separate groups), not collapsed.
+    await expect(structural).not.toHaveTextContent('mentioner A');
+    // Clicking a backlink entry opens it beside.
+    await userEvent.click(within(linked).getByText('mentioner A'));
+    await waitFor(() => {
+      if (canvas.getByTestId('opened-beside').textContent !== 'mentioner A') {
+        throw new Error('entry did not open beside');
+      }
+    });
   },
 };
