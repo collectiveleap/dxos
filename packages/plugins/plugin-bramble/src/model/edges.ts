@@ -62,7 +62,10 @@ export const wouldCreateCycle = async (db: EchoDatabase, parent: Node, child: No
     }
     seen.add(n.id);
     for (const e of await parentEdges(db, n)) {
-      stack.push(Relation.getSource(e));
+      const source = tryGetSource(e);
+      if (source) {
+        stack.push(source); // skip a dangling parent edge rather than throwing during the cycle walk
+      }
     }
   }
   return false;

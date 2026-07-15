@@ -148,4 +148,19 @@ describe('outlineRows', () => {
     // Only the structural child renders; the linked target is not a row.
     expect(rows.map((r) => r.node.id)).toEqual([a.id]);
   });
+
+  test('a dangling structural edge (target removed) is skipped, not thrown (BR-8)', async ({ expect }) => {
+    const root = add('root');
+    const a = add('a');
+    const b = add('b');
+    await createEdge(db, root, a, 1);
+    await createEdge(db, root, b, 2);
+    await db.flush();
+    db.remove(a); // `a` removed; the root→a edge survives with an unresolvable target (no relation cascade)
+    await db.flush();
+
+    // `Relation.getTarget` on the dangling edge throws; outlineRows must skip it and still render `b`.
+    const rows = outlineRows(await allEdges(), root);
+    expect(rows.map((r) => r.node.id)).toEqual([b.id]);
+  });
 });

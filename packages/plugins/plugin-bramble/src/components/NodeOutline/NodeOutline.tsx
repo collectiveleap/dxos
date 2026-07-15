@@ -15,6 +15,7 @@ import { ExpansionPathContext, useExpansionPath } from './ExpansionPath';
 import { MentionExpansions } from './MentionExpansions';
 import { OutlineRow } from './OutlineRow';
 import { RowEditor } from './RowEditor';
+import { tryGetTarget } from '../../model/edges';
 import { outlineRows } from '../../model/outline';
 import { resolveZoomRoot } from '../../model/view-state';
 import { Edge, type Node } from '../../types';
@@ -55,7 +56,9 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
   // Resolve the zoom-root Node from the structural EDGES, not from `rows` — `rows` is
   // computed *from* the root below, so deriving the root from `rows` would be circular.
   const zoomRootNode =
-    zoomRootId === subject.id ? subject : (structuralEdges.map((e) => Relation.getTarget(e) as Node).find((n) => n.id === zoomRootId) ?? subject);
+    zoomRootId === subject.id
+      ? subject
+      : (structuralEdges.map((e) => tryGetTarget(e)).find((n) => n?.id === zoomRootId) ?? subject);
   const rows = useMemo(
     () => outlineRows(structuralEdges, zoomRootNode, collapsed),
     [structuralEdges, zoomRootNode, renderTick, collapsed, zoomRootId],

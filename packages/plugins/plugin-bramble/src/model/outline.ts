@@ -2,8 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
-import { Relation } from '@dxos/echo';
-
+import { tryGetSource, tryGetTarget } from './edges';
 import { type Edge, type Node } from '../types';
 
 export type OutlineRow = { node: Node; depth: number; edge: Edge; hasChildren: boolean; collapsed: boolean };
@@ -20,8 +19,11 @@ export const outlineRows = (edges: Edge[], root: Node, collapsed: ReadonlySet<st
   const structural = edges.filter((e) => e.kind === 'structural');
   const bySource = new Map<string, Edge[]>();
   for (const edge of structural) {
-    const sourceId = Relation.getSource(edge).id;
-    const list = bySource.get(sourceId) ?? (bySource.set(sourceId, []), bySource.get(sourceId)!);
+    const source = tryGetSource(edge);
+    if (!source) {
+      continue; // dangling structural edge (source removed) — skip, don't crash the outline
+    }
+    const list = bySource.get(source.id) ?? (bySource.set(source.id, []), bySource.get(source.id)!);
     list.push(edge);
   }
   for (const list of bySource.values()) {
@@ -36,9 +38,9 @@ export const outlineRows = (edges: Edge[], root: Node, collapsed: ReadonlySet<st
   // for an edge set assembled some other way.
   const walk = (parentId: string, depth: number, ancestors: Set<string>) => {
     for (const edge of bySource.get(parentId) ?? []) {
-      const node = Relation.getTarget(edge) as Node;
-      if (ancestors.has(node.id)) {
-        continue;
+      const node = tryGetTarget(edge);
+      if (!node || ancestors.has(node.id)) {
+        continue; // dangling target removed → skip; multi-parent back-edge → skip (ancestor guard)
       }
       const hasChildren = (bySource.get(node.id) ?? []).length > 0;
       const isCollapsed = collapsed.has(node.id);
