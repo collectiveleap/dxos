@@ -37,13 +37,21 @@ export default Capability.makeModule(() =>
     Capability.contributes(Capabilities.ReactSurface, [
       Surface.create({
         id: 'article.brambleOutline',
-        filter: AppSurface.oneOf(
-          AppSurface.object(AppSurface.Article, Node),
-          AppSurface.object(AppSurface.Section, Node),
-        ),
-        component: ({ role, data }) => (
+        filter: AppSurface.object(AppSurface.Article, Node),
+        // BR-1: the primary (Article) view auto-focuses its header on open, so the user types immediately.
+        component: ({ data }) => (
           <OpenBesideProvider>
-            <NodeOutline role={role} subject={data.subject} attendableId={data.attendableId} />
+            <NodeOutline subject={data.subject} attendableId={data.attendableId} autoFocus />
+          </OpenBesideProvider>
+        ),
+      }),
+      Surface.create({
+        id: 'section.brambleOutline',
+        filter: AppSurface.object(AppSurface.Section, Node),
+        // A Section render (embed / secondary view) must NOT steal focus — no autoFocus.
+        component: ({ data }) => (
+          <OpenBesideProvider>
+            <NodeOutline subject={data.subject} attendableId={data.attendableId} />
           </OpenBesideProvider>
         ),
       }),

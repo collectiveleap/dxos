@@ -137,6 +137,29 @@ export const Default: Story = {
   },
 };
 
+// BR-1: the primary (Article) view auto-focuses its header on open. Mounts the outline with `autoFocus`
+// and asserts the caret (document.activeElement) lands inside the header — so the user types immediately.
+// Without the fix nothing focuses on mount, so this fails (genuine red→green).
+const AutoFocusStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => (space ? space.db.add(makeNode({ text: 'Root' })) : undefined), [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} autoFocus />
+    </div>
+  ) : null;
+};
+
+export const AutoFocusOnOpen: Story = {
+  render: () => <AutoFocusStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = await canvas.findByTestId('bramble-header');
+    await waitFor(() => expect(header.contains(document.activeElement)).toBe(true));
+  },
+};
+
 // Threads a known `attendableId` through the outline and asserts it reaches the row container —
 // the value a foreign row's `Section` surface will consume (plan 1.3a Task 3). The outline is
 // rooted at Root with one child row (`a`).

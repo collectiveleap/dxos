@@ -20,9 +20,9 @@ import { outlineRows } from '../../model/outline';
 import { resolveZoomRoot } from '../../model/view-state';
 import { Edge, type Node } from '../../types';
 
-export type NodeOutlineProps = { subject: Node; role?: string; attendableId?: string };
+export type NodeOutlineProps = { subject: Node; role?: string; attendableId?: string; autoFocus?: boolean };
 
-export const NodeOutline = ({ subject, attendableId }: NodeOutlineProps) => {
+export const NodeOutline = ({ subject, attendableId, autoFocus }: NodeOutlineProps) => {
   // Scopes drag/drop to this mounted instance: every row's draggable/drop-target tags its data
   // with `listId`, and the monitor below rejects drops whose source carries a foreign listId. This
   // prevents a drop in one mounted NodeOutline from also firing another instance's `onDrop` (e.g.
@@ -104,6 +104,18 @@ export const NodeOutline = ({ subject, attendableId }: NodeOutlineProps) => {
       },
     });
   }, [listId]);
+
+  // BR-1: on a primary (Article) open, place the caret in the editable header so the user can type
+  // immediately — no focus-hunt (UP-1.author: the focused Node/view-top is authored in place; IX-direct:
+  // acted on with no intervening step). Only the Article surface passes `autoFocus`; inline embeds and
+  // Section previews do not, so they never steal focus. `focusRow`/`pendingFocus` places the caret once
+  // the header RowEditor has registered. Mount-once: each open is a fresh mount.
+  useEffect(() => {
+    if (autoFocus) {
+      controllerRef.current?.focusRow(subject.id, 'end');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ExpansionPathContext.Provider value={expansionPath}>
