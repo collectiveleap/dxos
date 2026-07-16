@@ -6,6 +6,10 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import React, { useMemo, useState } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
+import { Capabilities, Capability } from '@dxos/app-framework';
+import { Surface } from '@dxos/app-framework/ui';
+import { withPluginManager } from '@dxos/app-framework/testing';
+import { AppSurface } from '@dxos/app-toolkit/ui';
 import { Obj } from '@dxos/echo';
 import { useSpaces } from '@dxos/react-client/echo';
 import { withClientProvider } from '@dxos/react-client/testing';
@@ -18,7 +22,7 @@ import { makeMarker } from './mention-extension';
 import { OpenBesideContext } from './OpenBeside';
 import { createEdge, createLinkedEdge } from '../../model/edges';
 import { translations } from '../../translations';
-import { Edge, Node, makeNode } from '../../types';
+import { Edge, Node, makeEdge, makeNode } from '../../types';
 
 // Seeds Root → { a → a1, b } and renders the outline rooted at Root.
 const NodeOutlineStory = () => {
@@ -162,6 +166,78 @@ export const AttendableIdThreaded: Story = {
     const canvas = within(canvasElement);
     const row = await canvas.findByTestId('bramble-row');
     await expect(row).toHaveAttribute('data-attendable-id', 'test-attendable');
+  },
+};
+
+// BR-16 / plan 1.3a: a structural child that is NOT a Bramble `Node` renders through its own registered
+// `Section` surface (read-only), framed by the row's bullet/chevron chrome — not forced through the text
+// `RowEditor`. Seeds Root → foreign (a `Text`, deliberately not a Node) and registers a trivial Section
+// surface for `Text` via the story's plugin manager (mirrors `react-surface.tsx`'s surface registration).
+const HeterogeneousRowStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const foreign = db.add(Text.make({ content: 'foreign text' }));
+    // Structural edge to a non-Node target — via `makeEdge` directly (createEdge types `child: Node`).
+    db.add(makeEdge({ source: r, target: foreign, order: 1 }));
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} attendableId='test-attendable' />
+    </div>
+  ) : null;
+};
+
+// A trivial `Section` surface for `Text` — the foreign row's renderer. `AppSurface.object(Section, …)`
+// also enforces the string `attendableId` (threaded from the outline), so this exercises the real
+// contract, not a synthetic one.
+const foreignSectionSurface = Capability.contributes(
+  Capabilities.ReactSurface,
+  Surface.create({
+    id: 'test.foreignSection',
+    filter: AppSurface.object(AppSurface.Section, Text.Text),
+    component: ({ data }) => <div data-testid='foreign-section'>{(data.subject as Text.Text).content}</div>,
+  }),
+);
+
+export const HeterogeneousRow: Story = {
+  render: () => <HeterogeneousRowStory />,
+  decorators: [withPluginManager({ capabilities: [foreignSectionSurface] })],
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // The foreign row renders via its Section surface (read-only), showing the surface's own content.
+    const section = await canvas.findByTestId('foreign-section');
+    await expect(section).toHaveTextContent('foreign text');
+    // ...and NOT through the Node text editor: the foreign row has no `bramble-node-name`.
+    const row = section.closest('[data-testid="bramble-row"]') as HTMLElement;
+    await expect(within(row).queryByTestId('bramble-node-name')).toBeNull();
+    await expect(within(row).queryByTestId('bramble-foreign-fallback')).toBeNull();
+    // The Bramble chrome still frames the foreign body (bullet + chevron present in the row).
+    await expect(within(row).getByTestId('bramble-bullet')).toBeInTheDocument();
+  },
+};
+
+// A foreign object whose type has NO registered `Section` surface (the plugin manager registers none)
+// renders the plain-text fallback — its label — rather than an empty row.
+export const HeterogeneousRowFallback: Story = {
+  render: () => <HeterogeneousRowStory />,
+  decorators: [withPluginManager({ capabilities: [] })],
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // No Section surface → the fallback body carries the object's label, and no surface content mounts.
+    const fallback = await canvas.findByTestId('bramble-foreign-fallback');
+    await expect(fallback.textContent).toBeTruthy();
+    await expect(canvasElement.querySelector('[data-testid="foreign-section"]')).toBeNull();
+    // Still no Node editor for the foreign row.
+    const row = fallback.closest('[data-testid="bramble-row"]') as HTMLElement;
+    await expect(within(row).queryByTestId('bramble-node-name')).toBeNull();
   },
 };
 
