@@ -4,3 +4,4 @@
 
 export { Node, makeNode } from './Node';
 export { Edge, EdgeKind, makeEdge, makeLinkedEdge } from './Edge';
+export { BrambleRootAnnotation } from './annotations';
