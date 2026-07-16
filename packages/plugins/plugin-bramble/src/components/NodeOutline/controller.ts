@@ -111,6 +111,11 @@ export class OutlineController {
     };
   }
 
+  /** Whether the given row's editor currently holds focus (used by BR-1's open re-assert loop). */
+  isFocused(nodeId: string): boolean {
+    return !!this.views.get(nodeId)?.hasFocus;
+  }
+
   focusRow(nodeId: string, pos: FocusPos) {
     const view = this.views.get(nodeId);
     if (view) {

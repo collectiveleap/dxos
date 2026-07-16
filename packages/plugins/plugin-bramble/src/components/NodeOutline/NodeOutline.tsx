@@ -105,15 +105,41 @@ export const NodeOutline = ({ subject, attendableId, autoFocus }: NodeOutlinePro
     });
   }, [listId]);
 
-  // BR-1: on a primary (Article) open, place the caret in the editable header so the user can type
-  // immediately — no focus-hunt (UP-1.author: the focused Node/view-top is authored in place; IX-direct:
-  // acted on with no intervening step). Only the Article surface passes `autoFocus`; inline embeds and
-  // Section previews do not, so they never steal focus. `focusRow`/`pendingFocus` places the caret once
-  // the header RowEditor has registered. Mount-once: each open is a fresh mount.
+  // BR-1: on a primary (Article) open, place the caret in the editable header so the user types
+  // immediately — no focus-hunt (UP-1.author: the view-top Node is authored in place; IX-direct: acted on
+  // with no intervening step). Only the Article surface passes `autoFocus`; inline embeds / Section previews
+  // do not. Subtlety verified live: the Deck focuses the plank's `.dx-attention-surface` container ~160ms
+  // AFTER mount, stealing the caret — so a one-shot mount focus loses. We focus the header, then re-assert
+  // ONCE the first time focus lands on an attention-surface (the deck's steal), so the caret lands and stays.
   useEffect(() => {
-    if (autoFocus) {
-      controllerRef.current?.focusRow(subject.id, 'end');
+    if (!autoFocus) {
+      return;
     }
+    // A fresh primary open races TWO framework focus-eaters (both verified live): the header editor's
+    // transitional re-mount (drops focus to <body>) and the Deck focusing the plank's `.dx-attention-surface`
+    // ~160ms after mount. A one-shot focus loses to both. Re-assert the header caret on a short bounded loop
+    // until focus stably lands there (2 consecutive ticks), then stop — the user gets a caret in the header
+    // on open (UP-1.author: the view-top Node is authored in place; IX-direct: no intervening step).
+    let stable = 0;
+    const iv = setInterval(() => {
+      const c = controllerRef.current;
+      if (!c) {
+        return;
+      }
+      if (c.isFocused(subject.id)) {
+        if (++stable >= 2) {
+          clearInterval(iv);
+        }
+        return;
+      }
+      stable = 0;
+      c.focusRow(subject.id, 'end');
+    }, 120);
+    const stop = setTimeout(() => clearInterval(iv), 2000);
+    return () => {
+      clearInterval(iv);
+      clearTimeout(stop);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
