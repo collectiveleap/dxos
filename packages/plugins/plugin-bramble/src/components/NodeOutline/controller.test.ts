@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, test } from 'vitest';
 
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Obj, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 import { EchoTestBuilder } from '@dxos/echo-client/testing';
 import { Text } from '@dxos/schema';
@@ -26,6 +26,8 @@ describe('OutlineController (substrate half)', () => {
   const add = (t: string) => db.add(makeNode({ text: t }));
   const allEdges = async () => (await db.query(Query.select(Filter.type(Edge))).run()) as Edge[];
   const make = (root: Node) => new OutlineController({ db, root, getRows: async () => outlineRows(await allEdges(), root) });
+  // A row's `node` is `Obj.Unknown` (BR-16); these text assertions are over rows known to be Nodes.
+  const contentOf = (n: Obj.Unknown): string | undefined => (Obj.instanceOf(Node, n) ? n.text?.target?.content : undefined);
 
   test('exposes db (for editor extensions that need query access)', async ({ expect }) => {
     const root = add('root');
@@ -40,7 +42,7 @@ describe('OutlineController (substrate half)', () => {
     await db.flush();
     const rows = outlineRows(await allEdges(), root);
     // a is childless → new node is a sibling under root, after a
-    const texts = rows.map((r) => r.node.text?.target?.content);
+    const texts = rows.map((r) => contentOf(r.node));
     expect(texts).toContain('pha');
     expect(rows.length).toBe(2);
   });
@@ -60,7 +62,7 @@ describe('OutlineController (substrate half)', () => {
     await make(root).createAfter(a.id, 2); // split "al|pha"
     await db.flush();
     const rows = outlineRows(await allEdges(), root);
-    const texts = rows.map((r) => r.node.text?.target?.content).sort();
+    const texts = rows.map((r) => contentOf(r.node)).sort();
     expect(texts).toEqual(['al', 'pha']); // source trimmed to 'al', new node holds 'pha'
   });
 
@@ -71,7 +73,7 @@ describe('OutlineController (substrate half)', () => {
     await db.flush();
     const rows = outlineRows(await allEdges(), root);
     expect(rows.map((r) => r.node.id)).toEqual([a.id]);
-    expect(rows[0].node.text?.target?.content).toBe('aabb'); // b's text appended to a
+    expect(contentOf(rows[0].node)).toBe('aabb'); // b's text appended to a
   });
 
   test('mergeBackward under one parent keeps a multi-predecessor node alive elsewhere', async ({ expect }) => {

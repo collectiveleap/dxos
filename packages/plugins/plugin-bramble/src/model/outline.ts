@@ -2,10 +2,16 @@
 // Copyright 2026 DXOS.org
 //
 
+import { Obj } from '@dxos/echo';
+
 import { tryGetSource, tryGetTarget } from './edges';
 import { type Edge, type Node } from '../types';
 
-export type OutlineRow = { node: Node; depth: number; edge: Edge; hasChildren: boolean; collapsed: boolean };
+// BR-16: a row's object is not necessarily a Bramble `Node`. A structural edge may target any
+// object, and that object gets a row rendered by its own type (a `Node` via `RowEditor`, a foreign
+// object via its `Section` surface — plan 1.3a). So the row carries `Obj.Unknown`, not `Node`;
+// Node-specific consumers narrow with `Obj.instanceOf(Node, …)`.
+export type OutlineRow = { node: Obj.Unknown; depth: number; edge: Edge; hasChildren: boolean; collapsed: boolean };
 
 /**
  * Pure view-model: given all Bramble structural edges and a view root, produce the

@@ -149,6 +149,19 @@ describe('outlineRows', () => {
     expect(rows.map((r) => r.node.id)).toEqual([a.id]);
   });
 
+  // BR-16: a structural edge may target a non-Node object; that object gets a row too. The row's
+  // `node` is identified by id only — a foreign object is not a Node and has no `.text` (it renders
+  // via its own type's Surface, plan 1.3a Task 3).
+  test('a structural edge to a non-Node object yields a row over that object (BR-16)', async ({ expect }) => {
+    const root = add('root');
+    const foreign = db.add(Text.make({ content: 'foreign' }));
+    db.add(makeEdge({ source: root, target: foreign, order: 1 })); // structural edge to a non-Node target
+    await db.flush();
+
+    const rows = outlineRows(await allEdges(), root);
+    expect(rows.map((r) => r.node.id)).toEqual([foreign.id]);
+  });
+
   test('a dangling structural edge (target removed) is skipped, not thrown (BR-8)', async ({ expect }) => {
     const root = add('root');
     const a = add('a');

@@ -2,12 +2,15 @@
 // Copyright 2026 DXOS.org
 //
 
-import { Relation } from '@dxos/echo';
+import { Obj, Relation } from '@dxos/echo';
 import { orderBetween } from './edges';
 import { type OutlineRow } from './outline';
-import { type Node } from '../types';
+import { Node } from '../types';
 
-const contentOf = (node: Node): string => node.text?.target?.content ?? '';
+// A row's object is `Obj.Unknown` (BR-16): only a `Node` carries text. A foreign object has no
+// text content, so split/merge (text-only gestures) treat it as empty here — the controller's
+// gesture guards keep those gestures from acting on a non-Node row.
+const contentOf = (node: Obj.Unknown): string => (Obj.instanceOf(Node, node) ? (node.text?.target?.content ?? '') : '');
 const childRowsOf = (rows: OutlineRow[], parentId: string): OutlineRow[] =>
   rows.filter((r) => Relation.getSource(r.edge).id === parentId);
 

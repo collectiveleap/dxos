@@ -126,18 +126,29 @@ export class OutlineController {
     view.focus();
   }
 
+  // Every id this helper is asked for is either the root or a structural parent — both are Nodes
+  // (`createEdge`/`reparentEdge` only accept Node parents). Row objects widened to `Obj.Unknown`
+  // (BR-16), but the split/merge SOURCE — the only place a foreign row's id could flow in — is read
+  // straight off the row and guarded with `Obj.instanceOf(Node, …)` before any Node-only field is
+  // touched, so this narrowing to Node is sound.
   private nodeOf(rows: OutlineRow[], id: string): Node {
-    return id === this.ctx.root.id ? this.ctx.root : rows.find((r) => r.node.id === id)!.node;
+    return (id === this.ctx.root.id ? this.ctx.root : rows.find((r) => r.node.id === id)!.node) as Node;
   }
 
   async createAfter(nodeId: string, caretOffset: number) {
     const rows = await this.ctx.getRows();
+    // Split is a text-only gesture: a foreign (non-Node) row has no text to split — deferred to 1.3b.
+    const source: Obj.Unknown =
+      nodeId === this.ctx.root.id ? this.ctx.root : rows.find((r) => r.node.id === nodeId)!.node;
+    if (!Obj.instanceOf(Node, source)) {
+      return;
+    }
     const plan = splitPlan(rows, this.ctx.root, nodeId, caretOffset);
     const parent = this.nodeOf(rows, plan.parentId);
     const newNode = this.ctx.db.add(makeNode({ text: plan.newText }));
     await createEdge(this.ctx.db, parent, newNode, plan.order);
     // trim the tail out of the source row's text (mounted editors update via their automerge binding)
-    const sourceText = this.nodeOf(rows, nodeId).text?.target;
+    const sourceText = source.text?.target;
     if (sourceText) {
       Obj.update(sourceText, (sourceText) => {
         sourceText.content = plan.keepText;
@@ -148,12 +159,21 @@ export class OutlineController {
 
   async mergeBackward(nodeId: string) {
     const rows = await this.ctx.getRows();
+    // Merge is a text-only gesture: a foreign (non-Node) row cannot be merged — deferred to 1.3b.
+    const source: Obj.Unknown =
+      nodeId === this.ctx.root.id ? this.ctx.root : rows.find((r) => r.node.id === nodeId)!.node;
+    if (!Obj.instanceOf(Node, source)) {
+      return;
+    }
     const plan = mergePlan(rows, this.ctx.root, nodeId);
     if (!plan) {
       return;
     }
-    // append this node's text to the preceding node's text (mounted editors update via their automerge binding)
-    const precedingText = this.nodeOf(rows, plan.precedingId).text?.target;
+    // append this node's text to the preceding node's text (mounted editors update via their automerge
+    // binding). A foreign preceding row owns its own content, so text is merged only into a Node.
+    const preceding: Obj.Unknown =
+      plan.precedingId === this.ctx.root.id ? this.ctx.root : rows.find((r) => r.node.id === plan.precedingId)!.node;
+    const precedingText = Obj.instanceOf(Node, preceding) ? preceding.text?.target : undefined;
     if (precedingText) {
       Obj.update(precedingText, (precedingText) => {
         precedingText.content = (precedingText.content ?? '') + plan.nodeText;
@@ -162,7 +182,7 @@ export class OutlineController {
     // remove this node's structural edge; remove the node itself only if this was its last inbound edge
     // (a Node may have more than one structural parent — removing it globally would dangle the others)
     const row = rows.find((r) => r.node.id === nodeId)!;
-    const inbound = await parentEdges(this.ctx.db, row.node);
+    const inbound = await parentEdges(this.ctx.db, source);
     removeEdge(this.ctx.db, row.edge);
     if (inbound.length <= 1) {
       this.ctx.db.remove(row.node);
