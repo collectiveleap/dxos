@@ -36,6 +36,20 @@ describe('Bramble schema', () => {
     expect(Relation.getTarget(edge).id).toBe(child.id);
   });
 
+  test('an Edge can span a Node and a non-Node object, queryable by endpoint id', async ({ expect }) => {
+    const node = db.add(makeNode({ text: 'node' }));
+    // A foreign, non-Node ECHO object standing in for any typed Composer object.
+    const foreign = db.add(Text.make({ content: 'foreign object' }));
+    const edge = db.add(makeEdge({ source: node, target: foreign, order: 0 }));
+    await db.flush();
+
+    const out = await db.query(Query.select(Filter.id(node.id)).sourceOf(Edge)).run();
+    expect(out).toEqual([edge]);
+    // The relation resolves its foreign endpoint by identity — no Node type required.
+    expect(Relation.getSource(edge).id).toBe(node.id);
+    expect(Relation.getTarget(edge).id).toBe(foreign.id);
+  });
+
   test('makeNode always creates a Text so every Node is editable (incl. the create-menu path)', async ({ expect }) => {
     const node = db.add(makeNode()); // no text — the Composer create-object path
     await db.flush();
