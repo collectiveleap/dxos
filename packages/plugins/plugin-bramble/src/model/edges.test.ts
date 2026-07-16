@@ -71,6 +71,21 @@ describe('traversal', () => {
     expect(parents).toHaveLength(1);
     expect(parents[0].kind).toBe('structural');
   });
+
+  test('createLinkedEdge links a Node to a non-Node object; reachable by reverse traversal', async ({ expect }) => {
+    const node = db.add(makeNode({ text: 'node' }));
+    const foreign = db.add(Text.make({ content: 'foreign object' }));
+    await db.flush();
+
+    const edge = createLinkedEdge(db, node, foreign);
+    await db.flush();
+
+    expect(edge.kind).toBe('linked');
+    expect(Relation.getTarget(edge).id).toBe(foreign.id);
+    // Reverse-traversable by endpoint id, type-agnostically.
+    const inbound = await db.query(Query.select(Filter.id(foreign.id)).targetOf(Edge)).run();
+    expect(inbound).toEqual([edge]);
+  });
 });
 
 describe('mutation + acyclicity', () => {

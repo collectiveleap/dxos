@@ -2,7 +2,7 @@
 // Copyright 2026 DXOS.org
 //
 
-import { Filter, Query, Relation } from '@dxos/echo';
+import { Filter, Obj, Query, Relation } from '@dxos/echo';
 import { type EchoDatabase } from '@dxos/echo-client';
 
 import { Edge, type Node, makeEdge, makeLinkedEdge } from '../types';
@@ -88,7 +88,7 @@ export const createEdge = async (
 
 /** Add a linked edge (mention / cross-reference) source→target. Unlike structural edges,
  *  linked edges may cycle (IP-3.may-cycle) and carry no order — so there is no cycle check. */
-export const createLinkedEdge = (db: EchoDatabase, source: Node, target: Node): Edge => {
+export const createLinkedEdge = (db: EchoDatabase, source: Obj.Any, target: Obj.Any): Edge => {
   const edge = makeLinkedEdge({ source, target });
   db.add(edge);
   return edge;
