@@ -21,16 +21,20 @@ export type OutlineRowProps = {
   mode: ItemMode;
   /** Owning `NodeOutline` instance's id; scopes drag/drop so foreign outlines' drops are ignored. */
   listId: string;
+  /** Attendable (plank) id threaded from the contributing surface; consumed by a foreign row's
+   * `Section` surface (plan 1.3a Task 3). Undefined for non-plank hosts (e.g. popovers). */
+  attendableId?: string;
   onToggleCollapse: (nodeId: string) => void;
   onZoom: (nodeId: string) => void;
 };
 
-export const OutlineRow = ({ row, mode, listId, onToggleCollapse, onZoom }: OutlineRowProps) => {
+export const OutlineRow = ({ row, mode, listId, attendableId, onToggleCollapse, onZoom }: OutlineRowProps) => {
   const { rowRef, handleRef, instruction } = useRowDnd({ row, mode, listId });
   return (
     <div
       ref={rowRef}
       data-testid='bramble-row'
+      data-attendable-id={attendableId}
       data-depth={row.depth}
       role='treeitem'
       className={mx('bramble-outline-row')}

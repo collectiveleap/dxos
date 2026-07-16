@@ -20,9 +20,9 @@ import { outlineRows } from '../../model/outline';
 import { resolveZoomRoot } from '../../model/view-state';
 import { Edge, type Node } from '../../types';
 
-export type NodeOutlineProps = { subject: Node; role?: string };
+export type NodeOutlineProps = { subject: Node; role?: string; attendableId?: string };
 
-export const NodeOutline = ({ subject }: NodeOutlineProps) => {
+export const NodeOutline = ({ subject, attendableId }: NodeOutlineProps) => {
   // Scopes drag/drop to this mounted instance: every row's draggable/drop-target tags its data
   // with `listId`, and the monitor below rejects drops whose source carries a foreign listId. This
   // prevents a drop in one mounted NodeOutline from also firing another instance's `onDrop` (e.g.
@@ -129,6 +129,7 @@ export const NodeOutline = ({ subject }: NodeOutlineProps) => {
               row={row}
               mode={modeByEdge.get(row.edge.id) ?? 'standard'}
               listId={listId}
+              attendableId={attendableId}
               onToggleCollapse={(id) => controllerRef.current?.toggleCollapse(id)}
               onZoom={(id) => controllerRef.current?.zoomTo(id)}
             />

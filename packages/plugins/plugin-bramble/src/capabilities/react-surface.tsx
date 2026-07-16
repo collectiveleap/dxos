@@ -43,7 +43,7 @@ export default Capability.makeModule(() =>
         ),
         component: ({ role, data }) => (
           <OpenBesideProvider>
-            <NodeOutline role={role} subject={data.subject} />
+            <NodeOutline role={role} subject={data.subject} attendableId={data.attendableId} />
           </OpenBesideProvider>
         ),
       }),

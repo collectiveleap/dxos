@@ -133,6 +133,38 @@ export const Default: Story = {
   },
 };
 
+// Threads a known `attendableId` through the outline and asserts it reaches the row container —
+// the value a foreign row's `Section` surface will consume (plan 1.3a Task 3). The outline is
+// rooted at Root with one child row (`a`).
+const AttendableIdStory = () => {
+  const [space] = useSpaces();
+  const root = useMemo(() => {
+    if (!space) {
+      return undefined;
+    }
+    const db = space.db;
+    const r = db.add(makeNode({ text: 'Root' }));
+    const a = db.add(makeNode({ text: 'a' }));
+    void createEdge(db, r, a, 1);
+    return r;
+  }, [space]);
+  return root ? (
+    <div role='none' className='grow overflow-auto' style={{ backgroundColor: 'var(--surface-bg)' }}>
+      <NodeOutline subject={root} attendableId='test-attendable' />
+    </div>
+  ) : null;
+};
+
+export const AttendableIdThreaded: Story = {
+  render: () => <AttendableIdStory />,
+  tags: ['test'],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = await canvas.findByTestId('bramble-row');
+    await expect(row).toHaveAttribute('data-attendable-id', 'test-attendable');
+  },
+};
+
 export const Mention: Story = {
   render: () => <MentionStory />,
   tags: ['test'],
